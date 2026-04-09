@@ -17,7 +17,8 @@ import {
   Moon,
   Sun,
   Maximize2,
-  Minimize2
+  Minimize2,
+  TrendingUp
 } from 'lucide-react';
 import { ParticleBackground } from './ParticleBackground';
 import { RetroGnomesFrame } from './RetroGnomesFrame';
@@ -195,7 +196,7 @@ export function MoneyClock() {
   const [awarenessToast, setAwarenessToast] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemePreference>(() => readStoredTheme());
   /** 0 = hero only, 1 = currencies & account, 2 = chart (progressive disclosure) */
-  const [detailStep, setDetailStep] = useState<0 | 1 | 2>(0);
+  const [detailStep, setDetailStep] = useState<0 | 1 | 2 | 3>(0);
   /** Multi-currency breakdown: default one merged total, expand for all tickers */
   const [showAllCurrencies, setShowAllCurrencies] = useState(false);
   const [chartExpanded, setChartExpanded] = useState(false);
@@ -210,7 +211,7 @@ export function MoneyClock() {
   }, [detailStep]);
 
   useEffect(() => {
-    if (detailStep < 2) setChartExpanded(false);
+    if (detailStep < 3) setChartExpanded(false);
   }, [detailStep]);
 
   const { projects, activeProjectId, selectedProjectIds } = projectsBundle;
@@ -243,7 +244,7 @@ export function MoneyClock() {
   }, [projects, selectedProjectIds, nowTick]);
 
   useEffect(() => {
-    if (detailStep !== 2 || selectedProjectsOrdered.length === 0) return;
+    if (detailStep !== 3 || selectedProjectsOrdered.length === 0) return;
     setChartFocusProjectId((prev) => {
       if (prev != null) return prev;
       const live = selectedProjectsOrdered.find(
@@ -655,6 +656,23 @@ export function MoneyClock() {
     const plus20 = grossYear * 1.2 * takeHomeFraction;
     return { path, plus20 };
   }, [heroRateBasis, takeHomeFraction]);
+
+  const trajectorySnap = useMemo(() => {
+    if (!heroRateBasis || !futureYearly) return null;
+    const y1 = futureYearly.path;
+    const y1plus = futureYearly.plus20;
+    const deltaY = y1plus - y1;
+    return {
+      symbol: heroRateBasis.symbol,
+      code: heroRateBasis.code,
+      y12: y1,
+      y12plus: y1plus,
+      deltaYear: deltaY,
+      y5: y1 * 5,
+      y5plus: y1plus * 5,
+      delta5: (y1plus - y1) * 5
+    };
+  }, [heroRateBasis, futureYearly]);
 
   const todayStartMs = useMemo(() => {
     const d = new Date(nowTick);
@@ -1562,24 +1580,44 @@ export function MoneyClock() {
                           className="text-[0.68rem] font-bold uppercase tracking-wide text-white/55 border border-white/16 px-4 py-2.5 rounded-r80-sm hover:bg-white/[0.05] transition-colors">
                           {t('hero.btnBackCompact')}
                         </motion.button>
-                        {selectedProjectsOrdered.length > 0 ?
+                        {trajectorySnap ?
                           <motion.button
                             type="button"
                             whileTap={{ scale: 0.98 }}
                             onClick={() => setDetailStep(2)}
+                            className="text-[0.68rem] font-bold uppercase tracking-wide text-white/65 border border-violet-400/35 px-4 py-2.5 rounded-r80-sm hover:bg-violet-500/10 transition-colors">
+                            {t('hero.btnTrajectory')}
+                          </motion.button>
+                        : null}
+                      </>
+                    : null}
+                    {detailStep === 2 ?
+                      <>
+                        <motion.button
+                          type="button"
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => setDetailStep(1)}
+                          className="text-[0.68rem] font-bold uppercase tracking-wide text-white/55 border border-white/16 px-4 py-2.5 rounded-r80-sm hover:bg-white/[0.05] transition-colors">
+                          {t('hero.btnBackBreakdown')}
+                        </motion.button>
+                        {selectedProjectsOrdered.length > 0 ?
+                          <motion.button
+                            type="button"
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => setDetailStep(3)}
                             className="text-[0.68rem] font-bold uppercase tracking-wide text-white/65 border border-cyan-400/35 px-4 py-2.5 rounded-r80-sm hover:bg-cyan-400/10 transition-colors">
                             {t('hero.btnChart')}
                           </motion.button>
                         : null}
                       </>
                     : null}
-                    {detailStep === 2 ?
+                    {detailStep === 3 ?
                       <motion.button
                         type="button"
                         whileTap={{ scale: 0.98 }}
-                        onClick={() => setDetailStep(1)}
+                        onClick={() => setDetailStep(2)}
                         className="text-[0.68rem] font-bold uppercase tracking-wide text-white/55 border border-white/16 px-4 py-2.5 rounded-r80-sm hover:bg-white/[0.05] transition-colors">
-                        {t('hero.btnHideChart')}
+                        {t('hero.btnBackTrajectory')}
                       </motion.button>
                     : null}
                   </div>
@@ -1603,7 +1641,7 @@ export function MoneyClock() {
                 </p>
               )}
 
-              {detailStep >= 1 ?
+              {detailStep === 1 ?
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 items-start">
                 <div className="space-y-3 text-center md:text-left min-w-0">
                   <p className="text-white/60 text-[0.65rem] sm:text-xs font-extrabold uppercase tracking-[0.14em]">
@@ -1867,7 +1905,7 @@ export function MoneyClock() {
               </div>
               : null}
 
-              {detailStep >= 1 && fxSnapshot && fxCaptionBlock ?
+              {detailStep === 1 && fxSnapshot && fxCaptionBlock ?
               <div
                 className="rounded-r80-sm bg-black/35 border border-white/15 px-3 py-2.5 sm:py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
                 role="note"
@@ -1936,7 +1974,7 @@ export function MoneyClock() {
                 </p>
               </div>
               : null}
-              {detailStep >= 1 && fxReady && !fxSnapshot &&
+              {detailStep === 1 && fxReady && !fxSnapshot &&
               <div
                 className="rounded-r80-sm bg-black/35 border border-white/15 px-3 py-2 text-[0.65rem] sm:text-xs text-white/60 text-center md:text-left [text-shadow:0_1px_2px_rgba(0,0,0,0.4)]"
                 role="status">
@@ -1944,7 +1982,77 @@ export function MoneyClock() {
               </div>
               }
 
-              {detailStep >= 2 && selectedProjectsOrdered.length > 0 &&
+              {detailStep === 2 && trajectorySnap ?
+              <section
+                className="max-w-xl mx-auto border-t border-white/10 pt-6 mt-2 px-1"
+                aria-label={t('trajectory.aria')}>
+                <div className="flex items-center justify-center gap-2 mb-3">
+                  <TrendingUp className="w-5 h-5 text-fuchsia-300/90 shrink-0" strokeWidth={2.2} aria-hidden />
+                  <p className="text-white/45 text-[0.62rem] font-extrabold uppercase tracking-[0.18em] text-center">
+                    {t('trajectory.kicker')}
+                  </p>
+                </div>
+                <p className="text-center text-white/38 text-[0.62rem] leading-snug mb-5 px-2">
+                  {t('trajectory.disclaimer')}
+                </p>
+                <div className="rounded-r80 border border-fuchsia-400/20 bg-gradient-to-b from-fuchsia-500/[0.12] to-white/[0.03] px-4 py-5 sm:px-6 sm:py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] space-y-4 text-center">
+                  <p className="text-white/50 text-[0.62rem] font-bold uppercase tracking-[0.14em]">
+                    {t('trajectory.steadyLead')}
+                  </p>
+                  <p className="text-white text-xl sm:text-2xl font-black tabular-nums leading-tight">
+                    ≈ {trajectorySnap.symbol}
+                    {formatCompactAnnual(trajectorySnap.y12)}
+                    <span className="text-white/45 font-semibold text-sm sm:text-base block sm:inline sm:ml-2">
+                      {t('trajectory.next12')}
+                    </span>
+                  </p>
+                  <p className="text-white/55 text-sm sm:text-base font-semibold tabular-nums">
+                    {t('trajectory.fiveYearLead')}{' '}
+                    <span className="text-white font-bold">
+                      ≈ {trajectorySnap.symbol}
+                      {formatCompactAnnual(trajectorySnap.y5)}
+                    </span>
+                  </p>
+                  <details className="hero-more-numbers text-left pt-3 border-t border-white/10">
+                    <summary className="text-center text-[0.68rem] font-bold uppercase tracking-wide text-fuchsia-200/80 py-2 cursor-pointer hover:text-fuchsia-100">
+                      {t('trajectory.morePaths')}
+                    </summary>
+                    <div className="space-y-4 pb-1 text-center text-sm text-white/75">
+                      <p>
+                        <span className="text-white/40 text-[0.6rem] font-bold uppercase tracking-wider block mb-1">
+                          {t('trajectory.plus20Lead')}
+                        </span>
+                        <span className="font-bold tabular-nums text-lg text-white">
+                          ≈ {trajectorySnap.symbol}
+                          {formatCompactAnnual(trajectorySnap.y12plus)}
+                        </span>
+                        <span className="text-white/45 text-xs block mt-0.5">{t('trajectory.next12')}</span>
+                      </p>
+                      <p className="rounded-r80-sm bg-black/25 border border-emerald-400/25 px-3 py-3">
+                        <span className="text-emerald-200/90 text-[0.6rem] font-bold uppercase tracking-wider block mb-1">
+                          {t('trajectory.deltaLead')}
+                        </span>
+                        <span className="font-black tabular-nums text-xl text-[var(--accent-money)]">
+                          {trajectorySnap.deltaYear >= 0 ? '+' : '−'}
+                          {trajectorySnap.symbol}
+                          {formatCompactAnnual(Math.abs(trajectorySnap.deltaYear))}
+                        </span>
+                        <span className="text-white/55 text-xs block mt-1">{t('trajectory.perYearVs')}</span>
+                      </p>
+                      <p className="text-white/6 text-xs tabular-nums leading-relaxed">
+                        {t('trajectory.fiveCompare', {
+                          base: `${trajectorySnap.symbol}${formatCompactAnnual(trajectorySnap.y5)}`,
+                          plus: `${trajectorySnap.symbol}${formatCompactAnnual(trajectorySnap.y5plus)}`
+                        })}
+                      </p>
+                    </div>
+                  </details>
+                  <p className="text-white/28 text-[0.55rem] leading-snug pt-1">{t('trajectory.geekFootnote')}</p>
+                </div>
+              </section>
+              : null}
+
+              {detailStep >= 3 && selectedProjectsOrdered.length > 0 &&
               <div
                 className="rounded-r80 bg-black/22 border border-white/12 p-3 sm:p-4 lg:p-5 min-h-0 min-w-0 shadow-inner isolate"
                 aria-label={t('chart.ariaPanel')}>
@@ -2098,9 +2206,9 @@ export function MoneyClock() {
                     balanceCurrency={currentBalanceCurrency}
                     lastPayrollYmd={lastPayrollYmd}
                     fxSnapshot={fxSnapshot}
-                    fxHistoryRows={null}
+                    fxHistoryRows={fxHistoryRows}
                     chartFocusProjectId={chartFocusProjectId}
-                    inflationYearly={null}
+                    inflationYearly={inflationYearly}
                     inflationCurrencyCodes={inflationDisplayCurrencies}
                     embedded
                     variant={chartExpanded ? 'expanded' : 'compact'}
@@ -2109,7 +2217,8 @@ export function MoneyClock() {
               </div>
               }
 
-              {(detailStep >= 1 || (hasPositiveAccrualRate && !heroRateBasis)) && (
+              {(detailStep !== 2 &&
+                (detailStep >= 1 || (hasPositiveAccrualRate && !heroRateBasis))) && (
               <AnimatePresence>
               <motion.div
                 initial={{ opacity: 0, y: 6 }}

@@ -31,14 +31,33 @@ export const en: Record<string, string> = {
   'hero.btnEditProjects': 'Edit projects',
   'hero.ctaGrow': 'Grow your income',
   'hero.btnBreakdown': 'By currency & balance',
+  'hero.btnTrajectory': 'Trajectory (estimate)',
   'hero.btnChart': 'Earnings over time',
   'hero.btnBackCompact': 'Back to summary',
+  'hero.btnBackBreakdown': 'Back to breakdown',
+  'hero.btnBackTrajectory': 'Back to trajectory',
   'hero.btnHideChart': 'Hide chart',
   'hero.emptyPrompt':
     'Add a project and amounts in settings — your live rate appears here.',
   'hero.emptyCta': 'Open settings',
   'hero.noFxHint':
     'For a single headline rate, enable FX rates or use projects in one currency.',
+
+  'trajectory.aria': 'Trajectory estimate',
+  'trajectory.kicker': 'If you keep this pace',
+  'trajectory.disclaimer':
+    'Illustrative estimate — not a guarantee. Assumes your current real-income rate stays similar.',
+  'trajectory.steadyLead': 'At today’s pace',
+  'trajectory.next12': 'in the next ~12 months',
+  'trajectory.fiveYearLead': 'Over ~5 years, same pace:',
+  'trajectory.morePaths': 'Other paths (estimate)',
+  'trajectory.plus20Lead': 'If rate grows ~20%',
+  'trajectory.deltaLead': 'Yearly difference vs. today’s pace',
+  'trajectory.perYearVs': 'per year vs. steady pace',
+  'trajectory.fiveCompare':
+    '5-year scale: about {base} vs. about {plus} with ~20% higher rate.',
+  'trajectory.geekFootnote':
+    'Shown in your account currency; uses the same “real rate” logic as the hero block.',
 
   'breakdown.totalEarned': 'Total earned',
   'breakdown.oneTotalTitle': 'Total (your currencies → one number)',

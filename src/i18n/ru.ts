@@ -31,14 +31,33 @@ export const ru: Record<string, string> = {
   'hero.btnEditProjects': 'Настроить проекты',
   'hero.ctaGrow': 'Увеличить доход',
   'hero.btnBreakdown': 'По валютам и счёту',
+  'hero.btnTrajectory': 'Траектория (оценка)',
   'hero.btnChart': 'Динамика дохода',
   'hero.btnBackCompact': 'К сводке',
+  'hero.btnBackBreakdown': 'К разбивке',
+  'hero.btnBackTrajectory': 'К траектории',
   'hero.btnHideChart': 'Скрыть график',
   'hero.emptyPrompt':
     'Добавьте проект и сумму в настройках — здесь появится темп в реальном времени.',
   'hero.emptyCta': 'Открыть настройки',
   'hero.noFxHint':
     'Для одной строки темпа включите курсы API или выберите проекты в одной валюте.',
+
+  'trajectory.aria': 'Оценка траектории',
+  'trajectory.kicker': 'Если сохранить этот темп',
+  'trajectory.disclaimer':
+    'Иллюстративная оценка, не обещание. Предполагается, что реальная ставка дохода останется примерно такой же.',
+  'trajectory.steadyLead': 'При сегодняшнем темпе',
+  'trajectory.next12': 'за ~12 месяцев',
+  'trajectory.fiveYearLead': 'За ~5 лет при том же темпе:',
+  'trajectory.morePaths': 'Другие сценарии (оценка)',
+  'trajectory.plus20Lead': 'Если ставка вырастет ~на 20%',
+  'trajectory.deltaLead': 'Разница в год к «как сейчас»',
+  'trajectory.perYearVs': 'в год к стабильному сценарию',
+  'trajectory.fiveCompare':
+    'Масштаб 5 лет: порядка {base} против порядка {plus} при ставке выше на ~20%.',
+  'trajectory.geekFootnote':
+    'В валюте счёта; та же логика «реальной ставки», что в блоке на главном экране.',
 
   'breakdown.totalEarned': 'Всего заработано',
   'breakdown.oneTotalTitle': 'Итого (все валюты → одна сумма)',

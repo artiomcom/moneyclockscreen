@@ -3,8 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   SettingsIcon,
   CalendarIcon,
-  ClockIcon,
-  BriefcaseIcon,
   PlusIcon,
   Trash2Icon,
   XIcon,
@@ -13,26 +11,35 @@ import {
 'lucide-react';
 import { ParticleBackground } from './ParticleBackground';
 import { AnimatedCounter } from './AnimatedCounter';
+import { IncomeChart } from './IncomeChart';
 import {
-  type Mode,
   type ProjectEntry,
   type ProjectsBundle,
   type MoneyClockSavedState,
   type MoneyClockProfile,
   type VacationEntry,
+  normalizeProjectBillingMode,
   newProject,
   newVacation,
   getHydratedMoneyClockState,
   saveMoneyClockState,
   exportMoneyClockJsonBlob,
   parseMoneyClockJson,
-  earningsFromWorkStartMinusVacations,
-  parseLocalDateYmd } from
+  projectEarningsAt,
+  projectRatePerSecond,
+  projectIsEndedByDeadline,
+  parseLocalDateYmd,
+  balanceOnAccountAt,
+  MONEYCLOCK_CURRENCIES,
+  getCurrencySymbol,
+  normalizeCurrencyCode } from
 '../moneyClockPersistence';
-const MONTHLY_GOAL = 5000;
-const WORK_HOURS_PER_DAY = 8;
-const WORK_DAYS_PER_MONTH = 22;
-const WORK_SECONDS_PER_MONTH = WORK_DAYS_PER_MONTH * WORK_HOURS_PER_DAY * 3600;
+import {
+  fetchLatestFxRates,
+  fxRateLinesForAppCurrencies,
+  convertAmountThroughSnapshot,
+  type FxSnapshot
+} from '../fxRates';
 function InputField({
   label,
   value,
@@ -66,76 +73,6 @@ function InputField({
     </div>);
 
 }
-function DurationInputRow({
-  label,
-  months,
-  days,
-  hours,
-  minutes,
-  onMonths,
-  onDays,
-  onHours,
-  onMinutes
-
-
-
-
-
-
-
-
-
-
-}: {label: string;months: string;days: string;hours: string;minutes: string;onMonths: (v: string) => void;onDays: (v: string) => void;onHours: (v: string) => void;onMinutes: (v: string) => void;}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-gray-700 text-sm font-bold text-center">
-        {label}
-      </label>
-      <div className="grid grid-cols-4 gap-2.5">
-        {[
-        {
-          val: months,
-          set: onMonths,
-          ph: 'Mon'
-        },
-        {
-          val: days,
-          set: onDays,
-          ph: 'Days'
-        },
-        {
-          val: hours,
-          set: onHours,
-          ph: 'Hours'
-        },
-        {
-          val: minutes,
-          set: onMinutes,
-          ph: 'Min'
-        }].
-        map((f) =>
-        <input
-          key={f.ph}
-          type="number"
-          value={f.val}
-          onChange={(e) => f.set(e.target.value)}
-          placeholder={f.ph}
-          className="w-full px-2 py-3 rounded-xl text-gray-700 text-sm font-semibold text-center placeholder:text-gray-300 outline-none transition-all focus:ring-2 focus:ring-sky-300 bg-white"
-          style={{
-            border: '2px solid #38bdf8'
-          }} />
-
-        )}
-      </div>
-    </div>);
-
-}
-const MODE_LABELS: Record<Mode, string> = {
-  salary: 'Salary',
-  hourly: 'Hourly',
-  project: 'Project'
-};
 
 function formatYmdLong(ymd: string): string {
   const ts = parseLocalDateYmd(ymd);
@@ -182,36 +119,40 @@ function getInitialMoneyClockState(): MoneyClockSavedState {
 
 export function MoneyClock() {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [mode, setMode] = useState<Mode>(() => getInitialMoneyClockState().mode);
   const importFileRef = useRef<HTMLInputElement>(null);
-  const [monthlySalary, setMonthlySalary] = useState(
-    () => getInitialMoneyClockState().monthlySalary
-  );
-  const [hourlyRate, setHourlyRate] = useState(() => getInitialMoneyClockState().hourlyRate);
   const [projectsBundle, setProjectsBundle] = useState<ProjectsBundle>(
     () => getInitialMoneyClockState().projectsBundle
   );
-  const [workedMonths, setWorkedMonths] = useState(
-    () => getInitialMoneyClockState().workedMonths
-  );
-  const [workedDays, setWorkedDays] = useState(() => getInitialMoneyClockState().workedDays);
-  const [workedHours, setWorkedHours] = useState(() => getInitialMoneyClockState().workedHours);
-  const [workedMinutes, setWorkedMinutes] = useState(
-    () => getInitialMoneyClockState().workedMinutes
-  );
   const [currentBalance, setCurrentBalance] = useState(
     () => getInitialMoneyClockState().currentBalance
+  );
+  const [currentBalanceCurrency, setCurrentBalanceCurrency] = useState(
+    () => getInitialMoneyClockState().currentBalanceCurrency
+  );
+  const [lastPayrollYmd, setLastPayrollYmd] = useState(
+    () => getInitialMoneyClockState().lastPayrollYmd
   );
   const [profileBundle, setProfileBundle] = useState<MoneyClockProfile | undefined>(
     () => getInitialMoneyClockState().profile
   );
   const [nowTick, setNowTick] = useState(() => Date.now());
+  const [fxSnapshot, setFxSnapshot] = useState<FxSnapshot | null>(null);
+  const [fxReady, setFxReady] = useState(false);
 
-  const { projects, activeProjectId } = projectsBundle;
+  const { projects, activeProjectId, selectedProjectIds } = projectsBundle;
   const activeProject = useMemo(
     () => projects.find((p) => p.id === activeProjectId) ?? projects[0],
     [projects, activeProjectId]
   );
+
+  const selectedProjectsOrdered = useMemo(() => {
+    return selectedProjectIds
+      .map((id) => projects.find((p) => p.id === id))
+      .filter((p): p is ProjectEntry => p != null);
+  }, [projects, selectedProjectIds]);
+
+  const singleSelectedForCopy =
+    selectedProjectsOrdered.length === 1 ? selectedProjectsOrdered[0] : null;
 
   const patchActiveProject = useCallback((patch: Partial<ProjectEntry>) => {
     setProjectsBundle((s) => ({
@@ -226,7 +167,8 @@ export function MoneyClock() {
     const p = newProject();
     setProjectsBundle((s) => ({
       projects: [...s.projects, p],
-      activeProjectId: p.id
+      activeProjectId: p.id,
+      selectedProjectIds: [...s.selectedProjectIds, p.id]
     }));
   }, []);
 
@@ -235,11 +177,22 @@ export function MoneyClock() {
       const next = s.projects.filter((p) => p.id !== id);
       if (next.length === 0) {
         const p = newProject({ name: 'Project 1' });
-        return { projects: [p], activeProjectId: p.id };
+        return {
+          projects: [p],
+          activeProjectId: p.id,
+          selectedProjectIds: [p.id]
+        };
       }
       const active =
-      s.activeProjectId === id ? next[0].id : s.activeProjectId;
-      return { projects: next, activeProjectId: active };
+        s.activeProjectId === id ? next[0].id : s.activeProjectId;
+      let nextSel = s.selectedProjectIds.filter((x) => x !== id);
+      if (nextSel.length === 0) nextSel = [active];
+      if (!nextSel.includes(active)) nextSel = [active, ...nextSel];
+      return {
+        projects: next,
+        activeProjectId: active,
+        selectedProjectIds: nextSel
+      };
     });
   }, []);
 
@@ -247,105 +200,76 @@ export function MoneyClock() {
     setProjectsBundle((s) => ({ ...s, activeProjectId: id }));
   }, []);
 
-  const ratePerSecond = useMemo(() => {
-    switch (mode) {
-      case 'salary':{
-          const monthly = parseFloat(monthlySalary) || 0;
-          return monthly / WORK_SECONDS_PER_MONTH;
-        }
-      case 'hourly':{
-          const rate = parseFloat(hourlyRate) || 0;
-          return rate / 3600;
-        }
-      case 'project':{
-          if (!activeProject) return 0;
-          const amount = parseFloat(activeProject.projectAmount) || 0;
-          const totalSeconds =
-          (parseFloat(activeProject.projMonths) || 0) *
-          WORK_DAYS_PER_MONTH *
-          WORK_HOURS_PER_DAY *
-          3600 +
-          (parseFloat(activeProject.projDays) || 0) * WORK_HOURS_PER_DAY * 3600 +
-          (parseFloat(activeProject.projHours) || 0) * 3600 +
-          (parseFloat(activeProject.projMinutes) || 0) * 60;
-          return totalSeconds > 0 ? amount / totalSeconds : 0;
-        }
-      default:
-        return 0;
-    }
-  }, [
-  mode,
-  monthlySalary,
-  hourlyRate,
-  activeProject]
+  const toggleProjectOnDashboard = useCallback((id: string) => {
+    setProjectsBundle((s) => {
+      const inSel = s.selectedProjectIds.includes(id);
+      if (inSel && s.selectedProjectIds.length === 1) return s;
+      const nextSel = inSel ?
+        s.selectedProjectIds.filter((x) => x !== id)
+      : [...s.selectedProjectIds, id];
+      let nextActive = s.activeProjectId;
+      if (inSel && id === s.activeProjectId) {
+        nextActive = nextSel[0];
+      }
+      return {
+        ...s,
+        selectedProjectIds: nextSel,
+        activeProjectId: nextActive
+      };
+    });
+  }, []);
+
+  const totalRatePerSecond = useMemo(
+    () =>
+      selectedProjectsOrdered.reduce((acc, p) => acc + projectRatePerSecond(p), 0),
+    [selectedProjectsOrdered]
   );
 
+  const balanceAccrualRatePerSecond = useMemo(() => {
+    const target = normalizeCurrencyCode(currentBalanceCurrency);
+    return selectedProjectsOrdered.reduce((acc, p) => {
+      if (normalizeCurrencyCode(p.currencyCode) !== target) return acc;
+      return acc + projectRatePerSecond(p);
+    }, 0);
+  }, [selectedProjectsOrdered, currentBalanceCurrency]);
+
   useEffect(() => {
-    if (mode !== 'project' || !activeProject?.workStartDate?.trim()) return;
-    const endEx =
-    activeProject.projectEndDate?.trim() ?
-    (() => {
-      const pe = parseLocalDateYmd(activeProject.projectEndDate);
-      return pe == null ? null : pe + 86400000;
-    })() :
-    null;
-
     const tick = () => setNowTick(Date.now());
-
-    if (endEx != null && Date.now() >= endEx) {
+    const projectNeedsLive = selectedProjectsOrdered.some(
+      (p) =>
+        p.workStartDate.trim() &&
+        !projectIsEndedByDeadline(p, Date.now())
+    );
+    const balanceNeedsLive = balanceAccrualRatePerSecond > 0;
+    if (!projectNeedsLive && !balanceNeedsLive) {
       tick();
       return;
     }
-
     const id = window.setInterval(tick, 100);
     return () => window.clearInterval(id);
-  }, [mode, activeProject?.workStartDate, activeProject?.projectEndDate]);
+  }, [selectedProjectsOrdered, balanceAccrualRatePerSecond]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setFxReady(false);
+    fetchLatestFxRates(currentBalanceCurrency).then((s) => {
+      if (!cancelled) {
+        setFxSnapshot(s);
+        setFxReady(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentBalanceCurrency]);
 
   const computeInitialEarnings = useCallback(
-    (nowMs: number) => {
-      const worked =
-      mode === 'project' && activeProject ?
-      {
-        months: activeProject.workedMonths,
-        days: activeProject.workedDays,
-        hours: activeProject.workedHours,
-        minutes: activeProject.workedMinutes
-      } :
-      {
-        months: workedMonths,
-        days: workedDays,
-        hours: workedHours,
-        minutes: workedMinutes
-      };
-      const totalWorkedSeconds =
-      (parseFloat(worked.months) || 0) *
-      WORK_DAYS_PER_MONTH *
-      WORK_HOURS_PER_DAY *
-      3600 +
-      (parseFloat(worked.days) || 0) * WORK_HOURS_PER_DAY * 3600 +
-      (parseFloat(worked.hours) || 0) * 3600 +
-      (parseFloat(worked.minutes) || 0) * 60;
-      const fromWorked = totalWorkedSeconds * ratePerSecond;
-      const fromStart =
-      mode === 'project' && activeProject?.workStartDate?.trim() ?
-      earningsFromWorkStartMinusVacations(
-        activeProject.workStartDate,
-        ratePerSecond,
-        nowMs,
-        activeProject.vacations ?? [],
-        activeProject.projectEndDate?.trim() || undefined
-      ) :
-      0;
-      return fromWorked + fromStart;
-    },
-    [
-    mode,
-    activeProject,
-    workedMonths,
-    workedDays,
-    workedHours,
-    workedMinutes,
-    ratePerSecond]
+    (nowMs: number) =>
+      selectedProjectsOrdered.reduce(
+        (sum, p) => sum + projectEarningsAt(p, nowMs),
+        0
+      ),
+    [selectedProjectsOrdered]
   );
 
   const displayAmount = useMemo(
@@ -353,49 +277,125 @@ export function MoneyClock() {
     [computeInitialEarnings, nowTick]
   );
 
+  /** Суммы по валютам среди выбранных проектов (нельзя складывать разные валюты в одну цифру). */
+  const earningsByCurrency = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of selectedProjectsOrdered) {
+      const c = normalizeCurrencyCode(p.currencyCode);
+      m.set(c, (m.get(c) ?? 0) + projectEarningsAt(p, nowTick));
+    }
+    return m;
+  }, [selectedProjectsOrdered, nowTick]);
+
   const displayBalanceAmount = useMemo(() => {
     const raw = currentBalance.trim().replace(/[\s,]/g, '');
     const n = parseFloat(raw);
     return Number.isFinite(n) ? n : 0;
   }, [currentBalance]);
 
+  /** Остаток: сумма после последней зарплаты + дельта накоплений по проектам в валюте счёта (с отпусками). */
+  const displayBalanceWithAccrual = useMemo(
+    () =>
+      balanceOnAccountAt(
+        selectedProjectsOrdered,
+        currentBalanceCurrency,
+        displayBalanceAmount,
+        lastPayrollYmd,
+        nowTick
+      ),
+    [
+      selectedProjectsOrdered,
+      currentBalanceCurrency,
+      displayBalanceAmount,
+      lastPayrollYmd,
+      nowTick
+    ]
+  );
+
+  const balanceCurrencySymbol = getCurrencySymbol(currentBalanceCurrency);
+
+  const ratesByCurrency = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of selectedProjectsOrdered) {
+      const c = normalizeCurrencyCode(p.currencyCode);
+      m.set(c, (m.get(c) ?? 0) + projectRatePerSecond(p));
+    }
+    return m;
+  }, [selectedProjectsOrdered]);
+
+  /** Сумма накоплений по всем выбранным проектам, пересчитанная в валюту счёта по курсу API. */
+  const equivalentEarningsInBalanceCcy = useMemo(() => {
+    if (!fxSnapshot || selectedProjectsOrdered.length === 0) return null;
+    const target = normalizeCurrencyCode(currentBalanceCurrency);
+    let sum = 0;
+    for (const p of selectedProjectsOrdered) {
+      const raw = projectEarningsAt(p, nowTick);
+      const c = convertAmountThroughSnapshot(raw, p.currencyCode, target, fxSnapshot);
+      if (c == null) return null;
+      sum += c;
+    }
+    return sum;
+  }, [fxSnapshot, selectedProjectsOrdered, currentBalanceCurrency, nowTick]);
+
+  /** Сумма ставок (валюта/сек) всех проектов в пересчёте на валюту счёта. */
+  const equivalentRatePerSecondInBalanceCcy = useMemo(() => {
+    if (!fxSnapshot || selectedProjectsOrdered.length === 0) return null;
+    const target = normalizeCurrencyCode(currentBalanceCurrency);
+    let sum = 0;
+    for (const p of selectedProjectsOrdered) {
+      const r = projectRatePerSecond(p);
+      const c = convertAmountThroughSnapshot(r, p.currencyCode, target, fxSnapshot);
+      if (c == null) return null;
+      sum += c;
+    }
+    return sum;
+  }, [fxSnapshot, selectedProjectsOrdered, currentBalanceCurrency]);
+
+  const hasPositiveAccrualRate = useMemo(
+    () => selectedProjectsOrdered.some((p) => projectRatePerSecond(p) > 0),
+    [selectedProjectsOrdered]
+  );
+
   const projectEndedInfo = useMemo(() => {
-    if (mode !== 'project' || !activeProject?.projectEndDate?.trim()) {
+    const p = singleSelectedForCopy;
+    if (!p?.projectEndDate?.trim()) {
       return { ended: false as boolean };
     }
-    const pe = parseLocalDateYmd(activeProject.projectEndDate);
+    const pe = parseLocalDateYmd(p.projectEndDate);
     if (pe == null) return { ended: false as boolean };
     const endExclusive = pe + 86400000;
     return { ended: nowTick >= endExclusive };
-  }, [mode, activeProject?.projectEndDate, nowTick]);
+  }, [singleSelectedForCopy, nowTick]);
 
-  const handleModeChange = (newMode: Mode) => {
-    setMode(newMode);
-  };
+  const anySelectedProjectLive = useMemo(
+    () =>
+      selectedProjectsOrdered.some(
+        (p) =>
+          p.workStartDate.trim() && !projectIsEndedByDeadline(p, nowTick)
+      ),
+    [selectedProjectsOrdered, nowTick]
+  );
 
   const persistSnapshot: MoneyClockSavedState = useMemo(
     () => ({
-      mode,
-      monthlySalary,
-      hourlyRate,
+      mode: 'project',
+      monthlySalary: '0',
+      hourlyRate: '0',
       projectsBundle,
-      workedMonths,
-      workedDays,
-      workedHours,
-      workedMinutes,
+      workedMonths: '0',
+      workedDays: '0',
+      workedHours: '0',
+      workedMinutes: '0',
       currentBalance,
+      currentBalanceCurrency,
+      lastPayrollYmd,
       ...(profileBundle !== undefined ? { profile: profileBundle } : {})
     }),
     [
-      mode,
-      monthlySalary,
-      hourlyRate,
       projectsBundle,
-      workedMonths,
-      workedDays,
-      workedHours,
-      workedMinutes,
       currentBalance,
+      currentBalanceCurrency,
+      lastPayrollYmd,
       profileBundle
     ]
   );
@@ -437,15 +437,10 @@ export function MoneyClock() {
           );
           return;
         }
-        setMode(parsed.mode);
-        setMonthlySalary(parsed.monthlySalary);
-        setHourlyRate(parsed.hourlyRate);
         setProjectsBundle(parsed.projectsBundle);
-        setWorkedMonths(parsed.workedMonths);
-        setWorkedDays(parsed.workedDays);
-        setWorkedHours(parsed.workedHours);
-        setWorkedMinutes(parsed.workedMinutes);
         setCurrentBalance(parsed.currentBalance);
+        setCurrentBalanceCurrency(parsed.currentBalanceCurrency);
+        setLastPayrollYmd(parsed.lastPayrollYmd);
         setProfileBundle(parsed.profile);
         saveMoneyClockState(parsed);
       };
@@ -481,27 +476,6 @@ export function MoneyClock() {
     },
     [activeProject, patchActiveProject]
   );
-
-  const modes: {
-    key: Mode;
-    label: string;
-    icon: React.ReactNode;
-  }[] = [
-  {
-    key: 'salary',
-    label: 'Salary',
-    icon: <CalendarIcon size={22} />
-  },
-  {
-    key: 'hourly',
-    label: 'Hourly',
-    icon: <ClockIcon size={22} />
-  },
-  {
-    key: 'project',
-    label: 'Project',
-    icon: <BriefcaseIcon size={22} />
-  }];
 
   useEffect(() => {
     document.body.style.overflow = settingsOpen ? 'hidden' : '';
@@ -638,11 +612,10 @@ export function MoneyClock() {
     <>
       <motion.h2
         className="text-gray-800 text-2xl font-black text-center tracking-tight mb-1">
-        
-        {MODE_LABELS[mode]}
+        Проекты
       </motion.h2>
       <p className="text-gray-500 text-sm text-center mb-4">
-        Mode &amp; rates
+        Настройки и ставки по контрактам
       </p>
 
       {profileSettingsBlock}
@@ -651,116 +624,90 @@ export function MoneyClock() {
         layout
         className="bg-emerald-50/90 rounded-3xl p-5 border-2 border-emerald-100 mb-4 flex flex-col gap-1">
         <InputField
-          label="Текущий остаток"
+          label="Остаток после последней зарплаты (на её дату)"
           value={currentBalance}
           onChange={setCurrentBalance}
           placeholder="0"
-          suffix="$"
+          suffix={balanceCurrencySymbol}
         />
+        <div className="flex flex-col gap-1.5">
+          <label className="text-gray-700 text-sm font-bold text-center">
+            Дата последней зарплаты
+          </label>
+          <input
+            type="date"
+            value={lastPayrollYmd}
+            onChange={(e) => setLastPayrollYmd(e.target.value)}
+            className="w-full px-4 py-3.5 rounded-xl text-gray-700 text-base font-medium outline-none transition-all focus:ring-2 focus:ring-sky-300 bg-white"
+            style={{ border: '2px solid #38bdf8' }} />
+          <p className="text-gray-500 text-xs text-center leading-relaxed px-1">
+            Введите сумму, которая была на счёте после этой выплаты. К остатку на главном экране
+            каждую секунду прибавляется ставка × время с полуночи следующего дня после этой даты.
+          </p>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-gray-700 text-sm font-bold text-center">
+            Валюта счёта
+          </label>
+          <select
+            value={normalizeCurrencyCode(currentBalanceCurrency)}
+            onChange={(e) => setCurrentBalanceCurrency(normalizeCurrencyCode(e.target.value))}
+            className="w-full px-4 py-3.5 rounded-xl text-gray-700 text-base font-medium outline-none transition-all focus:ring-2 focus:ring-sky-300 bg-white"
+            style={{ border: '2px solid #38bdf8' }}>
+            {MONEYCLOCK_CURRENCIES.map((c) =>
+            <option key={c.code} value={c.code}>
+                {c.labelRu}
+              </option>
+            )}
+          </select>
+        </div>
         <p className="text-gray-500 text-xs text-center leading-relaxed px-1">
-          Отображается на главном экране под основной суммой; к начислению по времени не
-          прибавляется.
+          Счётчик «всего заработано» — сумма по выбранным проектам. Остаток на счёте — отдельно:
+          база после зарплаты плюс доначисление с даты (см. выше). К остатку идут только проекты в
+          валюте счёта; остальные валюты — в блоке «всего заработано».
         </p>
       </motion.div>
-
-      <div
-        className="flex rounded-2xl overflow-hidden border-2 border-gray-200 mb-4"
-        style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
-        
-        {modes.map((m) => {
-          const isActive = mode === m.key;
-          return (
-            <motion.button
-              key={m.key}
-              type="button"
-              onClick={() => handleModeChange(m.key)}
-              whileTap={{ scale: 0.98 }}
-              className="flex-1 flex flex-col items-center justify-center gap-1 py-3 px-1 transition-colors"
-              style={{
-                background: isActive ? '#22c55e' : '#f9fafb',
-                color: isActive ? '#fff' : '#6b7280'
-              }}>
-              
-              <div style={{ color: 'inherit' }}>{m.icon}</div>
-              <span className="text-[10px] sm:text-xs font-bold leading-tight text-center">
-                {m.label}
-              </span>
-            </motion.button>);
-
-        })}
-      </div>
 
       <motion.div
         layout
         className="bg-gray-50 rounded-3xl p-5 border-2 border-gray-100 flex flex-col gap-4">
         
-        <AnimatePresence mode="wait">
-          {mode === 'salary' &&
-          <motion.div
-            key="salary"
-            initial={{ opacity: 0, x: -12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 12 }}
-            transition={{ duration: 0.2 }}
-            className="flex flex-col gap-4">
-            
-              <InputField
-              label="Enter monthly salary here"
-              value={monthlySalary}
-              onChange={setMonthlySalary}
-              placeholder="Monthly salary"
-              suffix="$ / month" />
-            
-            </motion.div>
-          }
-          {mode === 'hourly' &&
-          <motion.div
-            key="hourly"
-            initial={{ opacity: 0, x: -12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 12 }}
-            transition={{ duration: 0.2 }}
-            className="flex flex-col gap-4">
-            
-              <InputField
-              label="Enter hourly rate here"
-              value={hourlyRate}
-              onChange={setHourlyRate}
-              placeholder="Hourly rate"
-              suffix="$ / hour" />
-            
-            </motion.div>
-          }
-          {mode === 'project' && activeProject &&
-          <motion.div
-            key="project"
-            initial={{ opacity: 0, x: -12 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 12 }}
-            transition={{ duration: 0.2 }}
-            className="flex flex-col gap-4">
+          {activeProject &&
+          <motion.div layout className="flex flex-col gap-4">
             
               <div className="flex flex-col gap-2">
                 <label className="text-gray-700 text-sm font-bold text-center">
                   Projects
                 </label>
+                <p className="text-gray-500 text-xs text-center leading-relaxed px-1">
+                  Галочка — проект входит в общую сумму и виджет на главном экране (можно несколько).
+                  Имя — какой проект редактируется ниже.
+                </p>
                 <div className="flex flex-wrap items-center gap-2">
                   {projects.map((p) => {
-                    const isSel = p.id === activeProjectId;
+                    const isEditing = p.id === activeProjectId;
+                    const onDash = selectedProjectIds.includes(p.id);
                     return (
-                      <div key={p.id} className="flex items-center gap-0.5">
+                      <div
+                        key={p.id}
+                        className="flex items-center gap-1 rounded-xl border-2 border-gray-200 bg-white pl-2 pr-1 py-1.5">
+                        <input
+                          type="checkbox"
+                          checked={onDash}
+                          onChange={() => toggleProjectOnDashboard(p.id)}
+                          className="h-4 w-4 shrink-0 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                          aria-label={`Показать «${p.name || 'проект'}» на главном экране`}
+                        />
                         <motion.button
                           type="button"
                           onClick={() => selectProject(p.id)}
                           whileTap={{ scale: 0.96 }}
-                          className="px-3 py-2 rounded-xl text-sm font-bold max-w-[140px] truncate transition-all"
+                          className="px-2 py-1 rounded-lg text-sm font-bold max-w-[120px] truncate transition-all text-left"
                           style={{
-                            background: isSel ? '#22c55e' : '#fff',
-                            color: isSel ? '#fff' : '#374151',
-                            border: isSel ? '2px solid #16a34a' : '2px solid #e5e7eb'
+                            background: isEditing ? '#22c55e' : 'transparent',
+                            color: isEditing ? '#fff' : '#374151'
                           }}
-                          title={p.name}>
-                          
+                          title="Редактировать поля этого проекта">
                           {p.name || 'Untitled'}
                         </motion.button>
                         {projects.length > 1 &&
@@ -770,7 +717,6 @@ export function MoneyClock() {
                           whileTap={{ scale: 0.9 }}
                           className="p-2 rounded-xl text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors"
                           aria-label={`Remove ${p.name}`}>
-                          
                           <Trash2Icon size={18} />
                         </motion.button>
                         }
@@ -798,6 +744,25 @@ export function MoneyClock() {
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-gray-700 text-sm font-bold text-center">
+                  Валюта проекта
+                </label>
+                <select
+                  value={normalizeCurrencyCode(activeProject.currencyCode)}
+                  onChange={(e) =>
+                  patchActiveProject({ currencyCode: normalizeCurrencyCode(e.target.value) })
+                  }
+                  className="w-full px-4 py-3.5 rounded-xl text-gray-700 text-base font-medium outline-none transition-all focus:ring-2 focus:ring-sky-300 bg-white"
+                  style={{ border: '2px solid #38bdf8' }}>
+                  {MONEYCLOCK_CURRENCIES.map((c) =>
+                  <option key={c.code} value={c.code}>
+                      {c.labelRu}
+                    </option>
+                  )}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-gray-700 text-sm font-bold text-center">
                   Дата начала работы
                 </label>
                 <input
@@ -807,9 +772,9 @@ export function MoneyClock() {
                   className="w-full px-4 py-3.5 rounded-xl text-gray-700 text-base font-medium outline-none transition-all focus:ring-2 focus:ring-sky-300 bg-white"
                   style={{ border: '2px solid #38bdf8' }} />
                 <p className="text-gray-500 text-xs text-center leading-relaxed px-1">
-                  От полуночи этого дня по вашему часовому поясу считается прошедшее время; сумма на
-                  главном экране обновляется непрерывно по ставке проекта (плюс блок «уже
-                  отработано»). Время в отпусках ниже из этого интервала вычитается.
+                  От полуночи этого дня считается прошедшее календарное время (в т.ч. за годы); оно
+                  умножается на ставку проекта (месячный платёж, почасовая или сумма контракта за
+                  срок до даты окончания). Время в отпусках ниже из интервала вычитается.
                 </p>
               </div>
 
@@ -824,8 +789,10 @@ export function MoneyClock() {
                   className="w-full px-4 py-3.5 rounded-xl text-gray-700 text-base font-medium outline-none transition-all focus:ring-2 focus:ring-sky-300 bg-white"
                   style={{ border: '2px solid #38bdf8' }} />
                 <p className="text-gray-500 text-xs text-center leading-relaxed px-1">
-                  Оставьте пустым, если проект ещё идёт. Если указана — расчёт времени и итога
-                  обрывается в конце этого дня (включительно): после него сумма не растёт.
+                  Для типа «вся сумма контракта» срок = интервал между датами (минус отпуск), ставка =
+                  сумма / этот срок. Для месячного и почасового типа дата конца только ограничивает
+                  период начисления. Пустое окончание — бесконечный срок (до смены даты). Старые
+                  сохранения без типа оплаты считаются режимом «контракт целиком».
                 </p>
               </div>
 
@@ -905,70 +872,56 @@ export function MoneyClock() {
                 </motion.button>
               </div>
             
+              <div className="flex flex-col gap-1.5">
+                <label className="text-gray-700 text-sm font-bold text-center">
+                  Тип оплаты
+                </label>
+                <select
+                  value={activeProject.projectBilling}
+                  onChange={(e) =>
+                  patchActiveProject({
+                    projectBilling: normalizeProjectBillingMode(e.target.value)
+                  })
+                  }
+                  className="w-full px-4 py-3.5 rounded-xl text-gray-700 text-base font-medium outline-none transition-all focus:ring-2 focus:ring-sky-300 bg-white"
+                  style={{ border: '2px solid #38bdf8' }}>
+                  <option value="monthly">Месячный платёж</option>
+                  <option value="hourly">Почасовая ставка</option>
+                  <option value="contract">Вся сумма контракта</option>
+                </select>
+                <p className="text-gray-500 text-xs text-center leading-relaxed px-1">
+                  {activeProject.projectBilling === 'monthly' &&
+                  'Как зарплата: сумма в месяц делится на 22×8 рабочих часов, начисление идёт за каждую секунду календарного времени от даты начала.'}
+                  {activeProject.projectBilling === 'hourly' &&
+                  'Ставка за один час; в секунду = сумма / 3600. Подходит для почасовки.'}
+                  {activeProject.projectBilling === 'contract' &&
+                  'Общая сумма договора; ставка = она делится на календарный срок между датой начала и окончания (минус отпуск). К концу срока начисление сходится к этой сумме.'}
+                </p>
+              </div>
+
               <InputField
-              label="Enter payment amount here"
+              label={
+              activeProject.projectBilling === 'monthly' ?
+              'Месячный платёж' :
+              activeProject.projectBilling === 'hourly' ?
+              'Ставка за час' :
+              'Сумма контракта целиком'
+              }
               value={activeProject.projectAmount}
               onChange={(v) => patchActiveProject({ projectAmount: v })}
-              placeholder="Payment amount"
-              suffix="$" />
-            
-              <DurationInputRow
-              label="Enter project duration here"
-              months={activeProject.projMonths}
-              days={activeProject.projDays}
-              hours={activeProject.projHours}
-              minutes={activeProject.projMinutes}
-              onMonths={(v) => patchActiveProject({ projMonths: v })}
-              onDays={(v) => patchActiveProject({ projDays: v })}
-              onHours={(v) => patchActiveProject({ projHours: v })}
-              onMinutes={(v) => patchActiveProject({ projMinutes: v })} />
+              placeholder={
+              activeProject.projectBilling === 'monthly' ? '5000' : activeProject.projectBilling === 'hourly' ? '25' : '50000'
+              }
+              suffix={
+              activeProject.projectBilling === 'monthly' ?
+              `${getCurrencySymbol(activeProject.currencyCode)} / мес` :
+              activeProject.projectBilling === 'hourly' ?
+              `${getCurrencySymbol(activeProject.currencyCode)} / ч` :
+              getCurrencySymbol(activeProject.currencyCode)
+              } />
             
             </motion.div>
           }
-        </AnimatePresence>
-
-        <DurationInputRow
-          label="Enter time already worked here"
-          months={
-          mode === 'project' && activeProject ?
-          activeProject.workedMonths :
-          workedMonths
-          }
-          days={
-          mode === 'project' && activeProject ?
-          activeProject.workedDays :
-          workedDays
-          }
-          hours={
-          mode === 'project' && activeProject ?
-          activeProject.workedHours :
-          workedHours
-          }
-          minutes={
-          mode === 'project' && activeProject ?
-          activeProject.workedMinutes :
-          workedMinutes
-          }
-          onMonths={
-          mode === 'project' && activeProject ?
-          (v) => patchActiveProject({ workedMonths: v }) :
-          setWorkedMonths
-          }
-          onDays={
-          mode === 'project' && activeProject ?
-          (v) => patchActiveProject({ workedDays: v }) :
-          setWorkedDays
-          }
-          onHours={
-          mode === 'project' && activeProject ?
-          (v) => patchActiveProject({ workedHours: v }) :
-          setWorkedHours
-          }
-          onMinutes={
-          mode === 'project' && activeProject ?
-          (v) => patchActiveProject({ workedMinutes: v }) :
-          setWorkedMinutes
-          } />
         
       </motion.div>
 
@@ -1011,6 +964,8 @@ export function MoneyClock() {
     </>
   );
 
+  const fxCaptionLines = fxSnapshot ? fxRateLinesForAppCurrencies(fxSnapshot) : [];
+
   return (
     <div className="relative w-full min-h-screen flex flex-col overflow-hidden">
       <ParticleBackground />
@@ -1029,94 +984,276 @@ export function MoneyClock() {
           </motion.button>
         </header>
 
-        <div className="flex-1 flex flex-col items-center justify-center py-10">
-          <div className="flex flex-col items-center w-full">
-            <div className="relative w-full flex flex-col items-center">
-              <motion.div
-                className="absolute -inset-x-[min(40%,20rem)] -inset-y-[min(35%,12rem)] rounded-full blur-3xl pointer-events-none"
-                style={{
-                  background:
-                  'radial-gradient(ellipse, rgba(255,255,255,0.25) 0%, transparent 72%)'
-                }}
-                animate={{
-                  opacity: [0.35, 0.65, 0.35],
-                  scale: [0.96, 1.04, 0.96]
-                }}
-                transition={{
-                  duration: 3.5,
-                  repeat: Infinity,
-                  ease: 'easeInOut'
-                }} />
-              
-              <div
-                className="relative font-black tracking-tight leading-none text-white"
-                style={{
-                  fontSize: 'clamp(2.75rem, 18vmin, 15rem)',
-                  textShadow:
-                  '0 2px 24px rgba(0,0,0,0.35), 0 0 40px rgba(255,255,255,0.15)'
-                }}>
-                
-                <AnimatedCounter value={displayAmount} prefix="$" />
-                
-              </div>
+        <div className="flex-1 flex flex-col justify-center py-6 sm:py-8 w-full min-h-0">
+          <motion.div
+            layout
+            className="w-full max-w-4xl xl:max-w-5xl mx-auto rounded-[1.75rem] border border-white/20 bg-gradient-to-b from-white/[0.13] to-white/[0.05] backdrop-blur-2xl shadow-[0_16px_64px_rgba(0,0,0,0.28)] ring-1 ring-inset ring-white/10 relative overflow-hidden px-1 sm:px-2">
+            <div
+              className="pointer-events-none absolute inset-0 opacity-[0.45]"
+              style={{
+                background:
+                  'radial-gradient(ellipse 85% 55% at 50% -25%, rgba(255,255,255,0.2), transparent 50%)'
+              }}
+            />
+            <div className="relative flex flex-col gap-5 sm:gap-6 px-4 sm:px-6 lg:px-8 pt-5 sm:pt-7 pb-5 sm:pb-7">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 items-start">
+                <div className="space-y-3 text-center md:text-left min-w-0">
+                  <p className="text-white/60 text-[0.65rem] sm:text-xs font-extrabold uppercase tracking-[0.14em]">
+                    Всего заработано
+                  </p>
+                  <p className="text-white/42 text-[0.6rem] sm:text-[0.62rem] leading-snug max-w-md mx-auto md:mx-0">
+                    Сумма по всем выбранным проектам; каждая валюта считается отдельно.
+                  </p>
+                  <div
+                    className="relative font-black tracking-tight leading-none text-white flex flex-col md:flex-row md:flex-wrap items-center md:items-baseline justify-center md:justify-start gap-x-6 gap-y-3"
+                    style={{
+                      fontSize: 'clamp(1rem, 4.2vmin, 3.25rem)',
+                      textShadow:
+                        '0 2px 22px rgba(0,0,0,0.35), 0 0 36px rgba(255,255,255,0.12)'
+                    }}>
+                    {selectedProjectsOrdered.length > 0 ?
+                    (() => {
+                        const entries = [...earningsByCurrency.entries()].sort(([a], [b]) =>
+                        a.localeCompare(b)
+                        );
+                        if (entries.length === 0) {
+                          return (
+                            <AnimatedCounter
+                            value={0}
+                            prefix={balanceCurrencySymbol}
+                            decimals={2} />);
 
-              <div
-                className="relative w-full flex flex-col items-center mt-[clamp(1rem,5vmin,5rem)]">
-                <p
-                  className="text-white/70 font-bold drop-shadow text-center mb-[clamp(0.35rem,1.75vmin,1.75rem)]"
-                  style={{ fontSize: 'clamp(0.75rem, 3.25vmin, 3.5rem)' }}>
-                  Текущий остаток
-                </p>
-                <div
-                  className="relative font-black tracking-tight leading-none text-white"
-                  style={{
-                    fontSize: 'clamp(1.75rem, 11vmin, 9rem)',
-                    textShadow:
-                      '0 2px 18px rgba(0,0,0,0.32), 0 0 32px rgba(255,255,255,0.12)'
-                  }}>
-                  <AnimatedCounter value={displayBalanceAmount} prefix="$" />
+
+                        }
+                        if (entries.length === 1) {
+                          const [ccy, val] = entries[0];
+                          return (
+                            <AnimatedCounter
+                            value={val}
+                            prefix={getCurrencySymbol(ccy)}
+                            decimals={2} />);
+
+
+                        }
+                        return entries.map(([ccy, val]) =>
+                        <div key={ccy} className="flex flex-col items-center md:items-start gap-0.5">
+                            <span
+                            className="text-white/70 font-bold drop-shadow"
+                            style={{ fontSize: 'clamp(0.55rem, 1.85vmin, 0.8rem)' }}>
+                              {ccy}
+                            </span>
+                            <AnimatedCounter
+                            value={val}
+                            prefix={getCurrencySymbol(ccy)}
+                            decimals={2} />
+                          </div>
+                        );
+                      })()
+                    : <AnimatedCounter
+                      value={displayAmount}
+                      prefix={balanceCurrencySymbol}
+                      decimals={2} />
+                    }
+                  </div>
+                  {equivalentEarningsInBalanceCcy != null &&
+                  selectedProjectsOrdered.length > 0 &&
+                  <div className="pt-3 mt-1 border-t border-white/12 w-full max-w-xl mx-auto md:mx-0">
+                    <p className="text-white/50 text-[0.58rem] sm:text-[0.6rem] font-extrabold uppercase tracking-[0.12em] mb-1">
+                      Всего в валюте счёта (по курсу)
+                    </p>
+                    <p className="text-white/36 text-[0.55rem] leading-snug mb-2">
+                      Сумма накоплений по всем выбранным проектам, пересчитанная в{' '}
+                      {normalizeCurrencyCode(currentBalanceCurrency)} по текущему курсу API.
+                    </p>
+                    <div
+                      className="font-black tracking-tight text-white/95 tabular-nums"
+                      style={{
+                        fontSize: 'clamp(0.95rem, 2.8vmin, 1.65rem)',
+                        textShadow: '0 1px 14px rgba(0,0,0,0.35)'
+                      }}>
+                      <AnimatedCounter
+                        value={equivalentEarningsInBalanceCcy}
+                        prefix={balanceCurrencySymbol}
+                        decimals={2}
+                      />
+                    </div>
+                  </div>
+                  }
+                </div>
+
+                <div className="space-y-2 text-center md:text-left min-w-0 pt-1 border-t border-white/10 md:border-t-0 md:border-l md:border-white/15 md:pl-10">
+                  <p className="text-white/60 text-[0.65rem] sm:text-xs font-extrabold uppercase tracking-[0.14em]">
+                    На счёте сейчас
+                  </p>
+                  <p
+                    className="text-white/48 font-medium leading-relaxed max-w-md mx-auto md:mx-0 sm:hidden"
+                    style={{ fontSize: 'clamp(0.58rem, 1.45vmin, 0.72rem)' }}>
+                    База после зарплаты + доначисление с полуночи следующего дня после даты зарплаты. В
+                    остаток входят только проекты в валюте счёта; остальные валюты — в блоке «Всего
+                    заработано».
+                  </p>
+                  <p
+                    className="text-white/45 font-medium leading-relaxed max-w-md mx-auto md:mx-0 hidden sm:block"
+                    style={{ fontSize: 'clamp(0.58rem, 1.5vmin, 0.75rem)' }}>
+                    Остаток в валюте счёта: сумма после последней зарплаты плюс доначисление с полуночи
+                    следующего дня после даты зарплаты до сейчас. К остатку относятся только проекты в
+                    той же валюте; проекты в других валютах учитываются только в «Всего заработано».
+                  </p>
+                  <div
+                    className="relative font-black tracking-tight leading-none text-white tabular-nums"
+                    style={{
+                      fontSize: 'clamp(1.1rem, 2.9vmin, 2.05rem)',
+                      textShadow:
+                        '0 2px 18px rgba(0,0,0,0.32), 0 0 28px rgba(255,255,255,0.1)'
+                    }}>
+                    <AnimatedCounter
+                      value={displayBalanceWithAccrual}
+                      prefix={balanceCurrencySymbol}
+                      decimals={2}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <AnimatePresence>
+              {fxCaptionLines.length > 0 &&
+              <div
+                className="rounded-xl bg-black/35 border border-white/15 px-3 py-2.5 sm:py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                role="note"
+                aria-label="Справочные курсы валют">
+                <p
+                  className="text-[0.68rem] sm:text-xs leading-relaxed text-white/78 text-center md:text-left font-medium tabular-nums [text-shadow:0_1px_2px_rgba(0,0,0,0.45)] select-text"
+                  title={fxCaptionLines.map((x) => x.line).join(' · ')}>
+                  <span className="text-white/55 font-bold uppercase tracking-wider text-[0.6rem] sm:text-[0.65rem]">
+                    Курс{' '}
+                  </span>
+                  {fxCaptionLines.map(({ code, line }, i) =>
+                    <React.Fragment key={code}>
+                      {i > 0 ?
+                        <span className="text-white/35 mx-1.5" aria-hidden>
+                          ·
+                        </span>
+                      : null}
+                      <span className="text-white/90">{line}</span>
+                    </React.Fragment>
+                  )}
+                </p>
+                <p className="text-[0.6rem] sm:text-[0.65rem] text-white/45 mt-1.5 text-center md:text-left leading-snug">
+                  Используется для блока «Всего в валюте счёта», ставки Σ / sec и розовой линии на графике.
+                  {fxSnapshot?.updatedUtc ?
+                    <>
+                      {' '}
+                      ·{' '}
+                      {new Date(fxSnapshot.updatedUtc).toLocaleString(undefined, {
+                        day: 'numeric',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </>
+                  : null}{' '}
+                  <a
+                    href="https://www.exchangerate-api.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-amber-200/90 underline underline-offset-2 decoration-amber-200/40 hover:text-amber-100">
+                    exchangerate-api.com
+                  </a>
+                </p>
+              </div>
+              }
+              {fxReady && fxCaptionLines.length === 0 &&
+              <div
+                className="rounded-xl bg-black/35 border border-white/15 px-3 py-2 text-[0.65rem] sm:text-xs text-white/60 text-center md:text-left [text-shadow:0_1px_2px_rgba(0,0,0,0.4)]"
+                role="status">
+                Курсы не загрузились — пересчёт в валюту счёта и линия на графике недоступны. Остаток и
+                суммы по валютам без изменений.
+              </div>
+              }
+
+              {selectedProjectsOrdered.length > 0 &&
+              <>
+                <div className="h-px bg-gradient-to-r from-transparent via-white/18 to-transparent shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-white/45 text-[0.62rem] font-bold uppercase tracking-wider mb-2.5">
+                    Проекты в расчёте
+                  </p>
+                  <div
+                    className="flex gap-2.5 overflow-x-auto pb-2 -mx-0.5 px-0.5 snap-x snap-mandatory [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.3)_transparent]"
+                    aria-label="Проекты на главном экране">
+                    {selectedProjectIds.map((id) => {
+                      const p = projects.find((x) => x.id === id);
+                      if (!p) return null;
+                      return (
+                        <motion.div
+                          key={id}
+                          layout
+                          initial={{ opacity: 0, scale: 0.97 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="snap-start shrink-0 w-[min(11.5rem,72vw)] rounded-xl bg-white/10 backdrop-blur-sm border border-white/18 shadow-md px-3 py-2.5">
+                          <p className="text-white/88 text-[0.68rem] sm:text-[0.72rem] font-bold truncate text-left mb-1 leading-tight">
+                            {p.name || 'Проект'}
+                          </p>
+                          <div
+                            className="relative font-black tracking-tight leading-none text-white flex justify-start tabular-nums"
+                            style={{
+                              fontSize: 'clamp(0.62rem, 1.75vmin, 0.95rem)',
+                              textShadow: '0 1px 8px rgba(0,0,0,0.35)'
+                            }}>
+                            <AnimatedCounter
+                              value={projectEarningsAt(p, nowTick)}
+                              prefix={getCurrencySymbol(p.currencyCode)}
+                              decimals={2}
+                            />
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-2xl bg-black/22 border border-white/12 p-3 sm:p-4 lg:p-5 min-h-0 min-w-0 shadow-inner"
+                  aria-label="График дохода">
+                  <p className="text-white/55 text-[0.62rem] font-extrabold uppercase tracking-[0.12em] mb-3 text-center sm:text-left">
+                    Динамика накоплений
+                  </p>
+                  <IncomeChart
+                    projects={selectedProjectsOrdered}
+                    nowMs={nowTick}
+                    balanceAfterPayroll={displayBalanceAmount}
+                    balanceCurrency={currentBalanceCurrency}
+                    lastPayrollYmd={lastPayrollYmd}
+                    fxSnapshot={fxSnapshot}
+                    embedded
+                  />
+                </div>
+              </>
+              }
+
+              <AnimatePresence>
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mt-[clamp(1.5rem,7.5vmin,7.5rem)] text-center px-4 space-y-[clamp(0.75rem,3.75vmin,3.75rem)]">
+                className="text-center px-0 sm:px-2 space-y-[clamp(0.65rem,3vmin,2.5rem)] border-t border-white/10 pt-4 mt-0.5">
                 
-                {ratePerSecond <= 0 ?
+                {!hasPositiveAccrualRate ?
                 <p
                   className="text-white/75 font-semibold drop-shadow"
                   style={{ fontSize: 'clamp(1rem, 4.25vmin, 5rem)' }}>
                   Откройте настройки и задайте сумму и срок — сумма посчитается сама
                 </p> :
                 <>
-                  <p
-                    className="text-white/75 font-semibold drop-shadow"
-                    style={{ fontSize: 'clamp(0.875rem, 3.75vmin, 4.375rem)' }}>
-                    {mode === 'project' && activeProject?.workStartDate?.trim() ?
-                    (activeProject.vacations?.some(
-                      (v) => v.startDate.trim() && v.endDate.trim()
-                    ) ?
-                    '«Уже отработано» + время с даты начала минус календарные отпуска' :
-                    '«Уже отработано» + время с даты начала') +
-                    (activeProject.projectEndDate?.trim() ?
-                    '. После даты окончания начисление останавливается.' :
-                    '') :
-                    'Считается автоматически по ставке и полю «уже отработано»'}
-                  </p>
-                  {mode === 'project' &&
-                  (activeProject?.workStartDate?.trim() ||
-                  activeProject?.projectEndDate?.trim()) &&
+                  {singleSelectedForCopy &&
+                  (singleSelectedForCopy.workStartDate.trim() ||
+                  singleSelectedForCopy.projectEndDate.trim()) &&
                   <div
                     className="text-white/60 font-medium drop-shadow space-y-[clamp(0.25rem,1.25vmin,1.25rem)]"
                     style={{ fontSize: 'clamp(0.875rem, 3.75vmin, 4.375rem)' }}>
-                    {activeProject.workStartDate?.trim() &&
-                    <p>Начало: {formatYmdLong(activeProject.workStartDate)}</p>
+                    {singleSelectedForCopy.workStartDate.trim() &&
+                    <p>Начало: {formatYmdLong(singleSelectedForCopy.workStartDate)}</p>
                     }
-                    {activeProject.projectEndDate?.trim() &&
-                    <p>Окончание: {formatYmdLong(activeProject.projectEndDate)}</p>
+                    {singleSelectedForCopy.projectEndDate.trim() &&
+                    <p>Окончание: {formatYmdLong(singleSelectedForCopy.projectEndDate)}</p>
                     }
                     {projectEndedInfo.ended &&
                     <p className="text-amber-200/95 font-semibold">
@@ -1134,30 +1271,50 @@ export function MoneyClock() {
                       width: 'clamp(0.625rem, 3.125vmin, 3.125rem)',
                       height: 'clamp(0.625rem, 3.125vmin, 3.125rem)',
                       background:
-                        mode === 'project' && activeProject?.workStartDate?.trim() &&
-                        !projectEndedInfo.ended ?
+                        anySelectedProjectLive ?
                           '#fff' :
                           '#ffffffaa',
                       boxShadow:
-                        mode === 'project' && activeProject?.workStartDate?.trim() &&
-                        !projectEndedInfo.ended ?
+                        anySelectedProjectLive ?
                           '0 0 10px rgba(255,255,255,0.7)' :
                           'none'
                     }} />
                   
                     <span
-                      className="text-white/90 font-bold tabular-nums drop-shadow"
-                      style={{ fontSize: 'clamp(1rem, 4.25vmin, 5rem)' }}>
-                      +${ratePerSecond.toFixed(4)} / sec
+                      className="text-white/90 font-bold tabular-nums drop-shadow flex flex-col items-center justify-center gap-y-1.5 w-full"
+                      style={{ fontSize: 'clamp(0.75rem, 1.0625vmin, 1.25rem)' }}>
+                      <span className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+                        {ratesByCurrency.size > 0 ?
+                        [...ratesByCurrency.entries()].
+                        sort(([a], [b]) => a.localeCompare(b)).
+                        map(([ccy, r]) =>
+                        <span key={ccy}>
+                              +{getCurrencySymbol(ccy)}
+                              {r.toFixed(4)} / sec ({ccy})
+                            </span>
+                        ) :
+                        <>
+                            +{balanceCurrencySymbol}
+                            {totalRatePerSecond.toFixed(4)} / sec
+                          </>
+                        }
+                      </span>
+                      {equivalentRatePerSecondInBalanceCcy != null &&
+                      <span className="text-white/65 font-semibold text-[0.7em] sm:text-[0.72em]">
+                        Σ ≈ +{balanceCurrencySymbol}
+                        {equivalentRatePerSecondInBalanceCcy.toFixed(4)} / sec в{' '}
+                        {normalizeCurrencyCode(currentBalanceCurrency)} (по курсу)
+                      </span>
+                      }
                     </span>
                   </div>
                 </>
                 }
               </motion.div>
             </AnimatePresence>
-          </div>
+            </div>
+          </motion.div>
         </div>
-      </div>
 
       <AnimatePresence>
         {settingsOpen &&
@@ -1206,6 +1363,8 @@ export function MoneyClock() {
         </>
         }
       </AnimatePresence>
-    </div>);
+      </div>
+    </div>
+  );
 
 }

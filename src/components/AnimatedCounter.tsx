@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { memo, useLayoutEffect, useRef, useState } from 'react';
 import {
   motion,
   useAnimationControls,
@@ -12,27 +12,92 @@ interface AnimatedCounterProps {
   className?: string;
 }
 
+/** Центральная копия 0–9 в ленте (индексы 10..19), чтобы 9→0 крутилось вперёд */
+const STRIP_CENTER = 10;
 const REEL_CYCLES = 3;
 const REEL_LEN = REEL_CYCLES * 10;
-/** Middle copy of 0–9 so 9→0 rolls forward without running out of strip */
-const CANON = 10;
+const STAGGER_STEP = 0.036;
+const REEL_SPRING = {
+  type: 'spring' as const,
+  stiffness: 198,
+  damping: 22,
+  mass: 0.62
+};
 
-function shortestDigitStep(from: number, to: number): number {
-  let diff = to - from;
-  if (diff > 5) diff -= 10;
-  if (diff < -5) diff += 10;
-  return diff;
+type DisplayPart =
+  | { kind: 'digit'; n: number; id: string }
+  | { kind: 'sep'; ch: string; id: string };
+
+/** Без toLocaleString — иначе NBSP ломают разбор строки. */
+function buildMoneyDisplayParts(value: number, decimals: number): DisplayPart[] {
+  const d = Math.max(0, Math.min(20, Math.floor(decimals)));
+  const finite = Number.isFinite(value) ? value : 0;
+  const neg = finite < 0;
+  const abs = Math.abs(finite);
+  const fixed = abs.toFixed(d);
+  const dotIdx = fixed.indexOf('.');
+  const intRaw = dotIdx >= 0 ? fixed.slice(0, dotIdx) : fixed;
+  const frac = dotIdx >= 0 ? fixed.slice(dotIdx + 1) : '';
+  const intGrouped = intRaw.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+  const parts: DisplayPart[] = [];
+  let uid = 0;
+  const nid = () => `p${uid++}`;
+
+  if (neg) parts.push({ kind: 'sep', ch: '\u2212', id: nid() });
+
+  for (const ch of intGrouped) {
+    if (ch === ',') parts.push({ kind: 'sep', ch: ',', id: nid() });
+    else if (/\d/.test(ch)) {
+      parts.push({ kind: 'digit', n: parseInt(ch, 10), id: nid() });
+    }
+  }
+  if (d > 0) {
+    parts.push({ kind: 'sep', ch: '.', id: 'dot' });
+    for (let i = 0; i < frac.length; i++) {
+      parts.push({ kind: 'digit', n: parseInt(frac[i], 10), id: `f${i}` });
+    }
+  }
+  return parts;
 }
 
-function getStaggerRank(formatted: string, index: number): number {
+/** Сколько цифровых колонок правее этой (для каскада анимации). */
+function digitsToTheRight(parts: DisplayPart[], index: number): number {
   let n = 0;
-  for (let j = formatted.length - 1; j > index; j--) {
-    if (/\d/.test(formatted[j])) n++;
+  for (let j = parts.length - 1; j > index; j--) {
+    if (parts[j].kind === 'digit') n++;
   }
   return n;
 }
 
-function MoneyDigitReel({
+/** Кратчайший шаг по кругу 0..9 */
+function wrapDigitDelta(from: number, to: number): number {
+  let d = to - from;
+  if (d > 5) d -= 10;
+  if (d < -5) d += 10;
+  return d;
+}
+
+const REEL_STRIP = Array.from({ length: REEL_LEN }, (_, i) => i % 10);
+
+const PUNCT_WIDTH: Record<string, string> = {
+  ',': '0.65ch',
+  '.': '0.55ch',
+  '\u2212': '0.7ch'
+};
+
+function PunctuationCell({ ch }: { ch: string }) {
+  const w = PUNCT_WIDTH[ch] ?? '0.5ch';
+  return (
+    <span
+      className="inline-flex shrink-0 select-none items-center justify-center self-center font-[inherit] tabular-nums leading-none"
+      style={{ width: w, minWidth: w, maxWidth: w }}>
+      {ch}
+    </span>
+  );
+}
+
+const MoneyDigitReel = memo(function MoneyDigitReel({
   digit,
   staggerDelay
 }: {
@@ -41,104 +106,84 @@ function MoneyDigitReel({
 }) {
   const reduceMotion = useReducedMotion();
   const controls = useAnimationControls();
-  const stripIndexRef = useRef(CANON + digit);
+  const stripIndex = useRef(STRIP_CENTER + digit);
   const prevDigit = useRef(digit);
   const [rolling, setRolling] = useState(false);
-  const runId = useRef(0);
+  const animGeneration = useRef(0);
 
   useLayoutEffect(() => {
     if (reduceMotion) {
       prevDigit.current = digit;
-      stripIndexRef.current = CANON + digit;
+      stripIndex.current = STRIP_CENTER + digit;
       return;
     }
 
     const from = prevDigit.current;
-    if (digit === from) return;
-
-    const step = shortestDigitStep(from, digit);
-    if (step === 0) {
-      prevDigit.current = digit;
+    if (digit === from) {
+      void controls.set({ y: `calc(${-stripIndex.current} * 1em)` });
       return;
     }
 
-    const next = stripIndexRef.current + step;
-    stripIndexRef.current = next;
+    const delta = wrapDigitDelta(from, digit);
     prevDigit.current = digit;
+    stripIndex.current += delta;
 
-    const id = ++runId.current;
+    const gen = ++animGeneration.current;
     setRolling(true);
 
     void controls
       .start({
-        y: `calc(${-next} * 1em)`,
-        transition: {
-          type: 'spring',
-          stiffness: 198,
-          damping: 22,
-          mass: 0.62,
-          delay: staggerDelay
-        }
+        y: `calc(${-stripIndex.current} * 1em)`,
+        transition: { ...REEL_SPRING, delay: staggerDelay }
       })
       .then(() => {
-        if (runId.current !== id) return;
+        if (animGeneration.current !== gen) return;
         setRolling(false);
-        const cur = stripIndexRef.current;
-        if (cur < 10 || cur > 19) {
-          const norm = CANON + prevDigit.current;
-          stripIndexRef.current = norm;
-          void controls.set({ y: `calc(${-norm} * 1em)` });
+        const cur = stripIndex.current;
+        if (cur < STRIP_CENTER || cur > STRIP_CENTER + 9) {
+          stripIndex.current = STRIP_CENTER + digit;
+          void controls.set({ y: `calc(${-stripIndex.current} * 1em)` });
         }
       });
   }, [digit, reduceMotion, controls, staggerDelay]);
 
-  const digits = Array.from({ length: REEL_LEN }, (_, i) => i % 10);
-
   if (reduceMotion) {
     return (
-      <span className="inline-flex justify-center tabular-nums w-[0.58em] shrink-0">
+      <span className="inline-flex w-[1ch] min-w-[1ch] max-w-[1ch] justify-center tabular-nums shrink-0">
         {digit}
       </span>
     );
   }
 
+  const initialY = -(STRIP_CENTER + digit);
+
   return (
     <span
-      className="money-reel-column inline-block overflow-hidden align-baseline tabular-nums w-[0.58em] shrink-0"
+      className="money-reel-column inline-block overflow-hidden tabular-nums w-[1ch] min-w-[1ch] max-w-[1ch] shrink-0 self-center"
       style={{
         height: '1em',
         lineHeight: 1,
-        perspective: '480px'
+        perspective: '480px',
+        isolation: 'isolate',
+        contain: 'layout style'
       }}>
       <motion.span
         className="money-reel-inner block will-change-transform"
         data-rolling={rolling ? '' : undefined}
-        initial={{ y: `calc(${-(CANON + digit)} * 1em)` }}
+        initial={{ y: `calc(${initialY} * 1em)` }}
         animate={controls}
-        style={{ transformOrigin: '50% 48%' }}>
-        {digits.map((n, i) => (
+        style={{ transformOrigin: '50% 50%' }}>
+        {REEL_STRIP.map((n, i) => (
           <span
             key={i}
-            className="money-reel-cell flex h-[1em] items-center justify-center font-[inherit] leading-none">
+            className="money-reel-cell flex h-[1em] w-full items-center justify-center font-[inherit] leading-none">
             {n}
           </span>
         ))}
       </motion.span>
     </span>
   );
-}
-
-function PunctuationCell({ digit }: { digit: string }) {
-  return (
-    <span
-      className="inline-block shrink-0 self-end leading-none"
-      style={{
-        width: digit === ',' ? '0.3em' : '0.45em'
-      }}>
-      {digit}
-    </span>
-  );
-}
+});
 
 export function AnimatedCounter({
   value,
@@ -146,34 +191,28 @@ export function AnimatedCounter({
   decimals = 2,
   className = ''
 }: AnimatedCounterProps) {
-  const formatted = value.toLocaleString('en-US', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals
-  });
-  const digitChars = formatted.split('');
+  const parts = buildMoneyDisplayParts(value, decimals);
 
   return (
     <motion.div
-      className={`money-coma-counter flex items-baseline justify-center tabular-nums ${className}`}
+      className={`money-coma-counter flex items-center justify-center gap-0 tabular-nums ${className}`}
       whileTap={{ scale: 1.02 }}
       transition={{ type: 'spring', stiffness: 400, damping: 18 }}>
-      {prefix ? (
+      {prefix ?
         <span
-          className="money-coma-prefix inline-block shrink-0 mr-[0.2em] font-[inherit]"
+          className="money-coma-prefix inline-block shrink-0 mr-[0.15em] font-[inherit]"
           aria-hidden>
           {prefix}
         </span>
-      ) : null}
-      {digitChars.map((char, i) =>
-        /\d/.test(char) ? (
+      : null}
+      {parts.map((part, i) =>
+        part.kind === 'digit' ?
           <MoneyDigitReel
-            key={i}
-            digit={parseInt(char, 10)}
-            staggerDelay={getStaggerRank(formatted, i) * 0.036}
+            key={part.id}
+            digit={part.n}
+            staggerDelay={digitsToTheRight(parts, i) * STAGGER_STEP}
           />
-        ) : (
-          <PunctuationCell key={i} digit={char} />
-        )
+        : <PunctuationCell key={part.id} ch={part.ch} />
       )}
     </motion.div>
   );

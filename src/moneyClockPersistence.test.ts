@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   AVERAGE_CALENDAR_MONTH_SECONDS,
   balanceOnAccountAt,
+  defaultMoneyClockState,
   earningsTotalsByCurrency,
+  exportMoneyClockJsonString,
   newProject,
   parseLocalDateYmd,
+  parseMoneyClockJson,
   projectEarningsAt
 } from './moneyClockPersistence';
 
@@ -131,5 +134,15 @@ describe('balanceOnAccountAt', () => {
     const tAfter = accrualStart + 86400000 * 7;
     const atWeekLater = balanceOnAccountAt([p], 'EUR', base, lastPay, tAfter);
     expect(atWeekLater).toBeGreaterThan(base);
+  });
+});
+
+describe('exportMoneyClockJsonString', () => {
+  it('produces JSON that parseMoneyClockJson accepts', () => {
+    const s = defaultMoneyClockState();
+    const json = exportMoneyClockJsonString(s);
+    const back = parseMoneyClockJson(json);
+    expect(back).not.toBeNull();
+    expect(back!.projectsBundle.projects.length).toBe(s.projectsBundle.projects.length);
   });
 });

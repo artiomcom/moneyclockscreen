@@ -200,9 +200,21 @@ export const ru: Record<string, string> = {
   'settings.suffix.perHour': ' / ч',
   'settings.dataTitle': 'Сохранение данных',
   'settings.dataHint':
-    'Настройки автоматически записываются в браузер (localStorage). Файл JSON — резервная копия или перенос на другой компьютер.',
+    'Автоматически в этом браузере (localStorage). Файл или копия JSON — резервная копия и перенос на другой компьютер.',
+  'settings.storageRiskTitle': 'Только в этом браузере',
+  'settings.storageRiskBody':
+    'Очистка данных сайта, другой профиль или другой компьютер могут всё стереть. Иногда скачайте или скопируйте JSON — без регистрации.',
   'settings.downloadJson': 'Скачать JSON',
+  'settings.copyJson': 'Копировать JSON',
+  'settings.copyJsonOk': 'JSON скопирован — сохраните в надёжном месте',
+  'settings.copyJsonFail': 'Не удалось скопировать',
   'settings.uploadJson': 'Загрузить JSON',
+
+  'backupBanner.title': 'Резервная копия',
+  'backupBanner.body':
+    'Данные хранятся только в этом браузере. В настройках → блок «Сохранение» можно скачать или скопировать JSON.',
+  'backupBanner.openSettings': 'К вариантам сохранения',
+  'backupBanner.later': 'Напомнить позже',
 
   'profile.title': 'Профиль (из JSON)',
   'profile.storedHint':

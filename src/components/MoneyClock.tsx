@@ -36,6 +36,7 @@ import {
   getHydratedMoneyClockState,
   saveMoneyClockState,
   exportMoneyClockJsonBlob,
+  exportMoneyClockJsonString,
   parseMoneyClockJson,
   projectEarningsAt,
   earningsTotalsByCurrency,
@@ -48,6 +49,12 @@ import {
   normalizeCurrencyCode,
   clampTakeHomeFraction } from
 '../moneyClockPersistence';
+import {
+  touchLastExportTimestamp,
+  readLastExportMs,
+  readBackupBannerSnoozeUntil,
+  persistBackupBannerSnoozeUntil
+} from '../backupReminderStorage';
 import {
   fetchLatestFxRates,
   buildFxCaptionForProjects,
@@ -194,8 +201,13 @@ export function MoneyClock() {
   const [inflationYearly, setInflationYearly] = useState<BlendedInflationYear[] | null>(null);
   const [chartFocusProjectId, setChartFocusProjectId] = useState<string | null>(null);
   const [awarenessToast, setAwarenessToast] = useState<string | null>(null);
+  const [portalToast, setPortalToast] = useState<string | null>(null);
+  const [lastExportMs, setLastExportMs] = useState<number | null>(() => readLastExportMs());
+  const [backupSnoozeUntil, setBackupSnoozeUntil] = useState(() =>
+    readBackupBannerSnoozeUntil()
+  );
   const [theme, setTheme] = useState<ThemePreference>(() => readStoredTheme());
-  /** 0 = hero only, 1 = currencies & account, 2 = chart (progressive disclosure) */
+  /** 0 = hero, 1 = breakdown, 2 = trajectory, 3 = chart */
   const [detailStep, setDetailStep] = useState<0 | 1 | 2 | 3>(0);
   /** Multi-currency breakdown: default one merged total, expand for all tickers */
   const [showAllCurrencies, setShowAllCurrencies] = useState(false);
@@ -256,6 +268,20 @@ export function MoneyClock() {
 
   const singleSelectedForCopy =
     selectedProjectsOrdered.length === 1 ? selectedProjectsOrdered[0] : null;
+
+  const showBackupReminderBanner = useMemo(() => {
+    if (detailStep !== 0 || selectedProjectsOrdered.length === 0) return false;
+    const now = Date.now();
+    if (now < backupSnoozeUntil) return false;
+    const staleMs = 7 * 86400000;
+    return lastExportMs == null || now - lastExportMs > staleMs;
+  }, [
+    backupSnoozeUntil,
+    detailStep,
+    lastExportMs,
+    nowTick,
+    selectedProjectsOrdered.length
+  ]);
 
   const patchActiveProject = useCallback((patch: Partial<ProjectEntry>) => {
     setProjectsBundle((s) => ({
@@ -726,6 +752,11 @@ export function MoneyClock() {
     window.setTimeout(() => setAwarenessToast(null), 2400);
   }, []);
 
+  const showPortalToast = useCallback((msg: string) => {
+    setPortalToast(msg);
+    window.setTimeout(() => setPortalToast(null), 2800);
+  }, []);
+
   const handleShareMoneyAwareness = useCallback(async () => {
     if (!moneyAwarenessSnap) return;
     const combined = `${moneyAwarenessSnap.lines.en}\n\n---\n\n${moneyAwarenessSnap.lines.ru}`;
@@ -826,7 +857,27 @@ export function MoneyClock() {
     a.rel = 'noopener';
     a.click();
     URL.revokeObjectURL(url);
+    touchLastExportTimestamp();
+    setLastExportMs(Date.now());
   }, [persistSnapshot]);
+
+  const handleCopyExportJson = useCallback(async () => {
+    const text = exportMoneyClockJsonString(persistSnapshot);
+    try {
+      await navigator.clipboard.writeText(text);
+      touchLastExportTimestamp();
+      setLastExportMs(Date.now());
+      showPortalToast(t('settings.copyJsonOk'));
+    } catch {
+      showPortalToast(t('settings.copyJsonFail'));
+    }
+  }, [persistSnapshot, showPortalToast, t]);
+
+  const handleSnoozeBackupBanner = useCallback(() => {
+    const until = Date.now() + 14 * 86400000;
+    persistBackupBannerSnoozeUntil(until);
+    setBackupSnoozeUntil(until);
+  }, []);
 
   const handlePickImportFile = useCallback(() => {
     importFileRef.current?.click();
@@ -852,6 +903,8 @@ export function MoneyClock() {
         setTakeHomeFraction(clampTakeHomeFraction(parsed.takeHomeFraction));
         setProfileBundle(parsed.profile);
         saveMoneyClockState(parsed);
+        touchLastExportTimestamp();
+        setLastExportMs(Date.now());
       };
       reader.readAsText(file, 'UTF-8');
     },
@@ -1359,29 +1412,44 @@ export function MoneyClock() {
         className="hidden"
         onChange={handleImportJsonFile} />
 
-      <div className="mt-5 pt-5 border-t border-gray-200">
-        <p className="text-gray-700 text-sm font-bold text-center mb-1">
+      <div className="mt-5 pt-5 border-t border-gray-200 dark:border-cyan-900/40">
+        <p className="text-gray-700 dark:text-cyan-100/90 text-sm font-bold text-center mb-1">
           {t('settings.dataTitle')}
         </p>
-        <p className="text-gray-500 dark:text-cyan-200/45 text-xs text-center mb-4 leading-relaxed">
+        <p className="text-gray-500 dark:text-cyan-200/45 text-xs text-center mb-3 leading-relaxed px-0.5">
           {t('settings.dataHint')}
         </p>
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div
+          className="rounded-r80-sm border border-amber-200/70 bg-amber-50/90 px-3 py-3 mb-4 dark:border-amber-400/25 dark:bg-amber-500/[0.12]">
+          <p className="text-amber-950 dark:text-amber-100/95 text-[0.68rem] font-extrabold uppercase tracking-wide text-center mb-1.5">
+            {t('settings.storageRiskTitle')}
+          </p>
+          <p className="text-amber-900/90 dark:text-amber-50/80 text-xs text-center leading-relaxed">
+            {t('settings.storageRiskBody')}
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2 flex-wrap">
           <motion.button
             type="button"
             onClick={handleExportJson}
             whileTap={{ scale: 0.98 }}
-            className="flex-1 flex items-center justify-center gap-2 py-3.5 px-4 rounded-r80-sm font-bold text-sm bg-sky-50 text-sky-800 border-2 border-sky-200">
-            
+            className="flex-1 min-w-[10rem] flex items-center justify-center gap-2 py-3.5 px-4 rounded-r80-sm font-bold text-sm bg-sky-50 text-sky-800 border-2 border-sky-200 dark:bg-sky-950/50 dark:text-sky-100 dark:border-sky-500/40">
             <DownloadIcon size={20} strokeWidth={2.2} />
             {t('settings.downloadJson')}
           </motion.button>
           <motion.button
             type="button"
+            onClick={() => void handleCopyExportJson()}
+            whileTap={{ scale: 0.98 }}
+            className="flex-1 min-w-[10rem] flex items-center justify-center gap-2 py-3.5 px-4 rounded-r80-sm font-bold text-sm bg-violet-50 text-violet-900 border-2 border-violet-200 dark:bg-violet-950/40 dark:text-violet-100 dark:border-violet-400/35">
+            <Copy size={20} strokeWidth={2.2} />
+            {t('settings.copyJson')}
+          </motion.button>
+          <motion.button
+            type="button"
             onClick={handlePickImportFile}
             whileTap={{ scale: 0.98 }}
-            className="flex-1 flex items-center justify-center gap-2 py-3.5 px-4 rounded-r80-sm font-bold text-sm bg-gray-100 text-gray-800 border-2 border-gray-200">
-            
+            className="flex-1 min-w-[10rem] flex items-center justify-center gap-2 py-3.5 px-4 rounded-r80-sm font-bold text-sm bg-gray-100 text-gray-800 border-2 border-gray-200 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600/60">
             <UploadIcon size={20} strokeWidth={2.2} />
             {t('settings.uploadJson')}
           </motion.button>
@@ -1477,6 +1545,34 @@ export function MoneyClock() {
                 aria-hidden
               />
               <div className="relative z-10 flex flex-col gap-5 sm:gap-6 px-4 sm:px-6 lg:px-8 pt-5 sm:pt-7 pb-5 sm:pb-7">
+              {showBackupReminderBanner ?
+                <div
+                  className="rounded-r80-sm border border-amber-300/35 bg-amber-500/[0.14] px-3 py-3 sm:px-4 sm:py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                  role="status">
+                  <p className="text-amber-100/95 text-[0.62rem] font-extrabold uppercase tracking-[0.12em] text-center mb-1.5">
+                    {t('backupBanner.title')}
+                  </p>
+                  <p className="text-amber-50/88 text-xs text-center leading-relaxed mb-3 max-w-md mx-auto">
+                    {t('backupBanner.body')}
+                  </p>
+                  <div className="flex flex-col sm:flex-row items-stretch justify-center gap-2 max-w-md mx-auto">
+                    <motion.button
+                      type="button"
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setSettingsOpen(true)}
+                      className="flex-1 text-[0.65rem] font-extrabold uppercase tracking-wide text-[#061018] bg-amber-200 px-4 py-2.5 rounded-r80-sm hover:brightness-105 border border-amber-100/50">
+                      {t('backupBanner.openSettings')}
+                    </motion.button>
+                    <motion.button
+                      type="button"
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handleSnoozeBackupBanner}
+                      className="flex-1 text-[0.65rem] font-bold uppercase tracking-wide text-amber-100/85 border border-amber-200/35 px-4 py-2.5 rounded-r80-sm hover:bg-amber-400/10">
+                      {t('backupBanner.later')}
+                    </motion.button>
+                  </div>
+                </div>
+              : null}
               {hasPositiveAccrualRate && heroRateBasis && realRateBreakdown ?
                 <>
                   <section
@@ -2434,6 +2530,13 @@ export function MoneyClock() {
         </>
         }
       </AnimatePresence>
+      {portalToast ?
+        <div
+          className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-[70] max-w-[min(92vw,24rem)] -translate-x-1/2 rounded-r80-sm border border-emerald-400/35 bg-[#061018]/92 px-4 py-3 text-center text-emerald-100/95 text-xs font-semibold shadow-[0_8px_32px_rgba(0,0,0,0.45)] backdrop-blur-md"
+          role="status">
+          {portalToast}
+        </div>
+      : null}
       </div>
     </div>
   );

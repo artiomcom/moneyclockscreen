@@ -637,9 +637,13 @@ export function parseMoneyClockJson(text: string): MoneyClockSavedState | null {
   }
 }
 
-export function exportMoneyClockJsonBlob(state: MoneyClockSavedState): Blob {
+export function exportMoneyClockJsonString(state: MoneyClockSavedState): string {
   const payload: StoredPayload = { v: FILE_VERSION, ...state };
-  return new Blob([JSON.stringify(payload, null, 2)], {
+  return JSON.stringify(payload, null, 2);
+}
+
+export function exportMoneyClockJsonBlob(state: MoneyClockSavedState): Blob {
+  return new Blob([exportMoneyClockJsonString(state)], {
     type: 'application/json;charset=utf-8'
   });
 }

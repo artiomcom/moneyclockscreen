@@ -198,9 +198,21 @@ export const en: Record<string, string> = {
   'settings.suffix.perHour': ' / hr',
   'settings.dataTitle': 'Data',
   'settings.dataHint':
-    'Settings save to the browser (localStorage). JSON file is backup or move to another device.',
+    'Saved automatically in this browser (localStorage). A JSON file is your backup or way to move to another device.',
+  'settings.storageRiskTitle': 'Only in this browser',
+  'settings.storageRiskBody':
+    'Clearing site data, another profile, or a new device can remove it. Download or copy JSON occasionally — no account required.',
   'settings.downloadJson': 'Download JSON',
+  'settings.copyJson': 'Copy JSON',
+  'settings.copyJsonOk': 'JSON copied — keep it somewhere safe',
+  'settings.copyJsonFail': 'Could not copy',
   'settings.uploadJson': 'Upload JSON',
+
+  'backupBanner.title': 'Have a backup',
+  'backupBanner.body':
+    'Your setup is stored only in this browser. In Settings → Data you can download or copy JSON.',
+  'backupBanner.openSettings': 'Open backup options',
+  'backupBanner.later': 'Remind me later',
 
   'profile.title': 'Profile (from JSON)',
   'profile.storedHint':

@@ -11,8 +11,14 @@ import {
   convertAmountThroughSnapshot,
   type FxSnapshot
 } from '../fxRates';
+import {
+  buildRelativeFxIndexSeries,
+  frankfurterQuoteCurrencies,
+  type FrankfurterRow
+} from '../frankfurterHistorical';
 
-const STEPS = 64;
+export const INCOME_CHART_STEPS = 64;
+const STEPS = INCOME_CHART_STEPS;
 const VB_W = 520;
 const VB_H = 248;
 const PAD_L = 58;
@@ -26,16 +32,32 @@ type Series = {
   code: string;
   label: string;
   points: [number, number][];
-  kind: 'projects' | 'balance' | 'fx';
+  kind: 'projects' | 'balance' | 'fx' | 'fxHist';
 };
 
 const LINE_COLORS = ['#ffffff', '#fef9c3', '#bbf7d0', '#a5f3fc', '#e9d5ff'];
 const BALANCE_LINE = '#fde68a';
 const FX_MERGE_LINE = '#fb7185';
+const FX_HIST_LINE = '#38bdf8';
+
+export function getIncomeChartTimeRange(
+  projects: ProjectEntry[],
+  nowMs: number
+): { tMin: number; tMax: number } | null {
+  if (projects.length === 0) return null;
+  const starts = projects
+    .map((p) => (p.workStartDate.trim() ? parseLocalDateYmd(p.workStartDate) : null))
+    .filter((t): t is number => t != null);
+  if (starts.length === 0) return null;
+  const tMin = Math.min(...starts);
+  const tMax = nowMs > tMin ? nowMs : tMin + DAY_MS;
+  return { tMin, tMax };
+}
 
 function strokeColorForSeries(all: Series[], s: Series, idx: number): string {
   if (s.kind === 'balance') return BALANCE_LINE;
   if (s.kind === 'fx') return FX_MERGE_LINE;
+  if (s.kind === 'fxHist') return FX_HIST_LINE;
   const n = all.slice(0, idx).filter((x) => x.kind === 'projects').length;
   return LINE_COLORS[n % LINE_COLORS.length];
 }
@@ -50,22 +72,11 @@ function buildIncomeSeries(
   },
   fxMerge?: { snapshot: FxSnapshot; targetCode: string } | null
 ): { series: Series[]; tMin: number; tMax: number } {
-  if (projects.length === 0) {
+  const range = getIncomeChartTimeRange(projects, nowMs);
+  if (!range) {
     return { series: [], tMin: 0, tMax: 0 };
   }
-
-  const starts = projects
-    .map((p) => (p.workStartDate.trim() ? parseLocalDateYmd(p.workStartDate) : null))
-    .filter((t): t is number => t != null);
-
-  if (starts.length === 0) {
-    return { series: [], tMin: 0, tMax: 0 };
-  }
-
-  /** Самая ранняя дата начала работы среди всех проектов (полночь локального дня). */
-  const tMin = Math.min(...starts);
-  /** Ось времени до текущего момента; накопления после конца проекта на линии не растут (см. projectEarningsAt). */
-  const tMax = nowMs > tMin ? nowMs : tMin + DAY_MS;
+  const { tMin, tMax } = range;
 
   const byCcy = new Map<string, ProjectEntry[]>();
   for (const p of projects) {
@@ -319,7 +330,8 @@ export function IncomeChart({
   balanceCurrency,
   lastPayrollYmd,
   embedded = false,
-  fxSnapshot = null
+  fxSnapshot = null,
+  fxHistoryRows = null
 }: {
   projects: ProjectEntry[];
   nowMs: number;
@@ -330,23 +342,55 @@ export function IncomeChart({
   embedded?: boolean;
   /** Если есть — добавляется суммарная линия «все проекты» в валюте счёта по курсу */
   fxSnapshot?: FxSnapshot | null;
+  /** История Frankfurter: относительный индекс курсов (отдельная ось по масштабу серии) */
+  fxHistoryRows?: FrankfurterRow[] | null;
 }) {
-  const { series, tMin, tMax } = useMemo(
-    () =>
-      buildIncomeSeries(
-        projects,
-        nowMs,
-        {
-          amount: balanceAfterPayroll,
-          currency: balanceCurrency,
-          lastPayrollYmd
-        },
-        fxSnapshot ?
-          { snapshot: fxSnapshot, targetCode: balanceCurrency }
-        : null
-      ),
-    [projects, nowMs, balanceAfterPayroll, balanceCurrency, lastPayrollYmd, fxSnapshot]
-  );
+  const { series, tMin, tMax } = useMemo(() => {
+    const base = buildIncomeSeries(
+      projects,
+      nowMs,
+      {
+        amount: balanceAfterPayroll,
+        currency: balanceCurrency,
+        lastPayrollYmd
+      },
+      fxSnapshot ?
+        { snapshot: fxSnapshot, targetCode: balanceCurrency }
+      : null
+    );
+    const quotes = frankfurterQuoteCurrencies(projects, balanceCurrency);
+    const hist =
+      fxHistoryRows &&
+      fxHistoryRows.length > 0 &&
+      quotes.length > 0 &&
+      base.tMax > base.tMin ?
+        buildRelativeFxIndexSeries(
+          fxHistoryRows,
+          balanceCurrency,
+          quotes,
+          base.tMin,
+          base.tMax,
+          STEPS
+        )
+      : null;
+    if (!hist) return base;
+    const extra: Series = {
+      id: 'fx-hist-rel',
+      code: balanceCurrency,
+      label: hist.label,
+      points: hist.points,
+      kind: 'fxHist'
+    };
+    return { ...base, series: [...base.series, extra] };
+  }, [
+    projects,
+    nowMs,
+    balanceAfterPayroll,
+    balanceCurrency,
+    lastPayrollYmd,
+    fxSnapshot,
+    fxHistoryRows
+  ]);
 
   const plotW = VB_W - PAD_L - PAD_R;
   const plotH = VB_H - PAD_T - PAD_B;
@@ -416,8 +460,10 @@ export function IncomeChart({
       series.find((s) => s.id === hover.seriesId) ?? series[0]
     : series.find((s) => s.kind === 'projects') ??
       series.find((s) => s.kind === 'fx') ??
+      series.find((s) => s.kind === 'fxHist') ??
       series[0];
   const yAxisRaw = seriesRawBounds(focusSeries.points);
+  const yAxisIsFxHist = focusSeries.kind === 'fxHist';
 
   const shellClass = embedded ?
     'w-full min-w-0 relative'
@@ -533,7 +579,11 @@ export function IncomeChart({
                 strokeWidth={isHi ? 4.2 : 2.5}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                strokeDasharray={s.kind === 'balance' ? '5 4' : undefined}
+                strokeDasharray={
+                  s.kind === 'balance' ? '5 4'
+                  : s.kind === 'fxHist' ? '4 3'
+                  : undefined
+                }
                 style={{
                   filter:
                     isHi ?
@@ -554,7 +604,9 @@ export function IncomeChart({
           fontWeight="700"
           textAnchor="end"
           style={{ fontVariantNumeric: 'tabular-nums' }}>
-          {formatCompact(yAxisRaw.maxV)} {getCurrencySymbol(focusSeries.code)}
+          {yAxisIsFxHist ?
+            `${formatCompact(yAxisRaw.maxV)}%`
+          : `${formatCompact(yAxisRaw.maxV)} ${getCurrencySymbol(focusSeries.code)}`}
         </text>
         <text
           x={PAD_L - 6}
@@ -564,7 +616,9 @@ export function IncomeChart({
           fontFamily="inherit"
           textAnchor="end"
           style={{ fontVariantNumeric: 'tabular-nums' }}>
-          {formatCompact(yAxisRaw.minV)} {getCurrencySymbol(focusSeries.code)}
+          {yAxisIsFxHist ?
+            `${formatCompact(yAxisRaw.minV)}%`
+          : `${formatCompact(yAxisRaw.minV)} ${getCurrencySymbol(focusSeries.code)}`}
         </text>
         <text
           x={PAD_L - 6}
@@ -721,6 +775,10 @@ export function IncomeChart({
                         {
                           background: 'repeating-linear-gradient(90deg, #fde68a 0 3px, transparent 3px 6px)'
                         }
+                      : s.kind === 'fxHist' ?
+                        {
+                          background: 'repeating-linear-gradient(90deg, #38bdf8 0 3px, transparent 3px 5px)'
+                        }
                       : {})
                     }}
                   />
@@ -729,8 +787,13 @@ export function IncomeChart({
                 <span
                   className="shrink-0 tabular-nums"
                   style={{ fontWeight: active ? 800 : 600 }}>
-                  {getCurrencySymbol(s.code)}
-                  {formatMoneyAmount(val)}
+                  {s.kind === 'fxHist' ?
+                    `${val.toFixed(1)}%`
+                  : <>
+                      {getCurrencySymbol(s.code)}
+                      {formatMoneyAmount(val)}
+                    </>
+                  }
                 </span>
               </li>
             );
@@ -746,6 +809,8 @@ export function IncomeChart({
             0,
             ...s.points.map(([, v]) => (Number.isFinite(v) ? v : 0))
           );
+          const peakLabel =
+            s.kind === 'fxHist' ? `${peak.toFixed(0)}%` : formatCompact(peak);
           return (
             <span
               key={s.id}
@@ -758,14 +823,32 @@ export function IncomeChart({
                     {
                       background: 'repeating-linear-gradient(90deg, #fde68a 0 3px, transparent 3px 6px)'
                     }
+                  : s.kind === 'fxHist' ?
+                    {
+                      background: 'repeating-linear-gradient(90deg, #38bdf8 0 3px, transparent 3px 5px)'
+                    }
                   : {})
                 }}
               />
-              {s.label} ({getCurrencySymbol(s.code)}) · {formatCompact(peak)}
+              {s.label}
+              {s.kind === 'fxHist' ? ` · ${peakLabel}` : ` (${getCurrencySymbol(s.code)}) · ${peakLabel}`}
             </span>
           );
         })}
       </div>
+      {series.some((s) => s.kind === 'fxHist') &&
+      <p className="text-center text-white/38 text-[0.55rem] sm:text-[0.58rem] mt-1.5 px-2 leading-snug">
+        История курсов:{' '}
+        <a
+          href="https://www.frankfurter.dev/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sky-200/85 underline underline-offset-2 decoration-sky-200/35">
+          api.frankfurter.dev
+        </a>
+        . Линия — средний относительный индекс (100% = курс на дату начала графика); без ключей API.
+      </p>
+      }
     </div>
   );
 }

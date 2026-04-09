@@ -1,4 +1,4 @@
-import { MONEYCLOCK_CURRENCIES, normalizeCurrencyCode } from './moneyClockPersistence';
+import { normalizeCurrencyCode } from './moneyClockPersistence';
 
 export type FxSnapshot = {
   base: string;
@@ -55,9 +55,19 @@ function rateForCode(rates: Record<string, number>, code: string): number | unde
   return v != null && Number.isFinite(v) ? v : undefined;
 }
 
-export function fxRateLinesForAppCurrencies(snapshot: FxSnapshot): { code: string; line: string }[] {
+/** Строки «1 BASE = … CODE» только для валют выбранных проектов (не валюта счёта). */
+export function fxRateLinesForProjectCurrencies(
+  snapshot: FxSnapshot,
+  balanceCurrency: string,
+  projectCurrencies: readonly string[]
+): { code: string; line: string }[] {
+  const bal = normalizeCurrencyCode(balanceCurrency);
+  const foreign = [
+    ...new Set(projectCurrencies.map((c) => normalizeCurrencyCode(c)))
+  ].filter((c) => c !== bal);
+  foreign.sort((a, b) => a.localeCompare(b));
   const out: { code: string; line: string }[] = [];
-  for (const { code } of MONEYCLOCK_CURRENCIES) {
+  for (const code of foreign) {
     if (code === snapshot.base) continue;
     const r = rateForCode(snapshot.rates, code);
     if (r == null) continue;
@@ -67,6 +77,31 @@ export function fxRateLinesForAppCurrencies(snapshot: FxSnapshot): { code: strin
     });
   }
   return out;
+}
+
+export type FxCaptionBlock =
+  | { kind: 'rates'; lines: { code: string; line: string }[] }
+  | { kind: 'no-foreign'; balance: string }
+  | { kind: 'missing-rates'; foreignCodes: string[] };
+
+export function buildFxCaptionForProjects(
+  snapshot: FxSnapshot,
+  balanceCurrency: string,
+  projectCurrencies: readonly string[]
+): FxCaptionBlock {
+  const bal = normalizeCurrencyCode(balanceCurrency);
+  const foreign = [
+    ...new Set(projectCurrencies.map((c) => normalizeCurrencyCode(c)))
+  ].filter((c) => c !== bal);
+  if (foreign.length === 0) {
+    return { kind: 'no-foreign', balance: bal };
+  }
+  const lines = fxRateLinesForProjectCurrencies(snapshot, balanceCurrency, projectCurrencies);
+  if (lines.length === 0) {
+    foreign.sort((a, b) => a.localeCompare(b));
+    return { kind: 'missing-rates', foreignCodes: foreign };
+  }
+  return { kind: 'rates', lines };
 }
 
 /**

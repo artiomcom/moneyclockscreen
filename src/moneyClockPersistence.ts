@@ -450,24 +450,43 @@ function projectLegacyDurationSeconds(p: ProjectEntry): number {
   );
 }
 
-const PROJECT_MONTH_SECONDS =
-  PCLOCK_WORK_DAYS_PER_MONTH * PCLOCK_WORK_HOURS_PER_DAY * 3600;
+/**
+ * Средняя длина календарного месяца (365.25/12 суток), в секундах.
+ * Для `monthly` начисление идёт по календарному интервалу от `workStartDate`, поэтому знаменатель
+ * должен быть календарным — иначе ставка от «рабочего месяца» (22×8 ч) даёт ~4× завышение.
+ */
+export const AVERAGE_CALENDAR_MONTH_SECONDS = (365.25 / 12) * 24 * 3600;
 
 /**
  * Ставка валюты в секунду по проекту.
  * - contract: сумма контракта / календарный срок (даты начала–конца, минус отпуск) или старая ручная длительность;
- * - monthly: месячный платёж / (22×8 ч), как в режиме зарплаты;
+ * - monthly: месячный платёж, равномерно на средний календарный месяц (согласовано с календарным `workStartDate`…`now`);
  * - hourly: ставка за час / 3600.
  */
 export function projectRatePerSecond(p: ProjectEntry): number {
   const amount = parseFloat(p.projectAmount) || 0;
   const billing = normalizeProjectBillingMode(p.projectBilling);
   if (billing === 'hourly') return amount / 3600;
-  if (billing === 'monthly') return amount > 0 ? amount / PROJECT_MONTH_SECONDS : 0;
+  if (billing === 'monthly') {
+    return amount > 0 ? amount / AVERAGE_CALENDAR_MONTH_SECONDS : 0;
+  }
   const fromDates = projectContractBillableSecondsFromDates(p);
   if (fromDates > 0) return amount / fromDates;
   const legacy = projectLegacyDurationSeconds(p);
   return legacy > 0 ? amount / legacy : 0;
+}
+
+/** «Всего заработано» по списку проектов: сумма `projectEarningsAt` в разрезе валют (без конвертации). */
+export function earningsTotalsByCurrency(
+  projects: ProjectEntry[],
+  nowMs: number
+): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const p of projects) {
+    const c = normalizeCurrencyCode(p.currencyCode);
+    m.set(c, (m.get(c) ?? 0) + projectEarningsAt(p, nowMs));
+  }
+  return m;
 }
 
 /** Начислено по проекту к моменту `nowMs` (календарное время от даты начала, минус отпуск, до сейчас или даты конца). */

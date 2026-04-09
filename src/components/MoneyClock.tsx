@@ -26,6 +26,7 @@ import {
   exportMoneyClockJsonBlob,
   parseMoneyClockJson,
   projectEarningsAt,
+  earningsTotalsByCurrency,
   projectRatePerSecond,
   projectIsEndedByDeadline,
   parseLocalDateYmd,
@@ -36,10 +37,17 @@ import {
 '../moneyClockPersistence';
 import {
   fetchLatestFxRates,
-  fxRateLinesForAppCurrencies,
+  buildFxCaptionForProjects,
   convertAmountThroughSnapshot,
   type FxSnapshot
 } from '../fxRates';
+import {
+  fetchFrankfurterHistoricalRates,
+  formatLocalYmdFromMs,
+  minWorkStartYmdFromProjects,
+  frankfurterQuoteCurrencies,
+  type FrankfurterRow
+} from '../frankfurterHistorical';
 function InputField({
   label,
   value,
@@ -138,6 +146,7 @@ export function MoneyClock() {
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [fxSnapshot, setFxSnapshot] = useState<FxSnapshot | null>(null);
   const [fxReady, setFxReady] = useState(false);
+  const [fxHistoryRows, setFxHistoryRows] = useState<FrankfurterRow[] | null>(null);
 
   const { projects, activeProjectId, selectedProjectIds } = projectsBundle;
   const activeProject = useMemo(
@@ -146,10 +155,27 @@ export function MoneyClock() {
   );
 
   const selectedProjectsOrdered = useMemo(() => {
-    return selectedProjectIds
+    const list = selectedProjectIds
       .map((id) => projects.find((p) => p.id === id))
       .filter((p): p is ProjectEntry => p != null);
-  }, [projects, selectedProjectIds]);
+    const startMs = (p: ProjectEntry): number => parseLocalDateYmd(p.workStartDate) ?? 0;
+    const endDayMs = (p: ProjectEntry): number => {
+      const s = p.projectEndDate?.trim();
+      if (!s) return 0;
+      return parseLocalDateYmd(s) ?? 0;
+    };
+    return [...list].sort((a, b) => {
+      const aLive = !projectIsEndedByDeadline(a, nowTick);
+      const bLive = !projectIsEndedByDeadline(b, nowTick);
+      if (aLive !== bLive) return aLive ? -1 : 1;
+      if (aLive) {
+        return startMs(b) - startMs(a);
+      }
+      const byEnd = endDayMs(b) - endDayMs(a);
+      if (byEnd !== 0) return byEnd;
+      return startMs(b) - startMs(a);
+    });
+  }, [projects, selectedProjectIds, nowTick]);
 
   const singleSelectedForCopy =
     selectedProjectsOrdered.length === 1 ? selectedProjectsOrdered[0] : null;
@@ -263,6 +289,49 @@ export function MoneyClock() {
     };
   }, [currentBalanceCurrency]);
 
+  const fxHistoryProjectSignature = useMemo(
+    () =>
+      selectedProjectsOrdered
+        .map(
+          (p) =>
+            `${p.id}\u0000${p.workStartDate.trim()}\u0000${normalizeCurrencyCode(p.currencyCode)}`
+        )
+        .sort()
+        .join('|'),
+    [selectedProjectsOrdered]
+  );
+
+  const fxHistoryDayBucket = useMemo(() => {
+    const d = new Date(nowTick);
+    return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+  }, [nowTick]);
+
+  useEffect(() => {
+    const fromYmd = minWorkStartYmdFromProjects(selectedProjectsOrdered);
+    const toYmd = formatLocalYmdFromMs(nowTick);
+    const base = normalizeCurrencyCode(currentBalanceCurrency);
+    const quotes = frankfurterQuoteCurrencies(
+      selectedProjectsOrdered,
+      currentBalanceCurrency
+    );
+    if (!fromYmd || quotes.length === 0) {
+      setFxHistoryRows(null);
+      return;
+    }
+    const ac = new AbortController();
+    fetchFrankfurterHistoricalRates(fromYmd, toYmd, base, quotes, {
+      providersEcb: false,
+      signal: ac.signal
+    })
+      .then((rows) => {
+        setFxHistoryRows(rows);
+      })
+      .catch(() => {
+        setFxHistoryRows(null);
+      });
+    return () => ac.abort();
+  }, [fxHistoryProjectSignature, currentBalanceCurrency, fxHistoryDayBucket]);
+
   const computeInitialEarnings = useCallback(
     (nowMs: number) =>
       selectedProjectsOrdered.reduce(
@@ -278,14 +347,10 @@ export function MoneyClock() {
   );
 
   /** Суммы по валютам среди выбранных проектов (нельзя складывать разные валюты в одну цифру). */
-  const earningsByCurrency = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const p of selectedProjectsOrdered) {
-      const c = normalizeCurrencyCode(p.currencyCode);
-      m.set(c, (m.get(c) ?? 0) + projectEarningsAt(p, nowTick));
-    }
-    return m;
-  }, [selectedProjectsOrdered, nowTick]);
+  const earningsByCurrency = useMemo(
+    () => earningsTotalsByCurrency(selectedProjectsOrdered, nowTick),
+    [selectedProjectsOrdered, nowTick]
+  );
 
   const displayBalanceAmount = useMemo(() => {
     const raw = currentBalance.trim().replace(/[\s,]/g, '');
@@ -964,7 +1029,14 @@ export function MoneyClock() {
     </>
   );
 
-  const fxCaptionLines = fxSnapshot ? fxRateLinesForAppCurrencies(fxSnapshot) : [];
+  const fxCaptionBlock = useMemo(() => {
+    if (!fxSnapshot) return null;
+    return buildFxCaptionForProjects(
+      fxSnapshot,
+      currentBalanceCurrency,
+      selectedProjectsOrdered.map((p) => p.currencyCode)
+    );
+  }, [fxSnapshot, currentBalanceCurrency, selectedProjectsOrdered]);
 
   return (
     <div className="relative w-full min-h-screen flex flex-col overflow-hidden">
@@ -1115,18 +1187,19 @@ export function MoneyClock() {
                 </div>
               </div>
 
-              {fxCaptionLines.length > 0 &&
+              {fxSnapshot && fxCaptionBlock &&
               <div
                 className="rounded-xl bg-black/35 border border-white/15 px-3 py-2.5 sm:py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
                 role="note"
                 aria-label="Справочные курсы валют">
+                {fxCaptionBlock.kind === 'rates' &&
                 <p
                   className="text-[0.68rem] sm:text-xs leading-relaxed text-white/78 text-center md:text-left font-medium tabular-nums [text-shadow:0_1px_2px_rgba(0,0,0,0.45)] select-text"
-                  title={fxCaptionLines.map((x) => x.line).join(' · ')}>
+                  title={fxCaptionBlock.lines.map((x) => x.line).join(' · ')}>
                   <span className="text-white/55 font-bold uppercase tracking-wider text-[0.6rem] sm:text-[0.65rem]">
                     Курс{' '}
                   </span>
-                  {fxCaptionLines.map(({ code, line }, i) =>
+                  {fxCaptionBlock.lines.map(({ code, line }, i) =>
                     <React.Fragment key={code}>
                       {i > 0 ?
                         <span className="text-white/35 mx-1.5" aria-hidden>
@@ -1137,6 +1210,24 @@ export function MoneyClock() {
                     </React.Fragment>
                   )}
                 </p>
+                }
+                {fxCaptionBlock.kind === 'no-foreign' &&
+                <p className="text-[0.68rem] sm:text-xs leading-relaxed text-white/72 text-center md:text-left font-medium [text-shadow:0_1px_2px_rgba(0,0,0,0.45)]">
+                  <span className="text-white/55 font-bold uppercase tracking-wider text-[0.6rem] sm:text-[0.65rem]">
+                    Курс{' '}
+                  </span>
+                  <span className="text-white/88">
+                    База API — {fxCaptionBlock.balance}; среди выбранных проектов нет других валют, отдельные
+                    котировки не показываем.
+                  </span>
+                </p>
+                }
+                {fxCaptionBlock.kind === 'missing-rates' &&
+                <p className="text-[0.68rem] sm:text-xs leading-relaxed text-amber-100/90 text-center md:text-left font-medium [text-shadow:0_1px_2px_rgba(0,0,0,0.45)]">
+                  Для валют проектов ({fxCaptionBlock.foreignCodes.join(', ')}) в ответе API нет курса к базе{' '}
+                  {normalizeCurrencyCode(fxSnapshot.base)} — пересчёт и линия на графике могут быть недоступны.
+                </p>
+                }
                 <p className="text-[0.6rem] sm:text-[0.65rem] text-white/45 mt-1.5 text-center md:text-left leading-snug">
                   Используется для блока «Всего в валюте счёта», ставки Σ / sec и розовой линии на графике.
                   {fxSnapshot?.updatedUtc ?
@@ -1161,7 +1252,7 @@ export function MoneyClock() {
                 </p>
               </div>
               }
-              {fxReady && fxCaptionLines.length === 0 &&
+              {fxReady && !fxSnapshot &&
               <div
                 className="rounded-xl bg-black/35 border border-white/15 px-3 py-2 text-[0.65rem] sm:text-xs text-white/60 text-center md:text-left [text-shadow:0_1px_2px_rgba(0,0,0,0.4)]"
                 role="status">
@@ -1180,12 +1271,9 @@ export function MoneyClock() {
                   <div
                     className="flex gap-2.5 overflow-x-auto pb-2 -mx-0.5 px-0.5 snap-x snap-mandatory [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.3)_transparent]"
                     aria-label="Проекты на главном экране">
-                    {selectedProjectIds.map((id) => {
-                      const p = projects.find((x) => x.id === id);
-                      if (!p) return null;
-                      return (
-                        <motion.div
-                          key={id}
+                    {selectedProjectsOrdered.map((p) =>
+                      <motion.div
+                          key={p.id}
                           layout
                           initial={{ opacity: 0, scale: 0.97 }}
                           animate={{ opacity: 1, scale: 1 }}
@@ -1206,8 +1294,7 @@ export function MoneyClock() {
                             />
                           </div>
                         </motion.div>
-                      );
-                    })}
+                    )}
                   </div>
                 </div>
 
@@ -1224,6 +1311,7 @@ export function MoneyClock() {
                     balanceCurrency={currentBalanceCurrency}
                     lastPayrollYmd={lastPayrollYmd}
                     fxSnapshot={fxSnapshot}
+                    fxHistoryRows={fxHistoryRows}
                     embedded
                   />
                 </div>

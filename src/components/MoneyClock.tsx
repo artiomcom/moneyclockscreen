@@ -1617,11 +1617,11 @@ export function MoneyClock() {
                   selectedProjectsOrdered.length > 0 &&
                   <section
                     className="pt-4 mt-2 border-t border-white/12 w-full max-w-xl mx-auto md:mx-0"
-                    aria-label={`Сводка в ${normalizeCurrencyCode(currentBalanceCurrency)} по курсу`}>
+                    aria-label={t('breakdown.equivTitle')}>
                     <div
                       className="rounded-r80 border border-sky-200/25 bg-gradient-to-b from-sky-400/[0.14] to-white/[0.04] px-4 py-4 sm:px-5 sm:py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
                       <p className="text-white/55 text-[0.6rem] sm:text-[0.62rem] font-extrabold uppercase tracking-[0.14em] text-center md:text-left mb-3">
-                        Всего в валюте счёта
+                        {t('breakdown.equivTitle')}
                       </p>
                       <div
                         className="font-black tracking-tight text-white tabular-nums text-center md:text-left leading-none mx-auto md:mx-0 w-fit max-w-full"
@@ -1637,8 +1637,7 @@ export function MoneyClock() {
                         />
                       </div>
                       <p className="text-white/40 text-[0.56rem] sm:text-[0.58rem] font-medium text-center md:text-left mt-2.5">
-                        Один столбец в <strong className="text-white/65 font-semibold">валюте счёта</strong> —
-                        все выбранные проекты приведены к ней по курсу из блока «Курс» ниже.
+                        {t('breakdown.equivHint')}
                       </p>
                       <div
                         className="mt-4 rounded-r80-sm border border-white/12 bg-black/15 px-3 py-3 sm:px-3.5 sm:py-3.5 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
@@ -1651,9 +1650,8 @@ export function MoneyClock() {
                           <p
                             className="text-white/50 font-medium leading-relaxed pt-0.5"
                             style={{ fontSize: 'clamp(0.56rem, 1.45vmin, 0.7rem)' }}>
-                            <span className="text-white/68 font-semibold">Курс.</span> Каждая сумма в своей
-                            валюте пересчитывается по текущим котировкам API в{' '}
-                            {normalizeCurrencyCode(currentBalanceCurrency)}.
+                            <span className="text-white/68 font-semibold">{t('breakdown.rateHeading')}</span>{' '}
+                            {t('breakdown.fxBlurb')} {normalizeCurrencyCode(currentBalanceCurrency)}.
                           </p>
                         </div>
                         <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
@@ -1666,8 +1664,8 @@ export function MoneyClock() {
                           <p
                             className="text-white/46 font-medium leading-relaxed pt-0.5"
                             style={{ fontSize: 'clamp(0.55rem, 1.4vmin, 0.68rem)' }}>
-                            <span className="text-white/64 font-semibold">Сумма.</span> Складываются уже
-                            пересчитанные величины — так можно сравнить вклад разных валют в одной цифре.
+                            <span className="text-white/64 font-semibold">{t('breakdown.sumHeading')}</span>{' '}
+                            {t('breakdown.sumBlurb')}
                           </p>
                         </div>
                       </div>
@@ -1679,31 +1677,33 @@ export function MoneyClock() {
                 <div className="space-y-3 sm:space-y-4 text-center md:text-left min-w-0 pt-1 border-t border-white/10 md:border-t-0 md:border-l md:border-white/15 md:pl-10 flex flex-col">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-start gap-2">
                     <p className="text-white/60 text-[0.65rem] sm:text-xs font-extrabold uppercase tracking-[0.14em]">
-                      На счёте сейчас
+                      {t('breakdown.inAccount')}
                     </p>
                     {selectedProjectsOrdered.length > 0 && !accountBalanceCurrencyStatus.anyInCcy ?
                       <span className="inline-flex items-center justify-center sm:justify-start text-[0.48rem] font-extrabold uppercase tracking-[0.12em] text-amber-100/95 px-2 py-0.5 rounded-r80-sm bg-amber-500/20 border border-amber-200/30 w-fit mx-auto sm:mx-0">
-                        Нет контрактов в {normalizeCurrencyCode(currentBalanceCurrency)}
+                        {t('breakdown.noContractsInCcy')}{' '}
+                        {normalizeCurrencyCode(currentBalanceCurrency)}
                       </span>
                     : selectedProjectsOrdered.length > 0 &&
                       accountBalanceCurrencyStatus.anyInCcy &&
                       !accountBalanceCurrencyStatus.hasActiveInCcy ?
                       <span className="inline-flex items-center justify-center sm:justify-start text-[0.48rem] font-extrabold uppercase tracking-[0.12em] text-slate-100/90 px-2 py-0.5 rounded-r80-sm bg-slate-600/45 border border-white/15 w-fit mx-auto sm:mx-0">
-                        Все завершены ({normalizeCurrencyCode(currentBalanceCurrency)})
+                        {t('breakdown.allEndedWithCcy', {
+                          ccy: normalizeCurrencyCode(currentBalanceCurrency)
+                        })}
                       </span>
                     : null}
                   </div>
                   {selectedProjectsOrdered.length > 0 && !accountBalanceCurrencyStatus.anyInCcy &&
                   <p className="text-amber-100/75 text-[0.56rem] sm:text-[0.58rem] leading-relaxed max-w-md mx-auto md:mx-0">
-                    К остатку не капают проекты — в валюте счёта нет выбранных контрактов, только сумма после
-                    зарплаты.
+                    {t('breakdown.noAccrualHint')}
                   </p>
                   }
                   {selectedProjectsOrdered.length > 0 &&
                   accountBalanceCurrencyStatus.anyInCcy &&
                   !accountBalanceCurrencyStatus.hasActiveInCcy &&
                   <p className="text-white/50 text-[0.56rem] sm:text-[0.58rem] leading-relaxed max-w-md mx-auto md:mx-0">
-                    Срок по всем проектам в этой валюте уже прошёл — доначисление по ним к остатку не идёт.
+                    {t('breakdown.allEndedHint')}
                   </p>
                   }
                   <div
@@ -1730,10 +1730,8 @@ export function MoneyClock() {
                       <p
                         className="text-white/52 font-medium leading-relaxed pt-0.5"
                         style={{ fontSize: 'clamp(0.58rem, 1.5vmin, 0.72rem)' }}>
-                        <span className="text-white/68 font-semibold">Как считается.</span> Берётся сумма
-                        после даты последней зарплаты; с{' '}
-                        <strong className="text-white/78 font-semibold">полуночи следующего дня</strong> после
-                        этой даты добавляется доначисление до текущего момента.
+                        <span className="text-white/68 font-semibold">{t('breakdown.howTitle')}</span>{' '}
+                        {t('breakdown.howBody')}
                       </p>
                     </div>
                     <div className="h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
@@ -1746,11 +1744,9 @@ export function MoneyClock() {
                       <p
                         className="text-white/48 font-medium leading-relaxed pt-0.5"
                         style={{ fontSize: 'clamp(0.56rem, 1.45vmin, 0.7rem)' }}>
-                        В эту цифру входят только проекты в валюте{' '}
-                        <strong className="text-white/72 font-semibold">
-                          {normalizeCurrencyCode(currentBalanceCurrency)}
-                        </strong>
-                        . Остальные валюты смотрите в блоке «Всего заработано».
+                        {t('breakdown.onlyCcy', {
+                          ccy: normalizeCurrencyCode(currentBalanceCurrency)
+                        })}
                       </p>
                     </div>
                   </div>
@@ -1762,13 +1758,13 @@ export function MoneyClock() {
               <div
                 className="rounded-r80-sm bg-black/35 border border-white/15 px-3 py-2.5 sm:py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
                 role="note"
-                aria-label="Справочные курсы валют">
+                aria-label={t('fx.title')}>
                 {fxCaptionBlock.kind === 'rates' &&
                 <p
                   className="text-[0.68rem] sm:text-xs leading-relaxed text-white/78 text-center md:text-left font-medium tabular-nums [text-shadow:0_1px_2px_rgba(0,0,0,0.45)] select-text"
                   title={fxCaptionBlock.lines.map((x) => x.line).join(' · ')}>
                   <span className="text-white/55 font-bold uppercase tracking-wider text-[0.6rem] sm:text-[0.65rem]">
-                    Курс{' '}
+                    {t('fx.title')}{' '}
                   </span>
                   {fxCaptionBlock.lines.map(({ code, line }, i) =>
                     <React.Fragment key={code}>
@@ -1785,32 +1781,36 @@ export function MoneyClock() {
                 {fxCaptionBlock.kind === 'no-foreign' &&
                 <p className="text-[0.68rem] sm:text-xs leading-relaxed text-white/72 text-center md:text-left font-medium [text-shadow:0_1px_2px_rgba(0,0,0,0.45)]">
                   <span className="text-white/55 font-bold uppercase tracking-wider text-[0.6rem] sm:text-[0.65rem]">
-                    Курс{' '}
+                    {t('fx.title')}{' '}
                   </span>
                   <span className="text-white/88">
-                    База API — {fxCaptionBlock.balance}; среди выбранных проектов нет других валют, отдельные
-                    котировки не показываем.
+                    {t('fx.noForeign', { balance: fxCaptionBlock.balance })}
                   </span>
                 </p>
                 }
                 {fxCaptionBlock.kind === 'missing-rates' &&
                 <p className="text-[0.68rem] sm:text-xs leading-relaxed text-amber-100/90 text-center md:text-left font-medium [text-shadow:0_1px_2px_rgba(0,0,0,0.45)]">
-                  Для валют проектов ({fxCaptionBlock.foreignCodes.join(', ')}) в ответе API нет курса к базе{' '}
-                  {normalizeCurrencyCode(fxSnapshot.base)} — пересчёт и линия на графике могут быть недоступны.
+                  {t('fx.missing', {
+                    codes: fxCaptionBlock.foreignCodes.join(', '),
+                    base: normalizeCurrencyCode(fxSnapshot.base)
+                  })}
                 </p>
                 }
                 <p className="text-[0.6rem] sm:text-[0.65rem] text-white/45 mt-1.5 text-center md:text-left leading-snug">
-                  Используется для блока «Всего в валюте счёта», ставки Σ / sec и розовой линии на графике.
+                  {t('fx.footer')}
                   {fxSnapshot?.updatedUtc ?
                     <>
                       {' '}
                       ·{' '}
-                      {new Date(fxSnapshot.updatedUtc).toLocaleString(undefined, {
+                      {new Date(fxSnapshot.updatedUtc).toLocaleString(
+                        locale === 'ru' ? 'ru-RU' : 'en-US',
+                        {
                         day: 'numeric',
                         month: 'short',
                         hour: '2-digit',
                         minute: '2-digit'
-                      })}
+                      }
+                      )}
                     </>
                   : null}{' '}
                   <a
@@ -1827,22 +1827,21 @@ export function MoneyClock() {
               <div
                 className="rounded-r80-sm bg-black/35 border border-white/15 px-3 py-2 text-[0.65rem] sm:text-xs text-white/60 text-center md:text-left [text-shadow:0_1px_2px_rgba(0,0,0,0.4)]"
                 role="status">
-                Курсы не загрузились — пересчёт в валюту счёта и линия на графике недоступны. Остаток и
-                суммы по валютам без изменений.
+                {t('fx.failed')}
               </div>
               }
 
               {selectedProjectsOrdered.length > 0 &&
               <div
                 className="rounded-r80 bg-black/22 border border-white/12 p-3 sm:p-4 lg:p-5 min-h-0 min-w-0 shadow-inner isolate"
-                aria-label="График дохода">
+                aria-label={t('chart.ariaPanel')}>
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2.5 mb-2">
                   <div className="min-w-0">
                     <p className="text-white/55 text-[0.62rem] font-extrabold uppercase tracking-[0.12em] text-center sm:text-left sm:pt-0.5">
-                      Динамика накоплений
+                      {t('chart.panelTitle')}
                     </p>
                     <p className="text-white/35 text-[0.55rem] font-medium mt-1 text-center sm:text-left">
-                      Клик по проекту — одна линия; ещё раз — все снова.
+                      {t('chart.panelHint')}
                     </p>
                   </div>
                   <AnimatePresence mode="wait">
@@ -1860,11 +1859,11 @@ export function MoneyClock() {
                             aria-hidden
                           />
                           <span className="text-[0.62rem] sm:text-[0.65rem] font-bold text-white/90 max-w-[min(12rem,50vw)] truncate">
-                            {chartFocusProject.name || 'Проект'}
+                            {chartFocusProject.name || t('chart.defaultProject')}
                           </span>
                           {projectIsEndedByDeadline(chartFocusProject, nowTick) ?
                             <span className="text-[0.48rem] font-extrabold uppercase tracking-wide text-slate-200/95 px-1.5 py-0.5 rounded-r80-sm bg-slate-700/55 border border-white/12 shrink-0">
-                              Завершён
+                              {t('settings.contractEnded')}
                             </span>
                           : null}
                         </span>
@@ -1874,7 +1873,7 @@ export function MoneyClock() {
                         onClick={() => setChartFocusProjectId(null)}
                         className="inline-flex items-center gap-1 rounded-r80-sm border border-white/20 bg-white/10 px-2.5 py-1 text-[0.6rem] font-bold uppercase tracking-wide text-white/75 hover:text-white hover:bg-white/15 hover:border-white/30 transition-colors">
                         <XIcon size={12} strokeWidth={2.5} className="opacity-80" aria-hidden />
-                        Все
+                        {t('chart.all')}
                       </motion.button>
                     </motion.div>
                     }
@@ -1884,11 +1883,11 @@ export function MoneyClock() {
                 {/* Рельс проектов — внутри панели графика (как в терминалах); под слоем с SVG, курсор и тултип — выше */}
                 <div className="relative z-0 mb-2 sm:mb-2.5 rounded-r80-sm border border-white/[0.09] bg-gradient-to-b from-white/[0.07] to-white/[0.02] px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
                   <p className="text-white/38 text-[0.55rem] font-bold uppercase tracking-[0.1em] px-1 mb-1.5">
-                    Проекты
+                    {t('chart.projects')}
                   </p>
                   <div
                     className="flex gap-2 overflow-x-auto pb-0.5 -mx-0.5 px-0.5 snap-x snap-mandatory [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.28)_transparent]"
-                    aria-label="Проекты и выделение на графике">
+                    aria-label={t('chart.projects')}>
                     {selectedProjectsOrdered.map((p) => {
                       const selected = chartFocusProjectId === p.id;
                       const contractEnded = projectIsEndedByDeadline(p, nowTick);
@@ -1904,8 +1903,12 @@ export function MoneyClock() {
                           aria-pressed={selected}
                           aria-label={
                             selected ?
-                              `Снять выделение: ${p.name || 'Проект'}`
-                            : `Показать на графике: ${p.name || 'Проект'}`
+                              t('chart.unfocus', {
+                                name: p.name || t('chart.defaultProject')
+                              })
+                            : t('chart.focusLine', {
+                                name: p.name || t('chart.defaultProject')
+                              })
                           }
                           onClick={() =>
                             setChartFocusProjectId((id) => (id === p.id ? null : p.id))
@@ -1925,17 +1928,17 @@ export function MoneyClock() {
                             }`}>
                           <div className="flex items-start justify-between gap-1 mb-0.5 flex-wrap">
                             <p className="text-white/[0.9] text-[0.65rem] sm:text-[0.7rem] font-bold truncate leading-tight min-w-0 flex-1 basis-[min(100%,5rem)]">
-                              {p.name || 'Проект'}
+                              {p.name || t('chart.defaultProject')}
                             </p>
                             <div className="flex shrink-0 gap-1 flex-wrap justify-end">
                               {contractEnded ?
                                 <span className="text-[0.46rem] font-extrabold uppercase tracking-[0.1em] text-slate-200/90 px-1 py-0.5 rounded bg-slate-600/50 border border-white/12">
-                                  Завершён
+                                  {t('settings.contractEnded')}
                                 </span>
                               : null}
                               {selected ?
                                 <span className="text-[0.46rem] font-extrabold uppercase tracking-[0.1em] text-amber-100/90 px-1 py-0.5 rounded bg-amber-400/22 border border-amber-200/28">
-                                  График
+                                  {t('chart.graphBadge')}
                                 </span>
                               : null}
                             </div>
@@ -1992,14 +1995,20 @@ export function MoneyClock() {
                     className="text-white/60 font-medium drop-shadow space-y-[clamp(0.25rem,1.25vmin,1.25rem)]"
                     style={{ fontSize: 'clamp(0.875rem, 3.75vmin, 4.375rem)' }}>
                     {singleSelectedForCopy.workStartDate.trim() &&
-                    <p>Начало: {formatYmdLong(singleSelectedForCopy.workStartDate)}</p>
+                    <p>
+                      {t('dates.start')}{' '}
+                      {formatYmdLong(singleSelectedForCopy.workStartDate, locale)}
+                    </p>
                     }
                     {singleSelectedForCopy.projectEndDate.trim() &&
-                    <p>Окончание: {formatYmdLong(singleSelectedForCopy.projectEndDate)}</p>
+                    <p>
+                      {t('dates.end')}{' '}
+                      {formatYmdLong(singleSelectedForCopy.projectEndDate, locale)}
+                    </p>
                     }
                     {projectEndedInfo.ended &&
                     <p className="text-amber-200/95 font-semibold">
-                      Проект завершён — итог за период зафиксирован
+                      {t('dates.projectClosed')}
                     </p>
                     }
                   </div>
@@ -2032,20 +2041,22 @@ export function MoneyClock() {
                         map(([ccy, r]) =>
                         <span key={ccy}>
                               +{getCurrencySymbol(ccy)}
-                              {r.toFixed(4)} / sec ({ccy})
+                              {r.toFixed(4)} {t('footer.perSec')} ({ccy})
                             </span>
                         ) :
                         <>
                             +{balanceCurrencySymbol}
-                            {totalRatePerSecond.toFixed(4)} / sec
+                            {totalRatePerSecond.toFixed(4)} {t('footer.perSec')}
                           </>
                         }
                       </span>
                       {equivalentRatePerSecondInBalanceCcy != null &&
                       <span className="text-white/65 font-semibold text-[0.7em] sm:text-[0.72em]">
-                        Σ ≈ +{balanceCurrencySymbol}
-                        {equivalentRatePerSecondInBalanceCcy.toFixed(4)} / sec в{' '}
-                        {normalizeCurrencyCode(currentBalanceCurrency)} (по курсу)
+                        {t('footer.sigmaPerSec')}
+                        {balanceCurrencySymbol}
+                        {equivalentRatePerSecondInBalanceCcy.toFixed(4)} {t('footer.perSec')}{' '}
+                        {t('footer.inCcy')}{' '}
+                        {normalizeCurrencyCode(currentBalanceCurrency)} {t('footer.byRate')}
                       </span>
                       }
                     </span>
@@ -2058,13 +2069,13 @@ export function MoneyClock() {
                     transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                     className="mx-auto mt-5 w-full max-w-lg rounded-r80 border border-fuchsia-200/22 bg-gradient-to-br from-fuchsia-500/[0.14] via-white/[0.05] to-violet-600/[0.1] px-4 py-4 sm:px-5 sm:py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.11)]">
                     <p className="text-center text-white/48 text-[0.52rem] sm:text-[0.54rem] font-extrabold uppercase tracking-[0.16em] mb-2">
-                      Money Awareness Engine
+                      {t('awareness.title')}
                     </p>
                     <p
                       className="text-center font-black tabular-nums text-white leading-tight"
                       style={{ fontSize: 'clamp(1rem, 3.4vmin, 1.45rem)' }}>
                       <span className="text-white/55 text-[0.65em] font-bold block mb-1 normal-case tracking-normal">
-                        Мой темп (шэринг)
+                        {t('awareness.sub')}
                       </span>
                       +{getCurrencySymbol(moneyAwarenessSnap.rateCurrency)}
                       {moneyAwarenessSnap.rate >= 0.01 ?
@@ -2079,23 +2090,17 @@ export function MoneyClock() {
                         <p
                           className="text-center text-white/82 font-bold mt-3 leading-snug px-1"
                           style={{ fontSize: 'clamp(0.8rem, 2.4vmin, 1.05rem)' }}>
-                          Выше{' '}
-                          <span className="text-fuchsia-200 drop-shadow-sm">
-                            ~{moneyAwarenessSnap.demoPct}%
-                          </span>{' '}
-                          на условной EUR-лестнице
+                          {t('awareness.ladder', { pct: moneyAwarenessSnap.demoPct })}
                         </p>
                         <p className="text-center text-white/70 text-[0.58rem] sm:text-[0.6rem] font-semibold mt-1 px-2">
-                          На языке «вирусного» сравнения: roughly &quot;I earn more than ~{moneyAwarenessSnap.demoPct}%
-                          &quot; of this <strong className="text-white/85">demo</strong> ladder — не реальный опрос людей.
+                          {t('awareness.ladderNote', { pct: moneyAwarenessSnap.demoPct })}
                         </p>
                         <p className="text-center text-white/34 text-[0.48rem] sm:text-[0.5rem] leading-snug mt-2 px-2">
-                          Модель: грубые якоря ~20–150k €/год → ставка/сек. Не финансовая рекомендация.
+                          {t('awareness.ladderModel')}
                         </p>
                       </>
                     : <p className="text-center text-white/42 text-[0.55rem] mt-3 px-2 leading-snug">
-                        Загрузите курсы — появится демо-сравнение с той же EUR-шкалой (для контекста, не для
-                        хвастовства).
+                        {t('awareness.needFx')}
                       </p>
                     }
                     <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
@@ -2105,7 +2110,7 @@ export function MoneyClock() {
                         onClick={() => void handleShareMoneyAwareness()}
                         className="inline-flex items-center gap-1.5 rounded-r80-sm border border-fuchsia-200/35 bg-fuchsia-500/20 px-3 py-2 text-[0.62rem] sm:text-[0.65rem] font-extrabold uppercase tracking-wide text-fuchsia-50 hover:bg-fuchsia-500/30 transition-colors">
                         <Share2 size={14} strokeWidth={2.4} className="opacity-90" aria-hidden />
-                        Поделиться
+                        {t('awareness.share')}
                       </motion.button>
                       <motion.button
                         type="button"
@@ -2113,7 +2118,7 @@ export function MoneyClock() {
                         onClick={() => void handleCopyAwareness('en')}
                         className="inline-flex items-center gap-1.5 rounded-r80-sm border border-white/20 bg-white/10 px-3 py-2 text-[0.6rem] sm:text-[0.62rem] font-bold text-white/85 hover:bg-white/16 transition-colors">
                         <Copy size={14} strokeWidth={2.2} className="opacity-85" aria-hidden />
-                        EN
+                        {t('lang.en')}
                       </motion.button>
                       <motion.button
                         type="button"
@@ -2121,7 +2126,7 @@ export function MoneyClock() {
                         onClick={() => void handleCopyAwareness('ru')}
                         className="inline-flex items-center gap-1.5 rounded-r80-sm border border-white/20 bg-white/10 px-3 py-2 text-[0.6rem] sm:text-[0.62rem] font-bold text-white/85 hover:bg-white/16 transition-colors">
                         <Copy size={14} strokeWidth={2.2} className="opacity-85" aria-hidden />
-                        RU
+                        {t('lang.ru')}
                       </motion.button>
                     </div>
                     {awarenessToast ?
@@ -2148,7 +2153,7 @@ export function MoneyClock() {
         <>
           <motion.button
             type="button"
-            aria-label="Close settings"
+            aria-label={t('settings.close')}
             className="fixed inset-0 z-40 bg-black/45 backdrop-blur-[2px] dark:bg-violet-950/60 dark:backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -2171,14 +2176,14 @@ export function MoneyClock() {
               <h2
                 id="settings-title"
                 className="text-lg font-black text-gray-900 dark:text-cyan-200 tracking-tight">
-                Настройки
+                {t('settings.title')}
               </h2>
               <motion.button
                 type="button"
                 onClick={() => setSettingsOpen(false)}
                 whileTap={{ scale: 0.92 }}
                 className="w-11 h-11 rounded-r80-sm flex items-center justify-center bg-gray-100 text-gray-700 dark:bg-fuchsia-950/60 dark:text-fuchsia-100 dark:border dark:border-fuchsia-500/30"
-                aria-label="Закрыть">
+                aria-label={t('settings.close')}>
                 
                 <XIcon size={22} strokeWidth={2.5} />
               </motion.button>

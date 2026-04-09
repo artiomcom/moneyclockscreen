@@ -56,7 +56,7 @@ export const en: Record<string, string> = {
   'breakdown.howBody':
     'Balance after last payroll date; from midnight the next day, accrual runs to now.',
   'breakdown.onlyCcy':
-    'Only projects in account currency count here. Other currencies are under “Total earned”.',
+    'Only projects in {ccy} count here. Other currencies are under “Total earned”.',
   'breakdown.sortEndedNote':
     '“Ended” means every contract in that currency is past its end date.',
   'breakdown.rateHeading': 'Rate.',

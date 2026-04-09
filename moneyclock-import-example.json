@@ -1,0 +1,43 @@
+{
+  "v": 1,
+  "mode": "project",
+  "monthlySalary": "3000",
+  "hourlyRate": "25",
+  "projectsBundle": {
+    "projects": [
+      {
+        "id": "p-main",
+        "name": "Мой проект",
+        "projectAmount": "5000",
+        "projMonths": "0",
+        "projDays": "30",
+        "projHours": "0",
+        "projMinutes": "0",
+        "workedMonths": "0",
+        "workedDays": "0",
+        "workedHours": "0",
+        "workedMinutes": "0",
+        "workStartDate": "",
+        "projectEndDate": "",
+        "vacations": []
+      }
+    ],
+    "activeProjectId": "p-main"
+  },
+  "workedMonths": "0",
+  "workedDays": "0",
+  "workedHours": "0",
+  "workedMinutes": "0",
+  "profile": {
+    "_comment": "Необязательно: резюме и заметки. См. profile-artem-miherea.json — полный пример.",
+    "personal": {
+      "fullName": "Имя Фамилия",
+      "headline": "Должность",
+      "email": "you@example.com"
+    },
+    "moneyClockMeta": {
+      "profileVersion": "1.0",
+      "hints": "Произвольные подсказки для себя."
+    }
+  }
+}

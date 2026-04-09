@@ -1,0 +1,510 @@
+{
+  "v": 1,
+  "mode": "hourly",
+  "monthlySalary": "9500",
+  "hourlyRate": "85",
+  "projectsBundle": {
+    "projects": [
+      {
+        "id": "p-napier-aml",
+        "name": "Napier Technologies — Software Engineering Lead",
+        "projectAmount": "420000",
+        "projMonths": "46",
+        "projDays": "0",
+        "projHours": "0",
+        "projMinutes": "0",
+        "workedMonths": "0",
+        "workedDays": "0",
+        "workedHours": "0",
+        "workedMinutes": "0",
+        "workStartDate": "2022-06-01",
+        "projectEndDate": "",
+        "vacations": []
+      },
+      {
+        "id": "p-skilltools",
+        "name": "SkillTools — Founder",
+        "projectAmount": "180000",
+        "projMonths": "46",
+        "projDays": "0",
+        "projHours": "0",
+        "projMinutes": "0",
+        "workedMonths": "0",
+        "workedDays": "0",
+        "workedHours": "0",
+        "workedMinutes": "0",
+        "workStartDate": "2022-06-01",
+        "projectEndDate": "",
+        "vacations": []
+      },
+      {
+        "id": "p-x5-group",
+        "name": "X5 Group — Software Engineering Manager",
+        "projectAmount": "190000",
+        "projMonths": "25",
+        "projDays": "0",
+        "projHours": "0",
+        "projMinutes": "0",
+        "workedMonths": "0",
+        "workedDays": "0",
+        "workedHours": "0",
+        "workedMinutes": "0",
+        "workStartDate": "2020-03-01",
+        "projectEndDate": "2022-03-31",
+        "vacations": []
+      },
+      {
+        "id": "p-sberbank",
+        "name": "Sberbank — Lead Software Engineer",
+        "projectAmount": "150000",
+        "projMonths": "16",
+        "projDays": "0",
+        "projHours": "0",
+        "projMinutes": "0",
+        "workedMonths": "0",
+        "workedDays": "0",
+        "workedHours": "0",
+        "workedMinutes": "0",
+        "workStartDate": "2018-12-01",
+        "projectEndDate": "2020-03-31",
+        "vacations": []
+      },
+      {
+        "id": "p-x5-retail",
+        "name": "X5 Retail Group — Software Technical Lead",
+        "projectAmount": "240000",
+        "projMonths": "34",
+        "projDays": "0",
+        "projHours": "0",
+        "projMinutes": "0",
+        "workedMonths": "0",
+        "workedDays": "0",
+        "workedHours": "0",
+        "workedMinutes": "0",
+        "workStartDate": "2016-03-01",
+        "projectEndDate": "2018-12-31",
+        "vacations": []
+      },
+      {
+        "id": "p-afrpplus",
+        "name": "Afrpplus — Lead Software Engineer",
+        "projectAmount": "95000",
+        "projMonths": "17",
+        "projDays": "0",
+        "projHours": "0",
+        "projMinutes": "0",
+        "workedMonths": "0",
+        "workedDays": "0",
+        "workedHours": "0",
+        "workedMinutes": "0",
+        "workStartDate": "2016-08-01",
+        "projectEndDate": "2017-12-31",
+        "vacations": []
+      },
+      {
+        "id": "p-kjw-aerocon",
+        "name": "KJW AEROCON LIMITED — Senior Software Engineer",
+        "projectAmount": "175000",
+        "projMonths": "51",
+        "projDays": "0",
+        "projHours": "0",
+        "projMinutes": "0",
+        "workedMonths": "0",
+        "workedDays": "0",
+        "workedHours": "0",
+        "workedMinutes": "0",
+        "workStartDate": "2012-06-01",
+        "projectEndDate": "2016-09-30",
+        "vacations": []
+      },
+      {
+        "id": "p-mniti",
+        "name": "MNITI, JSC — Senior Software Engineer",
+        "projectAmount": "78000",
+        "projMonths": "16",
+        "projDays": "0",
+        "projHours": "0",
+        "projMinutes": "0",
+        "workedMonths": "0",
+        "workedDays": "0",
+        "workedHours": "0",
+        "workedMinutes": "0",
+        "workStartDate": "2014-09-01",
+        "projectEndDate": "2015-12-31",
+        "vacations": []
+      },
+      {
+        "id": "p-pays-de-retz",
+        "name": "PAYS DE RETZ ENERGIES — System Network Administrator",
+        "projectAmount": "52000",
+        "projMonths": "49",
+        "projDays": "0",
+        "projHours": "0",
+        "projMinutes": "0",
+        "workedMonths": "0",
+        "workedDays": "0",
+        "workedHours": "0",
+        "workedMinutes": "0",
+        "workStartDate": "2010-10-01",
+        "projectEndDate": "2014-10-31",
+        "vacations": []
+      },
+      {
+        "id": "p-auto-mall",
+        "name": "AUTO MALL SRL — Logistics Analyst",
+        "projectAmount": "22000",
+        "projMonths": "18",
+        "projDays": "0",
+        "projHours": "0",
+        "projMinutes": "0",
+        "workedMonths": "0",
+        "workedDays": "0",
+        "workedHours": "0",
+        "workedMinutes": "0",
+        "workStartDate": "2009-01-01",
+        "projectEndDate": "2010-06-30",
+        "vacations": []
+      }
+    ],
+    "activeProjectId": "p-napier-aml"
+  },
+  "workedMonths": "0",
+  "workedDays": "0",
+  "workedHours": "0",
+  "workedMinutes": "0",
+  "profile": {
+    "_comment": "Один файл: настройки MoneyClock (v:1) + вложенный profile. Импорт: Настройки → Загрузить JSON. Ставки и проекты правьте в форме ниже; резюме — в JSON или внешнем редакторе.",
+    "schemaVersion": "1.0",
+    "profileType": "professional",
+    "personal": {
+      "fullName": "Artem Miherea",
+      "headline": "Software Engineering Lead | Java | Kotlin | Scala | Python | AI",
+      "location": "Spain",
+      "availability": "Open for remote B2B contracts across EU & UK",
+      "phone": "+34675986283",
+      "email": "artiomcom@gmail.com",
+      "linkedin": "https://www.linkedin.com/in/artiomcom"
+    },
+    "summary": "Software Engineer with 16+ years of experience designing and delivering mission-critical enterprise systems across banking (AML), retail POS, logistics, GIS, and air traffic control. Combines deep backend engineering expertise with AI-driven automation and cloud-native architectures.",
+    "topSkills": [
+      "Scala",
+      "Java",
+      "C++"
+    ],
+    "languages": [
+      {
+        "language": "English",
+        "proficiency": "Full Professional"
+      },
+      {
+        "language": "Spanish",
+        "proficiency": "Limited Working"
+      },
+      {
+        "language": "Romanian",
+        "proficiency": "Professional Working"
+      }
+    ],
+    "certifications": [
+      {
+        "name": "Oracle Certified Professional, Java SE 8 Programmer I (OCP)"
+      },
+      {
+        "name": "Stream Processing - Java Developer"
+      }
+    ],
+    "technicalStackSummary": "Scala, Java, Kotlin, Python, TypeScript • REST, OpenAPI 3.0, Swagger, OAuth2, JWT • Terraform, Helm, Kubernetes, Docker • Azure, AWS, GCP • Kafka, PostgreSQL, Cassandra, Elasticsearch • Grafana, OpenTelemetry, Jaeger",
+    "expertise": {
+      "apiIntegration": [
+        "Strong expertise in REST fundamentals and API design best practices including resource modeling, pagination, versioning, and error semantics.",
+        "Extensive hands-on experience with OpenAPI 3.0 Specification, API Standards & Patterns (Request/Response envelopes, HATEOAS, Idempotency, Circuit Breakers), and Swagger-driven contract-first development.",
+        "Designed and maintained secure, scalable APIs integrated with OAuth2 / JWT / Azure AD authorization and custom gateway policies."
+      ],
+      "cloudDevOps": [
+        "Hands-on experience with Azure (App Service, AKS, Service Bus, Blob Storage), AWS (EC2, Bedrock, SageMaker), and GCP (VertexAI, Gemini).",
+        "Proficient in IaC and CI/CD: Terraform, Helm, Kubernetes, Docker, Azure DevOps, GitHub Actions.",
+        "Observability-driven approach using Grafana, ELK Stack, Application Insights, OpenTelemetry."
+      ],
+      "aiLlmEngineering": [
+        "Integrated OpenAI, Gemini, and LangChain models into enterprise backends via FastAPI and streaming endpoints, including semantic search with Redis Vector DB and FAISS."
+      ],
+      "coreStrengths": [
+        "Architecting scalable, maintainable backend systems with strong testing discipline",
+        "Leading agile teams focused on reliability, security, and maintainability",
+        "Driving innovation through AI/LLM and backend convergence",
+        "Delivering systems built to last, secure, observable, and evolvable"
+      ]
+    },
+    "experience": [
+      {
+        "company": "Napier Technologies",
+        "title": "Software Engineering Lead",
+        "startDate": "2022-06",
+        "endDate": null,
+        "durationText": "June 2022 - Present",
+        "location": "London, England, United Kingdom",
+        "description": [
+          "Spearheading the design and implementation of anti-money laundering (AML) compliance solutions for global financial institutions.",
+          "Designed distributed architectures with synchronous (API REST) and asynchronous (Kafka, MQ) integrations.",
+          "Worked on Scala Play Framework, Kotlin Ktor, and Spring Boot-based microservices and secured APIs with OAuth2 and SSL certificates.",
+          "AI Systems Expertise (2024–2025): AI-powered assistants and LLM-integrated backend services — OpenAI (GPT-4, function calling, embeddings), Gemini (google-genai client), LangChain, FastAPI streaming (WebSockets, SSE), prompt engineering with Jinja2, embeddings (FAISS, Redis vector search), LLM profiling and context memory, A/B testing and explainability."
+        ],
+        "skills": [
+          "Scala",
+          "Java",
+          "Kotlin",
+          "AngularJS",
+          "Kubernetes",
+          "AWS",
+          "Helm",
+          "Python",
+          "Hadoop",
+          "Apache Spark",
+          "Apache Kafka",
+          "Elasticsearch",
+          "PostgreSQL",
+          "Cassandra",
+          "OpenAI",
+          "Gemini",
+          "LangChain",
+          "FastAPI",
+          "Embeddings"
+        ]
+      },
+      {
+        "company": "SkillTools",
+        "title": "Founder",
+        "startDate": "2022-06",
+        "endDate": null,
+        "durationText": "June 2022 - Present",
+        "location": "Moldova",
+        "description": [
+          "Founder & CEO of SkillTools, driving innovation in AI and software engineering.",
+          "Launched and scaled ventures including Expatria.ai (AI relocation assistant), Dealio.rs (secure escrow marketplace), and Trestor.ai (AI for creative operations).",
+          "Focused on AI in banking (KYC/AML), aviation systems, and enterprise automation; leading cross-border teams from concept to production."
+        ]
+      },
+      {
+        "company": "X5 Group",
+        "title": "Software Engineering Manager",
+        "startDate": "2020-03",
+        "endDate": "2022-03",
+        "durationText": "March 2020 - March 2022",
+        "location": "Moscow, Russia",
+        "description": [
+          "Led team developing self-service checkout solutions using Java, C, and Spring; technical mentorship; JPOS and IoT integration."
+        ],
+        "skills": [
+          "Java",
+          "FullStack",
+          "API design",
+          "Team Leadership"
+        ]
+      },
+      {
+        "company": "Sberbank",
+        "title": "Lead Software Engineer",
+        "startDate": "2018-12",
+        "endDate": "2020-03",
+        "durationText": "December 2018 - March 2020",
+        "location": "Moscow, Russia",
+        "description": [
+          "Led team of 3-5 developers in banking software with Spring Boot, React, Oracle DB.",
+          "Software architecture and delivery; Elasticsearch and Hadoop for big data; Spring Batch for ETL."
+        ],
+        "skills": [
+          "Scala",
+          "Java",
+          "Apache Spark",
+          "Hadoop",
+          "TypeScript",
+          "React.js",
+          "Spring",
+          "Elasticsearch",
+          "Kubernetes",
+          "Spring Batch",
+          "Spring Security"
+        ]
+      },
+      {
+        "company": "X5 Retail Group",
+        "title": "Software Technical Lead",
+        "startDate": "2016-03",
+        "endDate": "2018-12",
+        "durationText": "March 2016 - December 2018",
+        "description": [
+          "Tech lead for self-service checkout; introduced advanced development practices; new checkout version from scratch deployed to 10,000+ devices."
+        ],
+        "skills": [
+          "Java",
+          "C",
+          "Spring Framework",
+          "POS",
+          "Kubernetes",
+          "IoT",
+          "Team Leadership",
+          "Python",
+          "React",
+          "Face recognition",
+          "Retail Tech"
+        ]
+      },
+      {
+        "company": "Afrpplus",
+        "title": "Lead Software Engineer",
+        "startDate": "2016-08",
+        "endDate": "2017-12",
+        "durationText": "August 2016 - December 2017",
+        "location": "Orlando, Florida, United States",
+        "description": [
+          "High-load SaaS “The Smart Beer Keg Monitor” for restaurants — hardware/software integration for keg tracking.",
+          "Scalable APIs and Android clients; Python Django backend on Kubernetes/Docker Compose."
+        ],
+        "skills": [
+          "Python",
+          "Celery",
+          "C",
+          "Java",
+          "Android",
+          "TypeScript",
+          "Node.js",
+          "Django REST",
+          "Elasticsearch",
+          "Redis",
+          "Nginx",
+          "Docker",
+          "SaaS"
+        ]
+      },
+      {
+        "company": "KJW AEROCON LIMITED",
+        "title": "Senior Software Engineer",
+        "startDate": "2012-06",
+        "endDate": "2016-09",
+        "durationText": "June 2012 - September 2016",
+        "location": "Zhukovsky, Moscow, Russia",
+        "description": [
+          "Air space program for air traffic controllers using C++ Qt5 and Java Swing/Fx/SWT.",
+          "Eclipse RCP/RAP, NASA WorldWind, Java 3D."
+        ],
+        "skills": [
+          "Java",
+          "C++",
+          "C",
+          "Eclipse RCP",
+          "Qt",
+          "OpenGL",
+          "OpenLayers",
+          "Google Earth Engine",
+          "Oracle Database",
+          "ESP32",
+          "Full-Stack"
+        ]
+      },
+      {
+        "company": "MNITI, JSC",
+        "title": "Senior Software Engineer",
+        "startDate": "2014-09",
+        "endDate": "2015-12",
+        "durationText": "September 2014 - December 2015",
+        "location": "Moscow, Russia",
+        "description": [
+          "Telecommunications R&D; GIS apps with Java Eclipse RCP/RAP, OpenGL, WMS/WFS, PostGIS.",
+          "Data center integration: Linux, Windows Server, Hyper-V, cloud."
+        ],
+        "skills": [
+          "Java",
+          "C++",
+          "OpenGL",
+          "JavaScript",
+          "Eclipse RCP",
+          "PostGIS",
+          "REST",
+          "Tomcat",
+          "Glassfish",
+          "GIS",
+          "GeoServer",
+          "OpenLayers",
+          "SAN",
+          "Linux KVM",
+          "Cisco",
+          "Cloud"
+        ]
+      },
+      {
+        "company": "PAYS DE RETZ ENERGIES",
+        "title": "System Network Administrator",
+        "startDate": "2010-10",
+        "endDate": "2014-10",
+        "durationText": "October 2010 - October 2014",
+        "location": "Ramenskoye, Moscow, Russia",
+        "description": [
+          "Linux + PostgreSQL administration; document processes; 120 workstations; DC, DNS, Active Directory, WSUS, GPO."
+        ],
+        "skills": [
+          "Network Systems",
+          "Network Security",
+          "Java",
+          "C++",
+          "JavaScript",
+          "DNS",
+          "Linux",
+          "PostgreSQL",
+          "Cisco",
+          "LAMP",
+          "HTML",
+          "CSS",
+          "PHP",
+          "MySQL"
+        ]
+      },
+      {
+        "company": "AUTO MALL SRL",
+        "title": "Logistics Analyst",
+        "startDate": "2009-01",
+        "endDate": "2010-06",
+        "durationText": "January 2009 - June 2010",
+        "location": "Chișinău, Moldova",
+        "description": [
+          "Automated MS Excel VBS macros for delivery times; GPS integration for routes and fuel costs."
+        ],
+        "skills": [
+          "VBScript",
+          "Image Recognition",
+          "GPS",
+          "C++"
+        ]
+      }
+    ],
+    "education": [
+      {
+        "institution": "East Siberian State Technological University",
+        "field": "Computer Science",
+        "startYear": 2016,
+        "endYear": 2017
+      },
+      {
+        "institution": "International Institute of Management LINK (former Distance Learning Centre)",
+        "degree": "Bachelor's degree",
+        "field": "Business Administration and Management, General",
+        "startYear": 2005,
+        "endYear": 2008
+      },
+      {
+        "institution": "Academia de Studii Economice din Moldova",
+        "degree": "Bachelor's degree",
+        "field": "Management Information Systems, General",
+        "startYear": 2003,
+        "endYear": 2005
+      }
+    ],
+    "source": {
+      "derivedFrom": "Profile.pdf",
+      "generatedFor": "Portable profile / ATS / portfolio JSON"
+    },
+    "moneyClockMeta": {
+      "profileVersion": "1.2",
+      "hints": "В projectsBundle 10 проектов по местам работы из CV (новые сверху). Суммы projectAmount и поля срока — ориентиры: подставьте реальные договорные цифры. Текущие Napier и SkillTools без даты окончания; завершённые роли с projectEndDate. Режим Project + дата начала даёт автонакопление; Hourly остаётся для ставки вне проектов."
+    }
+  }
+}

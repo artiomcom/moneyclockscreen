@@ -1,0 +1,111 @@
+/* @import url() FONT IMPORTS MUST ALWAYS BE AT THE VERY TOP OF THIS FILE, ABOVE THE TAILWIND IMPORTS — DO NOT DELETE THIS COMMENT */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+/* CRITICAL: THE FOLLOWING TAILWIND IMPORTS MUST NEVER BE DELETED OR REORDERED — DO NOT DELETE THIS COMMENT */
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* END TAILWIND IMPORTS — ALL OTHER CSS MUST GO BELOW THIS LINE */
+
+:root {
+  --green-primary: #22c55e;
+  --green-dark: #15803d;
+  --cyan-border: #38bdf8;
+  --navy: #1e1b4b;
+}
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+  background: linear-gradient(170deg, #4ade80 0%, #22c55e 30%, #16a34a 70%, #15803d 100%);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Money odometer — “money coma” billboard */
+.money-coma-counter {
+  text-shadow:
+    0 0.04em 0 rgba(0, 0, 0, 0.2),
+    0 0 0.06em rgba(255, 255, 255, 0.45),
+    0 0 0.4em rgba(250, 204, 21, 0.4),
+    0 0 0.85em rgba(22, 163, 74, 0.5);
+}
+
+.money-coma-prefix {
+  display: inline-block;
+  animation: money-prefix-shimmer 2.8s ease-in-out infinite;
+  text-shadow:
+    0 0 0.12em rgba(254, 240, 138, 0.9),
+    0 0 0.35em rgba(250, 204, 21, 0.55);
+}
+
+@keyframes money-prefix-shimmer {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
+  }
+  40% {
+    transform: translateY(-0.03em) scale(1.04);
+    filter: brightness(1.15);
+  }
+  55% {
+    transform: translateY(0) scale(1);
+    filter: brightness(1.08);
+  }
+}
+
+.money-reel-column {
+  filter: drop-shadow(0 0.02em 0.04em rgba(0, 0, 0, 0.15));
+}
+
+.money-reel-inner[data-rolling] {
+  animation: money-reel-chroma 0.12s ease-in-out infinite alternate;
+}
+
+.money-reel-inner[data-rolling] .money-reel-cell {
+  animation: money-reel-gold-rush 0.45s ease-in-out infinite;
+}
+
+@keyframes money-reel-chroma {
+  0% {
+    text-shadow:
+      -0.03em 0 0 rgba(34, 197, 94, 0.55),
+      0.03em 0 0 rgba(253, 224, 71, 0.5);
+  }
+  100% {
+    text-shadow:
+      0.025em 0 0 rgba(34, 197, 94, 0.45),
+      -0.025em 0 0 rgba(253, 224, 71, 0.55);
+  }
+}
+
+@keyframes money-reel-gold-rush {
+  0%, 100% {
+    color: #fff;
+    filter: brightness(1) saturate(1);
+  }
+  50% {
+    color: #fef9c3;
+    filter: brightness(1.22) saturate(1.2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .money-coma-prefix,
+  .money-reel-inner[data-rolling],
+  .money-reel-inner[data-rolling] .money-reel-cell {
+    animation: none !important;
+  }
+}
+/* Remove number input spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}

@@ -425,13 +425,16 @@ export function IncomeChart({
   fxHistoryRows = null,
   chartFocusProjectId = null,
   inflationYearly = null,
-  inflationCurrencyCodes = []
+  inflationCurrencyCodes = [],
+  variant = 'expanded'
 }: {
   projects: ProjectEntry[];
   nowMs: number;
   balanceAfterPayroll: number;
   balanceCurrency: string;
   lastPayrollYmd: string;
+  /** Компактный вид: ниже график, без средней даты на оси, без легенды с пиками, тултип только по активной линии */
+  variant?: 'compact' | 'expanded';
   /** Без внешней «карточки» — внутри общего glass-блока */
   embedded?: boolean;
   /** Если есть — добавляется суммарная линия «все проекты» в валюте счёта по курсу */
@@ -447,6 +450,7 @@ export function IncomeChart({
 }) {
   const { t, locale } = useI18n();
   const localeTag = locale === 'ru' ? 'ru-RU' : 'en-US';
+  const compact = variant === 'compact';
 
   const chartLabels = useMemo<ChartSeriesLabels>(
     () => ({
@@ -590,7 +594,8 @@ export function IncomeChart({
   }
 
   const rangeMs = tMax - tMin;
-  const showMidDate = rangeMs > 45 * DAY_MS;
+  const showMidDate = !compact && rangeMs > 45 * DAY_MS;
+  const gridFracs = compact ? ([0, 1] as const) : ([0, 0.5, 1] as const);
   const midMs = tMin + rangeMs / 2;
   const midX = (PAD_L + (VB_W - PAD_R)) / 2;
 
@@ -629,7 +634,11 @@ export function IncomeChart({
         className="w-full h-auto block mx-auto touch-none select-none"
         style={{
           maxHeight: embedded ?
-            'clamp(18rem, min(42vh, 520px), 36rem)'
+            compact ?
+              'clamp(11rem, min(28vh, 320px), 22rem)'
+            : 'clamp(18rem, min(42vh, 520px), 36rem)'
+          : compact ?
+            'clamp(12rem, 36vmin, 20rem)'
           : 'clamp(14rem, 48vmin, 24rem)'
         }}
         aria-hidden>
@@ -679,7 +688,7 @@ export function IncomeChart({
           stroke="rgba(255,255,255,0.2)"
           strokeWidth="1"
         />
-        {[0, 0.5, 1].map((frac) => {
+        {gridFracs.map((frac) => {
           const y = PAD_T + plotH * (1 - frac);
           return (
             <line
@@ -795,6 +804,7 @@ export function IncomeChart({
             formatCompact(yAxisRaw.minV)
           : `${formatCompact(yAxisRaw.minV)} ${getCurrencySymbol(focusSeries.code)}`}
         </text>
+        {!compact &&
         <text
           x={PAD_L - 6}
           y={PAD_T + 22}
@@ -804,6 +814,7 @@ export function IncomeChart({
           textAnchor="end">
           {hover ? t('chart.yHover') : hasProjectFocus ? t('chart.yCompany') : t('chart.yFirst')}
         </text>
+        }
 
         <rect
           x={PAD_L}
@@ -866,6 +877,7 @@ export function IncomeChart({
         </>
         }
 
+        {!compact &&
         <text
           x={PAD_L}
           y={VB_H - 36}
@@ -874,6 +886,7 @@ export function IncomeChart({
           fontFamily="inherit">
           {t('chart.fromStart')}
         </text>
+        }
         <text
           x={PAD_L}
           y={VB_H - 18}
@@ -894,6 +907,7 @@ export function IncomeChart({
           {formatChartAxisDate(midMs, localeTag)}
         </text>
         }
+        {!compact &&
         <text
           x={VB_W - PAD_R}
           y={VB_H - 36}
@@ -903,6 +917,7 @@ export function IncomeChart({
           textAnchor="end">
           {t('chart.now')}
         </text>
+        }
         <text
           x={VB_W - PAD_R}
           y={VB_H - 20}
@@ -913,6 +928,7 @@ export function IncomeChart({
           textAnchor="end">
           {formatChartAxisNowDate(nowMs, localeTag)}
         </text>
+        {!compact &&
         <text
           x={VB_W - PAD_R}
           y={VB_H - 4}
@@ -923,6 +939,7 @@ export function IncomeChart({
           style={{ fontVariantNumeric: 'tabular-nums' }}>
           {formatChartAxisTime(nowMs, localeTag)}
         </text>
+        }
       </svg>
 
       {hover &&
@@ -937,8 +954,9 @@ export function IncomeChart({
           {formatChartAxisDate(hover.t, localeTag)}
         </p>
         <ul className="space-y-1 font-medium">
-          {series.map((s, idx) => {
-            const color = strokeColorForSeries(series, s, idx);
+          {(compact ? series.filter((s) => s.id === hover.seriesId) : series).map((s) => {
+            const seriesIdx = series.indexOf(s);
+            const color = strokeColorForSeries(series, s, seriesIdx);
             const val = interpolateValueAtT(s.points, hover.t);
             const active = s.id === hover.seriesId;
             return (
@@ -991,6 +1009,7 @@ export function IncomeChart({
       </div>
       }
 
+      {!compact &&
       <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 px-1 pt-2 pb-0.5">
         {series.map((s, idx) => {
           const color = strokeColorForSeries(series, s, idx);
@@ -1033,7 +1052,9 @@ export function IncomeChart({
           );
         })}
       </div>
-      {(series.some((s) => s.kind === 'fxHist') || series.some((s) => s.kind === 'infHist')) &&
+      }
+      {!compact &&
+      (series.some((s) => s.kind === 'fxHist') || series.some((s) => s.kind === 'infHist')) &&
       <div className="text-center text-white/38 text-[0.55rem] sm:text-[0.58rem] mt-1.5 px-2 leading-snug space-y-1">
         {series.some((s) => s.kind === 'fxHist') &&
         <p>

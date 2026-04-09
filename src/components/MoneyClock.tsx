@@ -15,7 +15,9 @@ import {
   Share2,
   Copy,
   Moon,
-  Sun
+  Sun,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { ParticleBackground } from './ParticleBackground';
 import { RetroGnomesFrame } from './RetroGnomesFrame';
@@ -192,12 +194,24 @@ export function MoneyClock() {
   const [chartFocusProjectId, setChartFocusProjectId] = useState<string | null>(null);
   const [awarenessToast, setAwarenessToast] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemePreference>(() => readStoredTheme());
-  const [showFullBreakdown, setShowFullBreakdown] = useState(false);
+  /** 0 = hero only, 1 = currencies & account, 2 = chart (progressive disclosure) */
+  const [detailStep, setDetailStep] = useState<0 | 1 | 2>(0);
+  /** Multi-currency breakdown: default one merged total, expand for all tickers */
+  const [showAllCurrencies, setShowAllCurrencies] = useState(false);
+  const [chartExpanded, setChartExpanded] = useState(false);
 
   useEffect(() => {
     applyThemeToDocument(theme);
     writeStoredTheme(theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (detailStep === 0) setShowAllCurrencies(false);
+  }, [detailStep]);
+
+  useEffect(() => {
+    if (detailStep < 2) setChartExpanded(false);
+  }, [detailStep]);
 
   const { projects, activeProjectId, selectedProjectIds } = projectsBundle;
   const activeProject = useMemo(
@@ -227,6 +241,17 @@ export function MoneyClock() {
       return startMs(b) - startMs(a);
     });
   }, [projects, selectedProjectIds, nowTick]);
+
+  useEffect(() => {
+    if (detailStep !== 2 || selectedProjectsOrdered.length === 0) return;
+    setChartFocusProjectId((prev) => {
+      if (prev != null) return prev;
+      const live = selectedProjectsOrdered.find(
+        (p) => p.workStartDate.trim() && !projectIsEndedByDeadline(p, Date.now())
+      );
+      return (live ?? selectedProjectsOrdered[0])!.id;
+    });
+  }, [detailStep, selectedProjectsOrdered]);
 
   const singleSelectedForCopy =
     selectedProjectsOrdered.length === 1 ? selectedProjectsOrdered[0] : null;
@@ -630,6 +655,18 @@ export function MoneyClock() {
     const plus20 = grossYear * 1.2 * takeHomeFraction;
     return { path, plus20 };
   }, [heroRateBasis, takeHomeFraction]);
+
+  const todayStartMs = useMemo(() => {
+    const d = new Date(nowTick);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }, [nowTick]);
+
+  const heroTodayAccrual = useMemo(() => {
+    if (!heroRateBasis) return null;
+    const sec = Math.max(0, (nowTick - todayStartMs) / 1000);
+    return heroRateBasis.perSec * sec;
+  }, [heroRateBasis, nowTick, todayStartMs]);
 
   /** Демо-шкала + тексты для шэринга (ставка в валюте счёта или единственной валюте проектов). */
   const moneyAwarenessSnap = useMemo(() => {
@@ -1404,7 +1441,7 @@ export function MoneyClock() {
           <div className="relative w-full max-w-4xl xl:max-w-5xl mx-auto px-1 sm:px-2 pt-6 sm:pt-9 pb-11 sm:pb-14">
             <motion.div
               layout
-              className="relative z-10 w-full rounded-r80 border border-white/20 bg-gradient-to-b from-white/[0.13] to-white/[0.05] backdrop-blur-2xl shadow-[0_16px_64px_rgba(0,0,0,0.28)] ring-1 ring-inset ring-white/10 overflow-hidden px-1 sm:px-2 dark:border-cyan-400/35 dark:from-[rgba(52,18,88,0.88)] dark:to-[rgba(6,10,32,0.94)] dark:shadow-[0_0_48px_rgba(0,255,255,0.12),0_16px_64px_rgba(0,0,0,0.5)] dark:ring-cyan-400/20">
+              className="relative z-10 w-full rounded-r80 border border-white/20 bg-gradient-to-b from-white/[0.13] to-white/[0.05] backdrop-blur-2xl shadow-[0_16px_64px_rgba(0,0,0,0.28)] ring-1 ring-inset ring-white/10 overflow-hidden px-1 sm:px-2 dark:border-[var(--card-border)] dark:from-[rgba(24,32,44,0.94)] dark:to-[rgba(14,18,26,0.9)] dark:shadow-[0_0_60px_rgba(0,40,60,0.2),0_20px_50px_rgba(0,0,0,0.55)] dark:ring-white/[0.06]">
               <div
                 className="pointer-events-none absolute inset-0 z-0 opacity-[0.45] dark:opacity-[0.28]"
                 style={{
@@ -1425,84 +1462,126 @@ export function MoneyClock() {
               {hasPositiveAccrualRate && heroRateBasis && realRateBreakdown ?
                 <>
                   <section
-                    className="text-center max-w-2xl mx-auto space-y-4 sm:space-y-5 pt-2 pb-2"
+                    className="text-center max-w-2xl mx-auto space-y-3 sm:space-y-4 pt-2 pb-1"
                     aria-label={t('hero.aria')}>
                     <p className="text-white/40 text-[0.65rem] font-extrabold uppercase tracking-[0.22em]">
                       {t('hero.now')}
                     </p>
-                    <p className="text-white/75 text-base sm:text-lg font-medium leading-snug max-w-sm mx-auto">
-                      {t('hero.perSecondLife')}
+                    <p className="text-white/80 text-base sm:text-lg font-semibold leading-tight max-w-[18rem] mx-auto tracking-tight">
+                      {t('hero.tagline')}
                     </p>
                     <div
-                      className="font-black tabular-nums leading-none text-[var(--accent-money)] flex flex-wrap items-baseline justify-center gap-x-1"
-                      style={{
-                        fontSize: 'clamp(2.25rem, 9vmin, 4rem)',
-                        textShadow: '0 0 48px rgba(0,255,136,0.22)'
-                      }}>
+                      className="hero-rate-glow font-black tabular-nums leading-none text-[var(--accent-money)] flex flex-wrap items-baseline justify-center gap-x-1"
+                      style={{ fontSize: 'clamp(2.35rem, 9.5vmin, 4.25rem)' }}>
                       <span>+{heroRateBasis.symbol}</span>
                       <AnimatedCounter
                         value={heroRateBasis.perSec}
                         decimals={heroRateBasis.perSec >= 0.01 ? 4 : 5}
                         prefix=""
                       />
-                      <span className="text-white/35 text-[0.35em] font-bold ml-1">{t('hero.perSec')}</span>
+                      <span className="text-white/40 text-[0.35em] font-bold ml-1">{t('hero.perSec')}</span>
                     </div>
-                    <p className="text-white/45 text-sm tabular-nums">
-                      {t('hero.nominalApprox')} {heroRateBasis.symbol}
-                      {realRateBreakdown.nominalPerHour.toFixed(2)}
-                      {t('hero.perHour')} · {heroRateBasis.code}
-                    </p>
-                  </section>
-
-                  <section
-                    className="max-w-lg mx-auto border-t border-white/10 pt-5 mt-2 space-y-1 text-center"
-                    aria-label={t('hero.insightAria')}>
-                    <p className="text-white/35 text-[0.62rem] font-bold uppercase tracking-[0.18em]">
-                      {t('hero.insightTitle')}
-                    </p>
-                    <p className="font-bold text-xl sm:text-2xl text-white tabular-nums">
-                      {heroRateBasis.symbol}
+                    <p className="font-bold text-2xl sm:text-3xl text-white tabular-nums tracking-tight">
+                      ≈ {heroRateBasis.symbol}
                       {(
                         realRateBreakdown.purchasingPowerPerHour ??
                         realRateBreakdown.afterTaxPerHour
                       ).toFixed(2)}
                       {t('hero.perHour')}
+                      <span className="text-white/45 font-medium text-base sm:text-lg">
+                        {' '}
+                        {t('hero.realHint')}
+                      </span>
                     </p>
+                    {heroTodayAccrual != null ?
+                      <div className="pt-1 space-y-0.5">
+                        <p className="text-white/55 text-sm sm:text-base font-bold tabular-nums">
+                          {t('hero.today')}:{' '}
+                          <AnimatedCounter
+                            value={heroTodayAccrual}
+                            prefix={`+${heroRateBasis.symbol}`}
+                            decimals={2}
+                          />
+                        </p>
+                        <p className="text-white/32 text-[0.65rem] font-medium">{t('hero.todayNote')}</p>
+                      </div>
+                    : null}
+                    <details className="hero-more-numbers text-left max-w-md mx-auto pt-2 border-t border-white/10 mt-2">
+                      <summary className="text-center text-[0.68rem] font-bold uppercase tracking-wide text-white/45 py-2 hover:text-white/75">
+                        {t('hero.moreNumbers')}
+                      </summary>
+                      <div className="space-y-3 pb-2 text-center text-sm text-white/55 tabular-nums">
+                        <p>
+                          <span className="text-white/35 text-[0.62rem] font-bold uppercase tracking-[0.14em] block mb-1">
+                            {t('hero.moreNominal')}
+                          </span>
+                          {heroRateBasis.symbol}
+                          {realRateBreakdown.nominalPerHour.toFixed(2)}
+                          {t('hero.perHour')} · {heroRateBasis.code}
+                        </p>
+                        {futureYearly ?
+                          <p>
+                            <span className="text-white/35 text-[0.62rem] font-bold uppercase tracking-[0.14em] block mb-1">
+                              {t('hero.futureTitle')}
+                            </span>
+                            ≈ {heroRateBasis.symbol}
+                            {formatCompactAnnual(futureYearly.path)} → {heroRateBasis.symbol}
+                            {formatCompactAnnual(futureYearly.plus20)}
+                            <span className="text-white/40 text-xs block sm:inline sm:ml-1">
+                              {t('hero.futureIfPlus20')}
+                            </span>
+                          </p>
+                        : null}
+                      </div>
+                    </details>
                   </section>
 
-                  {futureYearly ?
-                    <section
-                      className="max-w-lg mx-auto border-t border-white/10 pt-5 mt-1 space-y-1 text-center"
-                      aria-label={t('hero.futureAria')}>
-                      <p className="text-white/35 text-[0.62rem] font-bold uppercase tracking-[0.18em]">
-                        {t('hero.futureTitle')}
-                      </p>
-                      <p className="text-white/80 text-base sm:text-lg font-semibold tabular-nums">
-                        ≈ {heroRateBasis.symbol}
-                        {formatCompactAnnual(futureYearly.path)} → {heroRateBasis.symbol}
-                        {formatCompactAnnual(futureYearly.plus20)}
-                        <span className="text-white/40 font-normal text-sm block sm:inline sm:ml-2">
-                          {t('hero.futureIfPlus20')}
-                        </span>
-                      </p>
-                    </section>
-                  : null}
-
-                  <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3 pt-6 pb-1">
-                    <motion.button
-                      type="button"
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => setShowFullBreakdown((v) => !v)}
-                      className="text-[0.68rem] font-bold uppercase tracking-wide text-white/55 border border-white/18 px-4 py-2.5 rounded-r80-sm hover:bg-white/[0.06] hover:text-white/85 transition-colors">
-                      {showFullBreakdown ? t('hero.btnHideDetails') : t('hero.btnShowDetails')}
-                    </motion.button>
+                  <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-2.5 sm:gap-3 pt-5 pb-1">
                     <motion.button
                       type="button"
                       whileTap={{ scale: 0.98 }}
                       onClick={() => setSettingsOpen(true)}
-                      className="text-[0.68rem] font-extrabold uppercase tracking-wide text-[#061018] bg-[var(--accent-money)] px-5 py-2.5 rounded-r80-sm hover:brightness-110 transition-[filter]">
-                      {t('hero.btnEditProjects')}
+                      className="text-[0.72rem] sm:text-[0.75rem] font-extrabold uppercase tracking-wide text-[#061018] bg-[var(--accent-money)] px-6 py-3 rounded-r80-sm hover:brightness-110 transition-[filter] shadow-[0_0_24px_rgba(0,255,160,0.25)]">
+                      {t('hero.ctaGrow')}
                     </motion.button>
+                    {detailStep === 0 ?
+                      <motion.button
+                        type="button"
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => setDetailStep(1)}
+                        className="text-[0.68rem] font-bold uppercase tracking-wide text-white/65 border border-white/22 px-4 py-2.5 rounded-r80-sm hover:bg-white/[0.07] hover:text-white/90 transition-colors">
+                        {t('hero.btnBreakdown')}
+                      </motion.button>
+                    : null}
+                    {detailStep === 1 ?
+                      <>
+                        <motion.button
+                          type="button"
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => setDetailStep(0)}
+                          className="text-[0.68rem] font-bold uppercase tracking-wide text-white/55 border border-white/16 px-4 py-2.5 rounded-r80-sm hover:bg-white/[0.05] transition-colors">
+                          {t('hero.btnBackCompact')}
+                        </motion.button>
+                        {selectedProjectsOrdered.length > 0 ?
+                          <motion.button
+                            type="button"
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => setDetailStep(2)}
+                            className="text-[0.68rem] font-bold uppercase tracking-wide text-white/65 border border-cyan-400/35 px-4 py-2.5 rounded-r80-sm hover:bg-cyan-400/10 transition-colors">
+                            {t('hero.btnChart')}
+                          </motion.button>
+                        : null}
+                      </>
+                    : null}
+                    {detailStep === 2 ?
+                      <motion.button
+                        type="button"
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => setDetailStep(1)}
+                        className="text-[0.68rem] font-bold uppercase tracking-wide text-white/55 border border-white/16 px-4 py-2.5 rounded-r80-sm hover:bg-white/[0.05] transition-colors">
+                        {t('hero.btnHideChart')}
+                      </motion.button>
+                    : null}
                   </div>
                 </>
               : !hasPositiveAccrualRate ?
@@ -1514,8 +1593,8 @@ export function MoneyClock() {
                     type="button"
                     whileTap={{ scale: 0.97 }}
                     onClick={() => setSettingsOpen(true)}
-                    className="text-[0.75rem] font-extrabold uppercase tracking-wide text-[#061018] bg-[var(--accent-money)] px-6 py-3 rounded-r80-sm hover:brightness-110">
-                    {t('hero.emptyCta')}
+                    className="text-[0.75rem] font-extrabold uppercase tracking-wide text-[#061018] bg-[var(--accent-money)] px-6 py-3 rounded-r80-sm hover:brightness-110 shadow-[0_0_20px_rgba(0,255,160,0.2)]">
+                    {t('hero.ctaGrow')}
                   </motion.button>
                 </section>
               : (
@@ -1524,7 +1603,7 @@ export function MoneyClock() {
                 </p>
               )}
 
-              {showFullBreakdown ?
+              {detailStep >= 1 ?
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 items-start">
                 <div className="space-y-3 text-center md:text-left min-w-0">
                   <p className="text-white/60 text-[0.65rem] sm:text-xs font-extrabold uppercase tracking-[0.14em]">
@@ -1538,6 +1617,21 @@ export function MoneyClock() {
                     : t('breakdown.sortParagraphNoFx')}{' '}
                     {t('breakdown.sortEndedNote')}
                   </p>
+                  {selectedProjectsOrdered.length > 0 &&
+                  earningsByCurrencySortedForDisplay.length > 1 &&
+                  fxSnapshot &&
+                  equivalentEarningsInBalanceCcy != null &&
+                  <div className="flex justify-center md:justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setShowAllCurrencies((v) => !v)}
+                      className="text-[0.62rem] font-bold uppercase tracking-wide text-cyan-200/85 hover:text-cyan-100 border border-cyan-400/25 rounded-r80-sm px-2.5 py-1 transition-colors">
+                      {showAllCurrencies ?
+                        t('breakdown.hideAllCurrencies')
+                      : t('breakdown.showAllCurrencies')}
+                    </button>
+                  </div>
+                  }
                   <div
                     className="relative font-black tracking-tight leading-none text-white flex flex-col md:flex-row md:flex-wrap items-center md:items-baseline justify-center md:justify-start gap-x-6 gap-y-3"
                     style={{
@@ -1577,6 +1671,25 @@ export function MoneyClock() {
                               <AnimatedCounter
                                 value={val}
                                 prefix={getCurrencySymbol(ccy)}
+                                decimals={2}
+                              />
+                            </div>
+                          );
+                        }
+                        if (
+                          entries.length > 1 &&
+                          fxSnapshot &&
+                          equivalentEarningsInBalanceCcy != null &&
+                          !showAllCurrencies
+                        ) {
+                          return (
+                            <div className="flex flex-col items-center md:items-start gap-2 w-full max-w-md mx-auto md:mx-0">
+                              <p className="text-white/45 text-[0.62rem] font-bold uppercase tracking-[0.12em]">
+                                {t('breakdown.oneTotalTitle')}
+                              </p>
+                              <AnimatedCounter
+                                value={equivalentEarningsInBalanceCcy}
+                                prefix={balanceCurrencySymbol}
                                 decimals={2}
                               />
                             </div>
@@ -1754,7 +1867,7 @@ export function MoneyClock() {
               </div>
               : null}
 
-              {showFullBreakdown && fxSnapshot && fxCaptionBlock ?
+              {detailStep >= 1 && fxSnapshot && fxCaptionBlock ?
               <div
                 className="rounded-r80-sm bg-black/35 border border-white/15 px-3 py-2.5 sm:py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
                 role="note"
@@ -1823,7 +1936,7 @@ export function MoneyClock() {
                 </p>
               </div>
               : null}
-              {fxReady && !fxSnapshot &&
+              {detailStep >= 1 && fxReady && !fxSnapshot &&
               <div
                 className="rounded-r80-sm bg-black/35 border border-white/15 px-3 py-2 text-[0.65rem] sm:text-xs text-white/60 text-center md:text-left [text-shadow:0_1px_2px_rgba(0,0,0,0.4)]"
                 role="status">
@@ -1831,18 +1944,32 @@ export function MoneyClock() {
               </div>
               }
 
-              {selectedProjectsOrdered.length > 0 &&
+              {detailStep >= 2 && selectedProjectsOrdered.length > 0 &&
               <div
                 className="rounded-r80 bg-black/22 border border-white/12 p-3 sm:p-4 lg:p-5 min-h-0 min-w-0 shadow-inner isolate"
                 aria-label={t('chart.ariaPanel')}>
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2.5 mb-2">
-                  <div className="min-w-0">
-                    <p className="text-white/55 text-[0.62rem] font-extrabold uppercase tracking-[0.12em] text-center sm:text-left sm:pt-0.5">
-                      {t('chart.panelTitle')}
-                    </p>
-                    <p className="text-white/35 text-[0.55rem] font-medium mt-1 text-center sm:text-left">
-                      {t('chart.panelHint')}
-                    </p>
+                  <div className="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
+                    <div className="min-w-0">
+                      <p className="text-white/55 text-[0.62rem] font-extrabold uppercase tracking-[0.12em] text-center sm:text-left sm:pt-0.5">
+                        {t('chart.panelTitle')}
+                      </p>
+                      <p className="text-white/35 text-[0.55rem] font-medium mt-1 text-center sm:text-left">
+                        {chartExpanded ? t('chart.panelHint') : t('chart.panelHintCompact')}
+                      </p>
+                    </div>
+                    <motion.button
+                      type="button"
+                      whileTap={{ scale: 0.96 }}
+                      onClick={() => setChartExpanded((v) => !v)}
+                      aria-expanded={chartExpanded}
+                      aria-label={chartExpanded ? t('chart.collapseAria') : t('chart.expandAria')}
+                      className="shrink-0 self-center sm:self-start inline-flex items-center gap-1.5 rounded-r80-sm border border-white/18 bg-white/[0.06] px-2.5 py-1.5 text-[0.6rem] sm:text-[0.62rem] font-bold uppercase tracking-wide text-white/75 hover:bg-white/10 hover:text-white/90 transition-colors">
+                      {chartExpanded ?
+                        <Minimize2 size={14} strokeWidth={2.4} className="opacity-90 shrink-0" aria-hidden />
+                      : <Maximize2 size={14} strokeWidth={2.4} className="opacity-90 shrink-0" aria-hidden />}
+                      {chartExpanded ? t('chart.collapse') : t('chart.expand')}
+                    </motion.button>
                   </div>
                   <AnimatePresence mode="wait">
                       {chartFocusProject &&
@@ -1971,17 +2098,18 @@ export function MoneyClock() {
                     balanceCurrency={currentBalanceCurrency}
                     lastPayrollYmd={lastPayrollYmd}
                     fxSnapshot={fxSnapshot}
-                    fxHistoryRows={fxHistoryRows}
+                    fxHistoryRows={null}
                     chartFocusProjectId={chartFocusProjectId}
-                    inflationYearly={inflationYearly}
+                    inflationYearly={null}
                     inflationCurrencyCodes={inflationDisplayCurrencies}
                     embedded
+                    variant={chartExpanded ? 'expanded' : 'compact'}
                   />
                 </div>
               </div>
               }
 
-              {(showFullBreakdown || (hasPositiveAccrualRate && !heroRateBasis)) && (
+              {(detailStep >= 1 || (hasPositiveAccrualRate && !heroRateBasis)) && (
               <AnimatePresence>
               <motion.div
                 initial={{ opacity: 0, y: 6 }}

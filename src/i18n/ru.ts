@@ -11,10 +11,16 @@ export const ru: Record<string, string> = {
 
   'hero.aria': 'Темп начисления',
   'hero.now': 'Сейчас',
-  'hero.perSecondLife': 'Каждую секунду жизни вы прибавляете',
+  'hero.tagline': 'Ваша скорость дохода',
+  'hero.perSecondLife': 'Ваша скорость дохода',
   'hero.perSec': '/ сек',
   'hero.nominalApprox': 'номинал ≈',
   'hero.perHour': '/час',
+  'hero.realHint': '· реально',
+  'hero.today': 'Сегодня',
+  'hero.todayNote': 'с полуночи · локальное время',
+  'hero.moreNumbers': 'Ещё цифры',
+  'hero.moreNominal': 'Номинал (до корректировок)',
   'hero.insightTitle': 'После налогов и инфляции',
   'hero.insightAria': 'Реальная покупательная способность',
   'hero.futureTitle': 'За 12 месяцев (оценка)',
@@ -23,6 +29,11 @@ export const ru: Record<string, string> = {
   'hero.btnHideDetails': 'Скрыть детали',
   'hero.btnShowDetails': 'Валюты, счёт, курсы',
   'hero.btnEditProjects': 'Настроить проекты',
+  'hero.ctaGrow': 'Увеличить доход',
+  'hero.btnBreakdown': 'По валютам и счёту',
+  'hero.btnChart': 'Динамика дохода',
+  'hero.btnBackCompact': 'К сводке',
+  'hero.btnHideChart': 'Скрыть график',
   'hero.emptyPrompt':
     'Добавьте проект и сумму в настройках — здесь появится темп в реальном времени.',
   'hero.emptyCta': 'Открыть настройки',
@@ -30,6 +41,9 @@ export const ru: Record<string, string> = {
     'Для одной строки темпа включите курсы API или выберите проекты в одной валюте.',
 
   'breakdown.totalEarned': 'Всего заработано',
+  'breakdown.oneTotalTitle': 'Итого (все валюты → одна сумма)',
+  'breakdown.showAllCurrencies': 'Показать все валюты',
+  'breakdown.hideAllCurrencies': 'Только один итог',
   'breakdown.sortHintFx':
     'Каждая валюта отдельно. Сначала — валюты с действующими контрактами; внутри группы порядок по убыванию суммы в пересчёте на',
   'breakdown.sortHintFxApi': '(курс API).',
@@ -75,8 +89,14 @@ export const ru: Record<string, string> = {
     'Курсы не загрузились — пересчёт в валюту счёта и линия на графике недоступны. Остаток и суммы по валютам без изменений.',
 
   'chart.panelTitle': 'Динамика накоплений',
+  'chart.expand': 'Развернуть график',
+  'chart.collapse': 'Компактный вид',
+  'chart.expandAria': 'Развернуть график — полная легенда и подписи осей',
+  'chart.collapseAria': 'Компактный график — меньше высота и подписей',
   'chart.panelHint':
     'Клик по проекту — одна линия; ещё раз — все снова.',
+  'chart.panelHintCompact':
+    'Нажмите на график для значений · развернуть — полная легенда',
   'chart.projects': 'Проекты',
   'chart.graphBadge': 'График',
   'chart.all': 'Все',

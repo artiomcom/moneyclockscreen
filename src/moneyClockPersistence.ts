@@ -115,6 +115,11 @@ export type MoneyClockSavedState = {
    * выплаты; начисление к остатку — с 00:00 следующего дня до текущего момента.
    */
   lastPayrollYmd: string;
+  /**
+   * Доля начисления, которая остаётся «на руки» после налогов и взносов (оценка, 0…1).
+   * 1 = вся сумма контракта как сейчас в расчётах.
+   */
+  takeHomeFraction: number;
   /** Optional: резюме и метаданные рядом с настройками MoneyClock */
   profile?: MoneyClockProfile;
 };
@@ -128,6 +133,18 @@ type StoredPayload = {
 
 function isLegacyModeField(x: unknown): boolean {
   return x === 'project' || x === 'salary' || x === 'hourly';
+}
+
+/** Парсинг доли «на руки» из сохранённого JSON; по умолчанию 1. */
+export function clampTakeHomeFraction(raw: unknown): number {
+  const n =
+    typeof raw === 'number' ?
+      raw
+    : typeof raw === 'string' ?
+      parseFloat(raw.replace(',', '.'))
+    : NaN;
+  if (!Number.isFinite(n)) return 1;
+  return Math.min(1, Math.max(0, n));
 }
 
 function isStr(x: unknown): x is string {
@@ -231,6 +248,7 @@ function parsePayload(data: unknown): MoneyClockSavedState | null {
       isStr(o.lastPayrollYmd) && /^\d{4}-\d{2}-\d{2}$/.test(o.lastPayrollYmd.trim()) ?
         o.lastPayrollYmd.trim()
       : localTodayYmd(),
+    takeHomeFraction: clampTakeHomeFraction(o.takeHomeFraction),
     projectsBundle: {
       ...bundle,
       selectedProjectIds,
@@ -584,7 +602,8 @@ export function defaultMoneyClockState(): MoneyClockSavedState {
     workedMinutes: '0',
     currentBalance: '0',
     currentBalanceCurrency: DEFAULT_CURRENCY_CODE,
-    lastPayrollYmd: localTodayYmd()
+    lastPayrollYmd: localTodayYmd(),
+    takeHomeFraction: 1
   };
 }
 

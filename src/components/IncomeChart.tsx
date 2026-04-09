@@ -541,7 +541,7 @@ export function IncomeChart({
         className={
           embedded ?
             'w-full py-8 sm:py-10 text-center text-white/55 text-sm font-medium'
-          : 'rounded-2xl bg-white/10 border border-white/20 px-4 py-8 text-center text-white/60 text-sm font-medium backdrop-blur-sm w-full max-w-[min(100%,42rem)]'
+          : 'rounded-r80 bg-white/10 border border-white/20 px-4 py-8 text-center text-white/60 text-sm font-medium backdrop-blur-sm w-full max-w-[min(100%,42rem)]'
         }
         role="img"
         aria-label="График дохода">
@@ -570,8 +570,8 @@ export function IncomeChart({
   const hasProjectFocus = series.some((s) => s.id.startsWith('proj-focus-'));
 
   const shellClass = embedded ?
-    'w-full min-w-0 relative'
-  : 'rounded-2xl bg-white/10 border border-white/20 px-3 sm:px-5 pt-4 pb-3 backdrop-blur-sm shadow-lg w-full max-w-[min(100%,42rem)] relative';
+    'w-full min-w-0 relative rounded-r80-sm border border-transparent dark:border-cyan-400/18'
+  : 'rounded-r80 bg-white/10 border border-white/20 px-3 sm:px-5 pt-4 pb-3 backdrop-blur-sm shadow-lg w-full max-w-[min(100%,42rem)] relative dark:border-cyan-400/25 dark:bg-cyan-950/10';
 
   return (
     <div
@@ -888,7 +888,7 @@ export function IncomeChart({
 
       {hover &&
       <div
-        className="pointer-events-none absolute z-20 rounded-xl border border-white/25 bg-black/80 px-2.5 py-2 text-[0.7rem] sm:text-xs text-white shadow-xl backdrop-blur-md max-w-[min(18rem,calc(100%-1rem))]"
+        className="pointer-events-none absolute z-20 rounded-r80-sm border border-white/25 bg-black/80 px-2.5 py-2 text-[0.7rem] sm:text-xs text-white shadow-xl backdrop-blur-md max-w-[min(18rem,calc(100%-1rem))]"
         style={{
           left: hover.tipX,
           top: hover.tipY,
@@ -912,7 +912,7 @@ export function IncomeChart({
                 }`}>
                 <span className="flex items-center gap-1.5 min-w-0">
                   <span
-                    className="inline-block w-2 h-0.5 rounded-full shrink-0"
+                    className="inline-block w-2 h-1 rounded-none shrink-0"
                     style={{
                       background: color,
                       ...(s.kind === 'balance' ?
@@ -968,7 +968,7 @@ export function IncomeChart({
               key={s.id}
               className={`text-[0.7rem] sm:text-xs font-bold inline-flex items-center gap-1.5 ${s.muted ? 'text-white/48' : 'text-white/80'}`}>
               <span
-                className="inline-block w-2.5 h-1 rounded-full shrink-0"
+                className="inline-block w-2.5 h-1.5 rounded-none shrink-0"
                 style={{
                   background: color,
                   ...(s.kind === 'balance' ?

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AVERAGE_CALENDAR_MONTH_SECONDS,
+  balanceOnAccountAt,
   earningsTotalsByCurrency,
   newProject,
   parseLocalDateYmd,
@@ -108,5 +109,27 @@ describe('projectEarningsAt — monthly и contract', () => {
     });
     const endMs = parseLocalDateYmd('2025-02-01')!;
     expect(projectEarningsAt(p, endMs)).toBeCloseTo(6200, 0);
+  });
+});
+
+describe('balanceOnAccountAt', () => {
+  it('до начала доначисления (день после зарплаты) остаток = база, без отрицательной дельты на графике', () => {
+    const p = newProject({
+      name: 'E',
+      workStartDate: '2024-01-01',
+      projectEndDate: '',
+      projectAmount: '6000',
+      projectBilling: 'monthly',
+      currencyCode: 'EUR'
+    });
+    const base = 20_000;
+    const lastPay = '2025-10-01';
+    const accrualStart = parseLocalDateYmd(lastPay)! + 86400000;
+    const tBefore = parseLocalDateYmd('2025-08-23')!;
+    const atPast = balanceOnAccountAt([p], 'EUR', base, lastPay, tBefore);
+    expect(atPast).toBe(base);
+    const tAfter = accrualStart + 86400000 * 7;
+    const atWeekLater = balanceOnAccountAt([p], 'EUR', base, lastPay, tAfter);
+    expect(atWeekLater).toBeGreaterThan(base);
   });
 });

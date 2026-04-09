@@ -16,6 +16,11 @@ import {
   frankfurterQuoteCurrencies,
   type FrankfurterRow
 } from '../frankfurterHistorical';
+import {
+  inflationChartLabel,
+  inflationIndexSeriesPoints,
+  type BlendedInflationYear
+} from '../worldBankInflation';
 
 export const INCOME_CHART_STEPS = 64;
 const STEPS = INCOME_CHART_STEPS;
@@ -32,13 +37,18 @@ type Series = {
   code: string;
   label: string;
   points: [number, number][];
-  kind: 'projects' | 'balance' | 'fx' | 'fxHist';
+  kind: 'projects' | 'balance' | 'fx' | 'fxHist' | 'infHist';
+  /** Фоновые серии в режиме «одна компания» */
+  muted?: boolean;
 };
 
 const LINE_COLORS = ['#ffffff', '#fef9c3', '#bbf7d0', '#a5f3fc', '#e9d5ff'];
 const BALANCE_LINE = '#fde68a';
 const FX_MERGE_LINE = '#fb7185';
 const FX_HIST_LINE = '#38bdf8';
+const INF_HIST_LINE = '#fb923c';
+const FOCUS_PROJECT_LINE = '#fef08a';
+const MUTED_PROJECT_LINE = 'rgba(203, 213, 225, 0.42)';
 
 export function getIncomeChartTimeRange(
   projects: ProjectEntry[],
@@ -55,11 +65,19 @@ export function getIncomeChartTimeRange(
 }
 
 function strokeColorForSeries(all: Series[], s: Series, idx: number): string {
-  if (s.kind === 'balance') return BALANCE_LINE;
+  if (s.kind === 'balance') return s.muted ? 'rgba(253, 230, 138, 0.42)' : BALANCE_LINE;
   if (s.kind === 'fx') return FX_MERGE_LINE;
   if (s.kind === 'fxHist') return FX_HIST_LINE;
-  const n = all.slice(0, idx).filter((x) => x.kind === 'projects').length;
+  if (s.kind === 'infHist') return INF_HIST_LINE;
+  if (s.muted) return MUTED_PROJECT_LINE;
+  if (s.id.startsWith('proj-focus-')) return FOCUS_PROJECT_LINE;
+  const n = all.slice(0, idx).filter((x) => x.kind === 'projects' && !x.muted).length;
   return LINE_COLORS[n % LINE_COLORS.length];
+}
+
+function chartLabelFromProjectName(name: string, maxLen = 22): string {
+  const t = name.trim() || 'Проект';
+  return t.length > maxLen ? `${t.slice(0, maxLen - 1)}…` : t;
 }
 
 function buildIncomeSeries(
@@ -70,7 +88,8 @@ function buildIncomeSeries(
     currency: string;
     lastPayrollYmd: string;
   },
-  fxMerge?: { snapshot: FxSnapshot; targetCode: string } | null
+  fxMerge?: { snapshot: FxSnapshot; targetCode: string } | null,
+  focusProjectId?: string | null
 ): { series: Series[]; tMin: number; tMax: number } {
   const range = getIncomeChartTimeRange(projects, nowMs);
   if (!range) {
@@ -86,28 +105,78 @@ function buildIncomeSeries(
   }
 
   const series: Series[] = [];
+  const focus =
+    focusProjectId ?
+      projects.find((p) => p.id === focusProjectId) ?? null
+    : null;
 
-  for (const [, plist] of byCcy) {
-    const points: [number, number][] = [];
+  if (focus) {
+    const fCode = normalizeCurrencyCode(focus.currencyCode);
+    const heroPoints: [number, number][] = [];
     for (let i = 0; i <= STEPS; i++) {
       const t = tMin + (i / STEPS) * (tMax - tMin);
-      let y = 0;
-      for (const p of plist) {
-        y += projectEarningsAt(p, t);
-      }
-      points.push([t, y]);
+      heroPoints.push([t, projectEarningsAt(focus, t)]);
     }
-    const code = normalizeCurrencyCode(plist[0]?.currencyCode ?? 'USD');
     series.push({
-      id: `proj-${code}`,
-      code,
-      label: `${code} · проекты`,
-      points,
-      kind: 'projects'
+      id: `proj-focus-${focus.id}`,
+      code: fCode,
+      label: `${chartLabelFromProjectName(focus.name)} · ${fCode}`,
+      points: heroPoints,
+      kind: 'projects',
+      muted: false
     });
-  }
 
-  series.sort((a, b) => a.code.localeCompare(b.code));
+    for (const [, plist] of byCcy) {
+      const others = plist.filter((p) => p.id !== focus.id);
+      if (others.length === 0) continue;
+      const points: [number, number][] = [];
+      for (let i = 0; i <= STEPS; i++) {
+        const t = tMin + (i / STEPS) * (tMax - tMin);
+        let y = 0;
+        for (const p of others) {
+          y += projectEarningsAt(p, t);
+        }
+        points.push([t, y]);
+      }
+      const code = normalizeCurrencyCode(plist[0]?.currencyCode ?? 'USD');
+      series.push({
+        id: `proj-muted-${code}`,
+        code,
+        label: `${code} · остальные`,
+        points,
+        kind: 'projects',
+        muted: true
+      });
+    }
+
+    series.sort((a, b) => {
+      if (a.id.startsWith('proj-focus-')) return -1;
+      if (b.id.startsWith('proj-focus-')) return 1;
+      return a.code.localeCompare(b.code);
+    });
+  } else {
+    for (const [, plist] of byCcy) {
+      const points: [number, number][] = [];
+      for (let i = 0; i <= STEPS; i++) {
+        const t = tMin + (i / STEPS) * (tMax - tMin);
+        let y = 0;
+        for (const p of plist) {
+          y += projectEarningsAt(p, t);
+        }
+        points.push([t, y]);
+      }
+      const code = normalizeCurrencyCode(plist[0]?.currencyCode ?? 'USD');
+      series.push({
+        id: `proj-${code}`,
+        code,
+        label: `${code} · проекты`,
+        points,
+        kind: 'projects'
+      });
+    }
+
+    series.sort((a, b) => a.code.localeCompare(b.code));
+  }
 
   const payOk =
     balanceInput &&
@@ -132,11 +201,12 @@ function buildIncomeSeries(
       code: bCode,
       label: `${bCode} · счёт`,
       points: balPoints,
-      kind: 'balance'
+      kind: 'balance',
+      muted: Boolean(focus)
     });
   }
 
-  if (fxMerge && projects.length > 0) {
+  if (fxMerge && projects.length > 0 && !focus) {
     const target = normalizeCurrencyCode(fxMerge.targetCode);
     const fxPoints: [number, number][] = [];
     let ok = true;
@@ -331,7 +401,10 @@ export function IncomeChart({
   lastPayrollYmd,
   embedded = false,
   fxSnapshot = null,
-  fxHistoryRows = null
+  fxHistoryRows = null,
+  chartFocusProjectId = null,
+  inflationYearly = null,
+  inflationCurrencyCodes = []
 }: {
   projects: ProjectEntry[];
   nowMs: number;
@@ -344,6 +417,12 @@ export function IncomeChart({
   fxSnapshot?: FxSnapshot | null;
   /** История Frankfurter: относительный индекс курсов (отдельная ось по масштабу серии) */
   fxHistoryRows?: FrankfurterRow[] | null;
+  /** Одна компания на переднем плане; остальные серии приглушены */
+  chartFocusProjectId?: string | null;
+  /** Годовой CPI (World Bank), смешанный по экономикам выбранных валют */
+  inflationYearly?: BlendedInflationYear[] | null;
+  /** Коды валют, по которым строилась инфляция (для подписи) */
+  inflationCurrencyCodes?: readonly string[];
 }) {
   const { series, tMin, tMax } = useMemo(() => {
     const base = buildIncomeSeries(
@@ -356,8 +435,10 @@ export function IncomeChart({
       },
       fxSnapshot ?
         { snapshot: fxSnapshot, targetCode: balanceCurrency }
-      : null
+      : null,
+      chartFocusProjectId ?? null
     );
+    let nextSeries = [...base.series];
     const quotes = frankfurterQuoteCurrencies(projects, balanceCurrency);
     const hist =
       fxHistoryRows &&
@@ -373,15 +454,31 @@ export function IncomeChart({
           STEPS
         )
       : null;
-    if (!hist) return base;
-    const extra: Series = {
-      id: 'fx-hist-rel',
-      code: balanceCurrency,
-      label: hist.label,
-      points: hist.points,
-      kind: 'fxHist'
-    };
-    return { ...base, series: [...base.series, extra] };
+    if (hist) {
+      nextSeries.push({
+        id: 'fx-hist-rel',
+        code: balanceCurrency,
+        label: hist.label,
+        points: hist.points,
+        kind: 'fxHist'
+      });
+    }
+    const infPts =
+      inflationYearly &&
+      inflationYearly.length > 0 &&
+      base.tMax > base.tMin ?
+        inflationIndexSeriesPoints(inflationYearly, base.tMin, base.tMax, STEPS)
+      : null;
+    if (infPts) {
+      nextSeries.push({
+        id: 'cpi-blended',
+        code: balanceCurrency,
+        label: inflationChartLabel([...inflationCurrencyCodes]),
+        points: infPts,
+        kind: 'infHist'
+      });
+    }
+    return { ...base, series: nextSeries };
   }, [
     projects,
     nowMs,
@@ -389,7 +486,10 @@ export function IncomeChart({
     balanceCurrency,
     lastPayrollYmd,
     fxSnapshot,
-    fxHistoryRows
+    fxHistoryRows,
+    chartFocusProjectId,
+    inflationYearly,
+    inflationCurrencyCodes
   ]);
 
   const plotW = VB_W - PAD_L - PAD_R;
@@ -458,12 +558,16 @@ export function IncomeChart({
   const focusSeries =
     hover ?
       series.find((s) => s.id === hover.seriesId) ?? series[0]
-    : series.find((s) => s.kind === 'projects') ??
+    : series.find((s) => s.id.startsWith('proj-focus-')) ??
+      series.find((s) => s.kind === 'projects' && !s.muted) ??
       series.find((s) => s.kind === 'fx') ??
       series.find((s) => s.kind === 'fxHist') ??
+      series.find((s) => s.kind === 'infHist') ??
       series[0];
   const yAxisRaw = seriesRawBounds(focusSeries.points);
-  const yAxisIsFxHist = focusSeries.kind === 'fxHist';
+  const yAxisFxPct = focusSeries.kind === 'fxHist';
+  const yAxisInfIdx = focusSeries.kind === 'infHist';
+  const hasProjectFocus = series.some((s) => s.id.startsWith('proj-focus-'));
 
   const shellClass = embedded ?
     'w-full min-w-0 relative'
@@ -501,7 +605,18 @@ export function IncomeChart({
                 y1="0"
                 x2="0"
                 y2="1">
-                <stop offset="0%" stopColor={c} stopOpacity={s.kind === 'balance' ? '0.22' : '0.35'} />
+                <stop
+                  offset="0%"
+                  stopColor={c}
+                  stopOpacity={
+                    s.muted ? '0.06'
+                    : s.id.startsWith('proj-focus-') ? '0.4'
+                    : s.kind === 'balance' ? '0.22'
+                    : s.kind === 'fxHist' ? '0.22'
+                    : s.kind === 'infHist' ? '0.22'
+                    : '0.35'
+                  }
+                />
                 <stop offset="100%" stopColor={c} stopOpacity="0.02" />
               </linearGradient>
             );
@@ -545,6 +660,14 @@ export function IncomeChart({
           const { minV, maxV } = seriesValueBounds(s.points);
           const isHi = Boolean(hover && hover.seriesId === s.id);
           const dim = Boolean(hover && hover.seriesId !== s.id);
+          const isHero = s.id.startsWith('proj-focus-');
+          const isInf = s.kind === 'infHist';
+          const baseLayerOp = s.muted ? 0.44 : 1;
+          const layerOpacity =
+            isHi ? 1
+            : dim ?
+              baseLayerOp * (s.muted ? 0.32 : 0.28)
+            : baseLayerOp;
           const lineD = s.points
             .map(([t, v], i) => {
               const x = xScale(t, tMin, tMax);
@@ -568,26 +691,35 @@ export function IncomeChart({
             <g
               key={s.id}
               style={{
-                opacity: dim ? 0.28 : 1,
-                transition: 'opacity 0.15s ease'
+                opacity: layerOpacity,
+                transition: 'opacity 0.18s ease'
               }}>
               <path d={areaD} fill={`url(#income-fill-${s.id})`} />
               <path
                 d={lineD}
                 fill="none"
                 stroke={color}
-                strokeWidth={isHi ? 4.2 : 2.5}
+                strokeWidth={isHi ? 4.4 : isHero ? 3.2 : 2.5}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeDasharray={
                   s.kind === 'balance' ? '5 4'
                   : s.kind === 'fxHist' ? '4 3'
+                  : s.kind === 'infHist' ? '5 4'
                   : undefined
                 }
                 style={{
                   filter:
                     isHi ?
-                      'drop-shadow(0 0 8px rgba(255,255,255,0.55))'
+                      isHero ?
+                        'drop-shadow(0 0 12px rgba(253, 224, 71, 0.45))'
+                      : isInf ?
+                        'drop-shadow(0 0 11px rgba(251, 146, 60, 0.5))'
+                      : 'drop-shadow(0 0 8px rgba(255,255,255,0.55))'
+                    : isHero ?
+                      'drop-shadow(0 0 6px rgba(253, 224, 71, 0.28))'
+                    : isInf ?
+                      'drop-shadow(0 0 5px rgba(251, 146, 60, 0.28))'
                     : 'drop-shadow(0 0 4px rgba(255,255,255,0.25))'
                 }}
               />
@@ -604,8 +736,10 @@ export function IncomeChart({
           fontWeight="700"
           textAnchor="end"
           style={{ fontVariantNumeric: 'tabular-nums' }}>
-          {yAxisIsFxHist ?
+          {yAxisFxPct ?
             `${formatCompact(yAxisRaw.maxV)}%`
+          : yAxisInfIdx ?
+            formatCompact(yAxisRaw.maxV)
           : `${formatCompact(yAxisRaw.maxV)} ${getCurrencySymbol(focusSeries.code)}`}
         </text>
         <text
@@ -616,8 +750,10 @@ export function IncomeChart({
           fontFamily="inherit"
           textAnchor="end"
           style={{ fontVariantNumeric: 'tabular-nums' }}>
-          {yAxisIsFxHist ?
+          {yAxisFxPct ?
             `${formatCompact(yAxisRaw.minV)}%`
+          : yAxisInfIdx ?
+            formatCompact(yAxisRaw.minV)
           : `${formatCompact(yAxisRaw.minV)} ${getCurrencySymbol(focusSeries.code)}`}
         </text>
         <text
@@ -627,7 +763,7 @@ export function IncomeChart({
           fontSize="8"
           fontFamily="inherit"
           textAnchor="end">
-          {hover ? 'Y: линия под курсором' : 'Y: первая в списке'}
+          {hover ? 'Y: линия под курсором' : hasProjectFocus ? 'Y: компания' : 'Y: первая в списке'}
         </text>
 
         <rect
@@ -657,10 +793,11 @@ export function IncomeChart({
             y1={PAD_T}
             x2={xScale(hover.t, tMin, tMax)}
             y2={y0}
-            stroke="rgba(255,255,255,0.45)"
-            strokeWidth="1.2"
+            stroke="rgba(255,255,255,0.72)"
+            strokeWidth="1.35"
             strokeDasharray="4 3"
             pointerEvents="none"
+            style={{ filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.35))' }}
           />
           {series.map((s, idx) => {
             const color = strokeColorForSeries(series, s, idx);
@@ -679,7 +816,10 @@ export function IncomeChart({
                 strokeWidth="1"
                 pointerEvents="none"
                 style={{
-                  opacity: hover.seriesId === s.id ? 1 : 0.8
+                  opacity:
+                    hover.seriesId === s.id ? 1
+                    : s.muted ? 0.35
+                    : 0.8
                 }}
               />
             );
@@ -765,7 +905,11 @@ export function IncomeChart({
             return (
               <li
                 key={s.id}
-                className={`flex items-baseline justify-between gap-3 ${active ? 'text-white' : 'text-white/65'}`}>
+                className={`flex items-baseline justify-between gap-3 ${
+                  active ? 'text-white'
+                  : s.muted ? 'text-white/42'
+                  : 'text-white/65'
+                }`}>
                 <span className="flex items-center gap-1.5 min-w-0">
                   <span
                     className="inline-block w-2 h-0.5 rounded-full shrink-0"
@@ -779,6 +923,10 @@ export function IncomeChart({
                         {
                           background: 'repeating-linear-gradient(90deg, #38bdf8 0 3px, transparent 3px 5px)'
                         }
+                      : s.kind === 'infHist' ?
+                        {
+                          background: 'repeating-linear-gradient(90deg, #fb923c 0 3px, transparent 3px 5px)'
+                        }
                       : {})
                     }}
                   />
@@ -789,6 +937,8 @@ export function IncomeChart({
                   style={{ fontWeight: active ? 800 : 600 }}>
                   {s.kind === 'fxHist' ?
                     `${val.toFixed(1)}%`
+                  : s.kind === 'infHist' ?
+                    `${val.toFixed(1)} инд.`
                   : <>
                       {getCurrencySymbol(s.code)}
                       {formatMoneyAmount(val)}
@@ -810,11 +960,13 @@ export function IncomeChart({
             ...s.points.map(([, v]) => (Number.isFinite(v) ? v : 0))
           );
           const peakLabel =
-            s.kind === 'fxHist' ? `${peak.toFixed(0)}%` : formatCompact(peak);
+            s.kind === 'fxHist' ? `${peak.toFixed(0)}%`
+            : s.kind === 'infHist' ? `${peak.toFixed(0)} инд.`
+            : formatCompact(peak);
           return (
             <span
               key={s.id}
-              className="text-[0.7rem] sm:text-xs font-bold text-white/80 inline-flex items-center gap-1.5">
+              className={`text-[0.7rem] sm:text-xs font-bold inline-flex items-center gap-1.5 ${s.muted ? 'text-white/48' : 'text-white/80'}`}>
               <span
                 className="inline-block w-2.5 h-1 rounded-full shrink-0"
                 style={{
@@ -827,27 +979,51 @@ export function IncomeChart({
                     {
                       background: 'repeating-linear-gradient(90deg, #38bdf8 0 3px, transparent 3px 5px)'
                     }
+                  : s.kind === 'infHist' ?
+                    {
+                      background: 'repeating-linear-gradient(90deg, #fb923c 0 3px, transparent 3px 5px)'
+                    }
                   : {})
                 }}
               />
               {s.label}
-              {s.kind === 'fxHist' ? ` · ${peakLabel}` : ` (${getCurrencySymbol(s.code)}) · ${peakLabel}`}
+              {s.kind === 'fxHist' || s.kind === 'infHist' ?
+                ` · ${peakLabel}`
+              : ` (${getCurrencySymbol(s.code)}) · ${peakLabel}`}
             </span>
           );
         })}
       </div>
-      {series.some((s) => s.kind === 'fxHist') &&
-      <p className="text-center text-white/38 text-[0.55rem] sm:text-[0.58rem] mt-1.5 px-2 leading-snug">
-        История курсов:{' '}
-        <a
-          href="https://www.frankfurter.dev/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-sky-200/85 underline underline-offset-2 decoration-sky-200/35">
-          api.frankfurter.dev
-        </a>
-        . Линия — средний относительный индекс (100% = курс на дату начала графика); без ключей API.
-      </p>
+      {(series.some((s) => s.kind === 'fxHist') || series.some((s) => s.kind === 'infHist')) &&
+      <div className="text-center text-white/38 text-[0.55rem] sm:text-[0.58rem] mt-1.5 px-2 leading-snug space-y-1">
+        {series.some((s) => s.kind === 'fxHist') &&
+        <p>
+          История курсов:{' '}
+          <a
+            href="https://www.frankfurter.dev/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sky-200/85 underline underline-offset-2 decoration-sky-200/35">
+            api.frankfurter.dev
+          </a>
+          . Средний относительный индекс (100% = курс на дату начала графика).
+        </p>
+        }
+        {series.some((s) => s.kind === 'infHist') &&
+        <p>
+          Инфляция (CPI, годовая %):{' '}
+          <a
+            href="https://data.worldbank.org/indicator/FP.CPI.TOTL.ZG"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-orange-200/85 underline underline-offset-2 decoration-orange-200/35">
+            World Bank
+          </a>
+          , индикатор FP.CPI.TOTL.ZG. Линия — средний накопленный индекс уровня цен по экономикам выбранных
+          валют (100 = 1 янв. года старта графика); валюта ≠ страна — используется статический маппинг.
+        </p>
+        }
+      </div>
       }
     </div>
   );

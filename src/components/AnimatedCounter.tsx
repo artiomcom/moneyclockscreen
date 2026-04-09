@@ -164,7 +164,6 @@ const MoneyDigitReel = memo(function MoneyDigitReel({
         height: '1em',
         lineHeight: 1,
         perspective: '480px',
-        isolation: 'isolate',
         contain: 'layout style'
       }}>
       <motion.span

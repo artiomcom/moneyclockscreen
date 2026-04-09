@@ -300,6 +300,10 @@ export function balanceOnAccountAt(
   const pay = parseLocalDateYmd(lastPayrollYmd.trim());
   if (pay == null) return currentBalanceAfterPayroll;
   const accrualStartMs = pay + 86400000;
+  // До полуночи дня после зарплаты дельта не считаем (иначе на ранних t на графике — минус).
+  if (nowMs <= accrualStartMs) {
+    return currentBalanceAfterPayroll;
+  }
   const target = normalizeCurrencyCode(balanceCurrency);
   let delta = 0;
   for (const p of projects) {

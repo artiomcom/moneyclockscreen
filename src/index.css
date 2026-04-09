@@ -25,13 +25,14 @@ html, body, #root {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Money odometer — “money coma” billboard */
+/* Money odometer — «money coma» billboard
+   Без filter/drop-shadow на колонках — иначе GPU рисует каждую цифру отдельным слоем и
+   за ними виден прямоугольник фона, отличный от страничного градиента. */
 .money-coma-counter {
   text-shadow:
-    0 0.04em 0 rgba(0, 0, 0, 0.2),
-    0 0 0.06em rgba(255, 255, 255, 0.45),
-    0 0 0.4em rgba(250, 204, 21, 0.4),
-    0 0 0.85em rgba(22, 163, 74, 0.5);
+    0 0.04em 0 rgba(0, 0, 0, 0.22),
+    0 0 0.05em rgba(255, 255, 255, 0.35),
+    0 0 0.25em rgba(250, 204, 21, 0.28);
 }
 
 .money-coma-prefix {
@@ -55,10 +56,6 @@ html, body, #root {
     transform: translateY(0) scale(1);
     filter: brightness(1.08);
   }
-}
-
-.money-reel-column {
-  filter: drop-shadow(0 0.02em 0.04em rgba(0, 0, 0, 0.15));
 }
 
 .money-reel-inner[data-rolling] {

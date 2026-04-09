@@ -7,9 +7,16 @@ import {
   Trash2Icon,
   XIcon,
   DownloadIcon,
-  UploadIcon } from
-'lucide-react';
+  UploadIcon,
+  Wallet,
+  Clock3,
+  Globe,
+  Layers,
+  Share2,
+  Copy
+} from 'lucide-react';
 import { ParticleBackground } from './ParticleBackground';
+import { RetroGnomesFrame } from './RetroGnomesFrame';
 import { AnimatedCounter } from './AnimatedCounter';
 import { IncomeChart } from './IncomeChart';
 import {
@@ -48,6 +55,15 @@ import {
   frankfurterQuoteCurrencies,
   type FrankfurterRow
 } from '../frankfurterHistorical';
+import {
+  buildMoneyAwarenessShareLines,
+  illustrativePercentileFromEurPerSec
+} from '../moneyAwareness';
+import {
+  fetchBlendedInflationYearly,
+  worldBankCountryForCurrency,
+  type BlendedInflationYear
+} from '../worldBankInflation';
 function InputField({
   label,
   value,
@@ -117,6 +133,8 @@ function readProfilePersonal(p: MoneyClockProfile): {
   };
 }
 
+const EMPTY_INFLATION_CCY: string[] = [];
+
 const initialMoneyClockRef = { current: null as MoneyClockSavedState | null };
 function getInitialMoneyClockState(): MoneyClockSavedState {
   if (!initialMoneyClockRef.current) {
@@ -147,6 +165,9 @@ export function MoneyClock() {
   const [fxSnapshot, setFxSnapshot] = useState<FxSnapshot | null>(null);
   const [fxReady, setFxReady] = useState(false);
   const [fxHistoryRows, setFxHistoryRows] = useState<FrankfurterRow[] | null>(null);
+  const [inflationYearly, setInflationYearly] = useState<BlendedInflationYear[] | null>(null);
+  const [chartFocusProjectId, setChartFocusProjectId] = useState<string | null>(null);
+  const [awarenessToast, setAwarenessToast] = useState<string | null>(null);
 
   const { projects, activeProjectId, selectedProjectIds } = projectsBundle;
   const activeProject = useMemo(
@@ -332,6 +353,76 @@ export function MoneyClock() {
     return () => ac.abort();
   }, [fxHistoryProjectSignature, currentBalanceCurrency, fxHistoryDayBucket]);
 
+  const inflationCalendarYear = useMemo(
+    () => new Date(nowTick).getFullYear(),
+    [fxHistoryDayBucket]
+  );
+
+  const inflationDisplayCurrencies = useMemo(() => {
+    const s = new Set<string>();
+    s.add(normalizeCurrencyCode(currentBalanceCurrency));
+    for (const p of selectedProjectsOrdered) {
+      s.add(normalizeCurrencyCode(p.currencyCode));
+    }
+    const list = [...s].filter((c) => worldBankCountryForCurrency(c)).sort();
+    return list.length === 0 ? EMPTY_INFLATION_CCY : list;
+  }, [selectedProjectsOrdered, currentBalanceCurrency]);
+
+  const inflationLoadKey = useMemo(
+    () =>
+      `${fxHistoryProjectSignature}\0${currentBalanceCurrency}\0${inflationCalendarYear}\0${inflationDisplayCurrencies.join('|')}`,
+    [
+      fxHistoryProjectSignature,
+      currentBalanceCurrency,
+      inflationCalendarYear,
+      inflationDisplayCurrencies
+    ]
+  );
+
+  useEffect(() => {
+    if (inflationDisplayCurrencies.length === 0) {
+      setInflationYearly(null);
+      return;
+    }
+    const fromYmd = minWorkStartYmdFromProjects(selectedProjectsOrdered);
+    if (!fromYmd) {
+      setInflationYearly(null);
+      return;
+    }
+    const yStart = parseInt(fromYmd.slice(0, 4), 10);
+    const yEnd = inflationCalendarYear;
+    if (!Number.isFinite(yStart) || yEnd < yStart) {
+      setInflationYearly(null);
+      return;
+    }
+    const ac = new AbortController();
+    const codes = [
+      normalizeCurrencyCode(currentBalanceCurrency),
+      ...selectedProjectsOrdered.map((p) => normalizeCurrencyCode(p.currencyCode))
+    ];
+    fetchBlendedInflationYearly(codes, yStart, yEnd, { signal: ac.signal })
+      .then(setInflationYearly)
+      .catch(() => setInflationYearly(null));
+    return () => ac.abort();
+  }, [inflationLoadKey]);
+
+  useEffect(() => {
+    if (
+      chartFocusProjectId &&
+      !selectedProjectIds.includes(chartFocusProjectId)
+    ) {
+      setChartFocusProjectId(null);
+    }
+  }, [selectedProjectIds, chartFocusProjectId]);
+
+  const chartFocusProject = useMemo(
+    () =>
+      chartFocusProjectId ?
+        selectedProjectsOrdered.find((p) => p.id === chartFocusProjectId) ?? null
+      : null,
+    [chartFocusProjectId, selectedProjectsOrdered]
+  );
+
   const computeInitialEarnings = useCallback(
     (nowMs: number) =>
       selectedProjectsOrdered.reduce(
@@ -379,6 +470,53 @@ export function MoneyClock() {
 
   const balanceCurrencySymbol = getCurrencySymbol(currentBalanceCurrency);
 
+  /** Валюты, в которых есть хотя бы один выбранный проект с неистёкшим сроком (ещё «копит»). */
+  const currenciesWithActiveContract = useMemo(() => {
+    const s = new Set<string>();
+    for (const p of selectedProjectsOrdered) {
+      if (!projectIsEndedByDeadline(p, nowTick)) {
+        s.add(normalizeCurrencyCode(p.currencyCode));
+      }
+    }
+    return s;
+  }, [selectedProjectsOrdered, nowTick]);
+
+  const accountBalanceCurrencyStatus = useMemo(() => {
+    const b = normalizeCurrencyCode(currentBalanceCurrency);
+    const anyInCcy = selectedProjectsOrdered.some(
+      (p) => normalizeCurrencyCode(p.currencyCode) === b
+    );
+    const hasActiveInCcy = currenciesWithActiveContract.has(b);
+    return { anyInCcy, hasActiveInCcy };
+  }, [selectedProjectsOrdered, currentBalanceCurrency, currenciesWithActiveContract]);
+
+  /** Порядок строк «Всего заработано»: активные контракты выше; внутри группы — по убыванию суммы в валюте счёта (курс API). */
+  const earningsByCurrencySortedForDisplay = useMemo(() => {
+    const target = normalizeCurrencyCode(currentBalanceCurrency);
+    const rows = [...earningsByCurrency.entries()].map(([ccy, val]) => {
+      const active = currenciesWithActiveContract.has(ccy);
+      let equivForSort = 0;
+      if (fxSnapshot) {
+        const c = convertAmountThroughSnapshot(val, ccy, target, fxSnapshot);
+        equivForSort = c != null ? c : Number.NEGATIVE_INFINITY;
+      }
+      return { ccy, val, active, equivForSort };
+    });
+    rows.sort((a, b) => {
+      if (a.active !== b.active) return a.active ? -1 : 1;
+      if (fxSnapshot && b.equivForSort !== a.equivForSort) {
+        return b.equivForSort - a.equivForSort;
+      }
+      return a.ccy.localeCompare(b.ccy);
+    });
+    return rows.map((r) => [r.ccy, r.val] as [string, number]);
+  }, [
+    earningsByCurrency,
+    currenciesWithActiveContract,
+    fxSnapshot,
+    currentBalanceCurrency
+  ]);
+
   const ratesByCurrency = useMemo(() => {
     const m = new Map<string, number>();
     for (const p of selectedProjectsOrdered) {
@@ -419,6 +557,82 @@ export function MoneyClock() {
   const hasPositiveAccrualRate = useMemo(
     () => selectedProjectsOrdered.some((p) => projectRatePerSecond(p) > 0),
     [selectedProjectsOrdered]
+  );
+
+  /** Демо-шкала + тексты для шэринга (ставка в валюте счёта или единственной валюте проектов). */
+  const moneyAwarenessSnap = useMemo(() => {
+    if (!hasPositiveAccrualRate || selectedProjectsOrdered.length === 0) return null;
+    const bal = normalizeCurrencyCode(currentBalanceCurrency);
+    let rate: number | null = equivalentRatePerSecondInBalanceCcy;
+    let rateCurrency = bal;
+    if (rate == null && ratesByCurrency.size === 1) {
+      const [onlyCcy, onlyR] = [...ratesByCurrency.entries()][0]!;
+      rate = onlyR;
+      rateCurrency = onlyCcy;
+    }
+    if (rate == null || !(rate > 0)) return null;
+    let demoPct: number | null = null;
+    if (fxSnapshot) {
+      const eur = convertAmountThroughSnapshot(rate, rateCurrency, 'EUR', fxSnapshot);
+      if (eur != null && eur > 0) {
+        demoPct = illustrativePercentileFromEurPerSec(eur);
+      }
+    }
+    const lines = buildMoneyAwarenessShareLines({
+      ratePerSec: rate,
+      currencySymbol: getCurrencySymbol(rateCurrency),
+      currencyCode: rateCurrency,
+      demoPercentile: demoPct
+    });
+    return { rate, demoPct, lines, rateCurrency };
+  }, [
+    hasPositiveAccrualRate,
+    selectedProjectsOrdered.length,
+    equivalentRatePerSecondInBalanceCcy,
+    ratesByCurrency,
+    currentBalanceCurrency,
+    fxSnapshot
+  ]);
+
+  const showAwarenessToast = useCallback((msg: string) => {
+    setAwarenessToast(msg);
+    window.setTimeout(() => setAwarenessToast(null), 2400);
+  }, []);
+
+  const handleShareMoneyAwareness = useCallback(async () => {
+    if (!moneyAwarenessSnap) return;
+    const combined = `${moneyAwarenessSnap.lines.en}\n\n---\n\n${moneyAwarenessSnap.lines.ru}`;
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({
+          title: 'MoneyClock',
+          text: moneyAwarenessSnap.lines.en
+        });
+        return;
+      } catch (e) {
+        if ((e as Error)?.name === 'AbortError') return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(combined);
+      showAwarenessToast('Скопировано в буфер обмена');
+    } catch {
+      showAwarenessToast('Не удалось скопировать');
+    }
+  }, [moneyAwarenessSnap, showAwarenessToast]);
+
+  const handleCopyAwareness = useCallback(
+    async (lang: 'en' | 'ru') => {
+      if (!moneyAwarenessSnap) return;
+      const t = lang === 'en' ? moneyAwarenessSnap.lines.en : moneyAwarenessSnap.lines.ru;
+      try {
+        await navigator.clipboard.writeText(t);
+        showAwarenessToast(lang === 'en' ? 'English — в буфере' : 'Русский — в буфере');
+      } catch {
+        showAwarenessToast('Ошибка копирования');
+      }
+    },
+    [moneyAwarenessSnap, showAwarenessToast]
   );
 
   const projectEndedInfo = useMemo(() => {
@@ -752,10 +966,15 @@ export function MoneyClock() {
                   {projects.map((p) => {
                     const isEditing = p.id === activeProjectId;
                     const onDash = selectedProjectIds.includes(p.id);
+                    const contractEnded = projectIsEndedByDeadline(p, nowTick);
                     return (
                       <div
                         key={p.id}
-                        className="flex items-center gap-1 rounded-xl border-2 border-gray-200 bg-white pl-2 pr-1 py-1.5">
+                        className={`flex items-center gap-1 rounded-xl border-2 pl-2 pr-1 py-1.5 ${
+                          contractEnded ?
+                            'border-gray-300 bg-gray-100/90'
+                          : 'border-gray-200 bg-white'
+                        }`}>
                         <input
                           type="checkbox"
                           checked={onDash}
@@ -767,7 +986,7 @@ export function MoneyClock() {
                           type="button"
                           onClick={() => selectProject(p.id)}
                           whileTap={{ scale: 0.96 }}
-                          className="px-2 py-1 rounded-lg text-sm font-bold max-w-[120px] truncate transition-all text-left"
+                          className="px-2 py-1 rounded-lg text-sm font-bold max-w-[100px] truncate transition-all text-left"
                           style={{
                             background: isEditing ? '#22c55e' : 'transparent',
                             color: isEditing ? '#fff' : '#374151'
@@ -775,6 +994,13 @@ export function MoneyClock() {
                           title="Редактировать поля этого проекта">
                           {p.name || 'Untitled'}
                         </motion.button>
+                        {contractEnded ?
+                          <span
+                            className="shrink-0 text-[0.55rem] font-extrabold uppercase tracking-wide text-slate-600 px-1 py-0.5 rounded border border-slate-300 bg-slate-200/80"
+                            title="Дата окончания проекта уже прошла — начисление по сроку остановлено">
+                            Завершён
+                          </span>
+                        : null}
                         {projects.length > 1 &&
                         <motion.button
                           type="button"
@@ -1057,24 +1283,45 @@ export function MoneyClock() {
         </header>
 
         <div className="flex-1 flex flex-col justify-center py-6 sm:py-8 w-full min-h-0">
-          <motion.div
-            layout
-            className="w-full max-w-4xl xl:max-w-5xl mx-auto rounded-[1.75rem] border border-white/20 bg-gradient-to-b from-white/[0.13] to-white/[0.05] backdrop-blur-2xl shadow-[0_16px_64px_rgba(0,0,0,0.28)] ring-1 ring-inset ring-white/10 relative overflow-hidden px-1 sm:px-2">
-            <div
-              className="pointer-events-none absolute inset-0 opacity-[0.45]"
-              style={{
-                background:
-                  'radial-gradient(ellipse 85% 55% at 50% -25%, rgba(255,255,255,0.2), transparent 50%)'
-              }}
-            />
-            <div className="relative flex flex-col gap-5 sm:gap-6 px-4 sm:px-6 lg:px-8 pt-5 sm:pt-7 pb-5 sm:pb-7">
+          <div className="relative w-full max-w-4xl xl:max-w-5xl mx-auto px-1 sm:px-2 pt-6 sm:pt-9 pb-11 sm:pb-14">
+            <motion.div
+              layout
+              className="relative z-10 w-full rounded-[1.75rem] border border-white/20 bg-gradient-to-b from-white/[0.13] to-white/[0.05] backdrop-blur-2xl shadow-[0_16px_64px_rgba(0,0,0,0.28)] ring-1 ring-inset ring-white/10 overflow-hidden px-1 sm:px-2">
+              <div
+                className="pointer-events-none absolute inset-0 z-0 opacity-[0.45]"
+                style={{
+                  background:
+                    'radial-gradient(ellipse 85% 55% at 50% -25%, rgba(255,255,255,0.2), transparent 50%)'
+                }}
+              />
+              <div
+                className="pointer-events-none absolute inset-0 z-[4] opacity-[0.04] rounded-[1.75rem]"
+                style={{
+                  backgroundImage:
+                    'repeating-linear-gradient(180deg, transparent, transparent 2px, rgba(0,0,0,0.22) 2px, rgba(0,0,0,0.22) 3px)',
+                  mixBlendMode: 'overlay'
+                }}
+                aria-hidden
+              />
+              <div className="relative z-10 flex flex-col gap-5 sm:gap-6 px-4 sm:px-6 lg:px-8 pt-5 sm:pt-7 pb-5 sm:pb-7">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 items-start">
                 <div className="space-y-3 text-center md:text-left min-w-0">
                   <p className="text-white/60 text-[0.65rem] sm:text-xs font-extrabold uppercase tracking-[0.14em]">
                     Всего заработано
                   </p>
                   <p className="text-white/42 text-[0.6rem] sm:text-[0.62rem] leading-snug max-w-md mx-auto md:mx-0">
-                    Сумма по всем выбранным проектам; каждая валюта считается отдельно.
+                    Каждая валюта отдельно. Сначала — валюты с действующими контрактами
+                    {fxSnapshot ?
+                      <>
+                        , внутри группы порядок по убыванию суммы в пересчёте на{' '}
+                        {normalizeCurrencyCode(currentBalanceCurrency)} (курс API).
+                      </>
+                    :
+                      <>
+                        ; без курса внутри группы — по коду валюты.
+                      </>
+                    }{' '}
+                    «Завершены» — все контракты в этой валюте уже по сроку закрыты.
                   </p>
                   <div
                     className="relative font-black tracking-tight leading-none text-white flex flex-col md:flex-row md:flex-wrap items-center md:items-baseline justify-center md:justify-start gap-x-6 gap-y-3"
@@ -1085,9 +1332,7 @@ export function MoneyClock() {
                     }}>
                     {selectedProjectsOrdered.length > 0 ?
                     (() => {
-                        const entries = [...earningsByCurrency.entries()].sort(([a], [b]) =>
-                        a.localeCompare(b)
-                        );
+                        const entries = earningsByCurrencySortedForDisplay;
                         if (entries.length === 0) {
                           return (
                             <AnimatedCounter
@@ -1099,27 +1344,53 @@ export function MoneyClock() {
                         }
                         if (entries.length === 1) {
                           const [ccy, val] = entries[0];
+                          const ccyActive = currenciesWithActiveContract.has(ccy);
                           return (
-                            <AnimatedCounter
-                            value={val}
-                            prefix={getCurrencySymbol(ccy)}
-                            decimals={2} />);
-
-
+                            <div className="flex flex-col items-center md:items-start gap-1">
+                              <span className="inline-flex items-center gap-1.5 flex-wrap justify-center md:justify-start">
+                                <span
+                                  className="text-white/70 font-bold drop-shadow"
+                                  style={{ fontSize: 'clamp(0.55rem, 1.85vmin, 0.8rem)' }}>
+                                  {ccy}
+                                </span>
+                                {!ccyActive ?
+                                  <span className="text-[0.48rem] font-extrabold uppercase tracking-[0.12em] text-slate-200/85 px-1.5 py-0.5 rounded-md bg-slate-600/40 border border-white/12">
+                                    Завершены
+                                  </span>
+                                : null}
+                              </span>
+                              <AnimatedCounter
+                                value={val}
+                                prefix={getCurrencySymbol(ccy)}
+                                decimals={2}
+                              />
+                            </div>
+                          );
                         }
-                        return entries.map(([ccy, val]) =>
-                        <div key={ccy} className="flex flex-col items-center md:items-start gap-0.5">
-                            <span
-                            className="text-white/70 font-bold drop-shadow"
-                            style={{ fontSize: 'clamp(0.55rem, 1.85vmin, 0.8rem)' }}>
-                              {ccy}
-                            </span>
-                            <AnimatedCounter
-                            value={val}
-                            prefix={getCurrencySymbol(ccy)}
-                            decimals={2} />
-                          </div>
-                        );
+                        return entries.map(([ccy, val]) => {
+                          const ccyActive = currenciesWithActiveContract.has(ccy);
+                          return (
+                            <div key={ccy} className="flex flex-col items-center md:items-start gap-0.5">
+                              <span className="inline-flex items-center gap-1.5 flex-wrap justify-center md:justify-start">
+                                <span
+                                  className="text-white/70 font-bold drop-shadow"
+                                  style={{ fontSize: 'clamp(0.55rem, 1.85vmin, 0.8rem)' }}>
+                                  {ccy}
+                                </span>
+                                {!ccyActive ?
+                                  <span className="text-[0.48rem] font-extrabold uppercase tracking-[0.12em] text-slate-200/85 px-1.5 py-0.5 rounded-md bg-slate-600/40 border border-white/12">
+                                    Завершены
+                                  </span>
+                                : null}
+                              </span>
+                              <AnimatedCounter
+                                value={val}
+                                prefix={getCurrencySymbol(ccy)}
+                                decimals={2}
+                              />
+                            </div>
+                          );
+                        });
                       })()
                     : <AnimatedCounter
                       value={displayAmount}
@@ -1129,60 +1400,144 @@ export function MoneyClock() {
                   </div>
                   {equivalentEarningsInBalanceCcy != null &&
                   selectedProjectsOrdered.length > 0 &&
-                  <div className="pt-3 mt-1 border-t border-white/12 w-full max-w-xl mx-auto md:mx-0">
-                    <p className="text-white/50 text-[0.58rem] sm:text-[0.6rem] font-extrabold uppercase tracking-[0.12em] mb-1">
-                      Всего в валюте счёта (по курсу)
-                    </p>
-                    <p className="text-white/36 text-[0.55rem] leading-snug mb-2">
-                      Сумма накоплений по всем выбранным проектам, пересчитанная в{' '}
-                      {normalizeCurrencyCode(currentBalanceCurrency)} по текущему курсу API.
-                    </p>
+                  <section
+                    className="pt-4 mt-2 border-t border-white/12 w-full max-w-xl mx-auto md:mx-0"
+                    aria-label={`Сводка в ${normalizeCurrencyCode(currentBalanceCurrency)} по курсу`}>
                     <div
-                      className="font-black tracking-tight text-white/95 tabular-nums"
-                      style={{
-                        fontSize: 'clamp(0.95rem, 2.8vmin, 1.65rem)',
-                        textShadow: '0 1px 14px rgba(0,0,0,0.35)'
-                      }}>
-                      <AnimatedCounter
-                        value={equivalentEarningsInBalanceCcy}
-                        prefix={balanceCurrencySymbol}
-                        decimals={2}
-                      />
+                      className="rounded-2xl border border-sky-200/25 bg-gradient-to-b from-sky-400/[0.14] to-white/[0.04] px-4 py-4 sm:px-5 sm:py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
+                      <p className="text-white/55 text-[0.6rem] sm:text-[0.62rem] font-extrabold uppercase tracking-[0.14em] text-center md:text-left mb-3">
+                        Всего в валюте счёта
+                      </p>
+                      <div
+                        className="font-black tracking-tight text-white tabular-nums text-center md:text-left leading-none mx-auto md:mx-0 w-fit max-w-full"
+                        style={{
+                          fontSize: 'clamp(1.35rem, 5.2vmin, 3.05rem)',
+                          textShadow:
+                            '0 2px 24px rgba(0,0,0,0.38), 0 0 28px rgba(125, 211, 252, 0.12)'
+                        }}>
+                        <AnimatedCounter
+                          value={equivalentEarningsInBalanceCcy}
+                          prefix={balanceCurrencySymbol}
+                          decimals={2}
+                        />
+                      </div>
+                      <p className="text-white/40 text-[0.56rem] sm:text-[0.58rem] font-medium text-center md:text-left mt-2.5">
+                        Один столбец в <strong className="text-white/65 font-semibold">валюте счёта</strong> —
+                        все выбранные проекты приведены к ней по курсу из блока «Курс» ниже.
+                      </p>
+                      <div
+                        className="mt-4 rounded-xl border border-white/12 bg-black/15 px-3 py-3 sm:px-3.5 sm:py-3.5 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                        <div className="flex gap-2.5">
+                          <span
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sky-400/18 border border-sky-200/25 text-sky-100/90"
+                            aria-hidden>
+                            <Globe size={16} strokeWidth={2.2} />
+                          </span>
+                          <p
+                            className="text-white/50 font-medium leading-relaxed pt-0.5"
+                            style={{ fontSize: 'clamp(0.56rem, 1.45vmin, 0.7rem)' }}>
+                            <span className="text-white/68 font-semibold">Курс.</span> Каждая сумма в своей
+                            валюте пересчитывается по текущим котировкам API в{' '}
+                            {normalizeCurrencyCode(currentBalanceCurrency)}.
+                          </p>
+                        </div>
+                        <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                        <div className="flex gap-2.5">
+                          <span
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-violet-400/16 border border-violet-200/22 text-violet-100/88"
+                            aria-hidden>
+                            <Layers size={16} strokeWidth={2.2} />
+                          </span>
+                          <p
+                            className="text-white/46 font-medium leading-relaxed pt-0.5"
+                            style={{ fontSize: 'clamp(0.55rem, 1.4vmin, 0.68rem)' }}>
+                            <span className="text-white/64 font-semibold">Сумма.</span> Складываются уже
+                            пересчитанные величины — так можно сравнить вклад разных валют в одной цифре.
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  </section>
                   }
                 </div>
 
-                <div className="space-y-2 text-center md:text-left min-w-0 pt-1 border-t border-white/10 md:border-t-0 md:border-l md:border-white/15 md:pl-10">
-                  <p className="text-white/60 text-[0.65rem] sm:text-xs font-extrabold uppercase tracking-[0.14em]">
-                    На счёте сейчас
+                <div className="space-y-3 sm:space-y-4 text-center md:text-left min-w-0 pt-1 border-t border-white/10 md:border-t-0 md:border-l md:border-white/15 md:pl-10 flex flex-col">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-start gap-2">
+                    <p className="text-white/60 text-[0.65rem] sm:text-xs font-extrabold uppercase tracking-[0.14em]">
+                      На счёте сейчас
+                    </p>
+                    {selectedProjectsOrdered.length > 0 && !accountBalanceCurrencyStatus.anyInCcy ?
+                      <span className="inline-flex items-center justify-center sm:justify-start text-[0.48rem] font-extrabold uppercase tracking-[0.12em] text-amber-100/95 px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-200/30 w-fit mx-auto sm:mx-0">
+                        Нет контрактов в {normalizeCurrencyCode(currentBalanceCurrency)}
+                      </span>
+                    : selectedProjectsOrdered.length > 0 &&
+                      accountBalanceCurrencyStatus.anyInCcy &&
+                      !accountBalanceCurrencyStatus.hasActiveInCcy ?
+                      <span className="inline-flex items-center justify-center sm:justify-start text-[0.48rem] font-extrabold uppercase tracking-[0.12em] text-slate-100/90 px-2 py-0.5 rounded-md bg-slate-600/45 border border-white/15 w-fit mx-auto sm:mx-0">
+                        Все завершены ({normalizeCurrencyCode(currentBalanceCurrency)})
+                      </span>
+                    : null}
+                  </div>
+                  {selectedProjectsOrdered.length > 0 && !accountBalanceCurrencyStatus.anyInCcy &&
+                  <p className="text-amber-100/75 text-[0.56rem] sm:text-[0.58rem] leading-relaxed max-w-md mx-auto md:mx-0">
+                    К остатку не капают проекты — в валюте счёта нет выбранных контрактов, только сумма после
+                    зарплаты.
                   </p>
-                  <p
-                    className="text-white/48 font-medium leading-relaxed max-w-md mx-auto md:mx-0 sm:hidden"
-                    style={{ fontSize: 'clamp(0.58rem, 1.45vmin, 0.72rem)' }}>
-                    База после зарплаты + доначисление с полуночи следующего дня после даты зарплаты. В
-                    остаток входят только проекты в валюте счёта; остальные валюты — в блоке «Всего
-                    заработано».
+                  }
+                  {selectedProjectsOrdered.length > 0 &&
+                  accountBalanceCurrencyStatus.anyInCcy &&
+                  !accountBalanceCurrencyStatus.hasActiveInCcy &&
+                  <p className="text-white/50 text-[0.56rem] sm:text-[0.58rem] leading-relaxed max-w-md mx-auto md:mx-0">
+                    Срок по всем проектам в этой валюте уже прошёл — доначисление по ним к остатку не идёт.
                   </p>
-                  <p
-                    className="text-white/45 font-medium leading-relaxed max-w-md mx-auto md:mx-0 hidden sm:block"
-                    style={{ fontSize: 'clamp(0.58rem, 1.5vmin, 0.75rem)' }}>
-                    Остаток в валюте счёта: сумма после последней зарплаты плюс доначисление с полуночи
-                    следующего дня после даты зарплаты до сейчас. К остатку относятся только проекты в
-                    той же валюте; проекты в других валютах учитываются только в «Всего заработано».
-                  </p>
+                  }
                   <div
-                    className="relative font-black tracking-tight leading-none text-white tabular-nums"
+                    className="relative font-black tracking-tight leading-none text-white tabular-nums mx-auto md:mx-0 w-fit max-w-full"
                     style={{
-                      fontSize: 'clamp(1.1rem, 2.9vmin, 2.05rem)',
+                      fontSize: 'clamp(1.55rem, 5vmin, 3.15rem)',
                       textShadow:
-                        '0 2px 18px rgba(0,0,0,0.32), 0 0 28px rgba(255,255,255,0.1)'
+                        '0 2px 22px rgba(0,0,0,0.35), 0 0 32px rgba(255,255,255,0.12)'
                     }}>
                     <AnimatedCounter
                       value={displayBalanceWithAccrual}
                       prefix={balanceCurrencySymbol}
                       decimals={2}
                     />
+                  </div>
+                  <div
+                    className="rounded-2xl border border-white/14 bg-gradient-to-br from-white/[0.07] to-white/[0.02] px-3 py-3 sm:px-3.5 sm:py-3.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] space-y-3 max-w-md mx-auto md:mx-0 w-full">
+                    <div className="flex gap-2.5">
+                      <span
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-400/15 border border-emerald-200/20 text-emerald-100/90"
+                        aria-hidden>
+                        <Wallet size={16} strokeWidth={2.2} />
+                      </span>
+                      <p
+                        className="text-white/52 font-medium leading-relaxed pt-0.5"
+                        style={{ fontSize: 'clamp(0.58rem, 1.5vmin, 0.72rem)' }}>
+                        <span className="text-white/68 font-semibold">Как считается.</span> Берётся сумма
+                        после даты последней зарплаты; с{' '}
+                        <strong className="text-white/78 font-semibold">полуночи следующего дня</strong> после
+                        этой даты добавляется доначисление до текущего момента.
+                      </p>
+                    </div>
+                    <div className="h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
+                    <div className="flex gap-2.5">
+                      <span
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-400/14 border border-amber-200/22 text-amber-100/90"
+                        aria-hidden>
+                        <Clock3 size={16} strokeWidth={2.2} />
+                      </span>
+                      <p
+                        className="text-white/48 font-medium leading-relaxed pt-0.5"
+                        style={{ fontSize: 'clamp(0.56rem, 1.45vmin, 0.7rem)' }}>
+                        В эту цифру входят только проекты в валюте{' '}
+                        <strong className="text-white/72 font-semibold">
+                          {normalizeCurrencyCode(currentBalanceCurrency)}
+                        </strong>
+                        . Остальные валюты смотрите в блоке «Всего заработано».
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1262,30 +1617,121 @@ export function MoneyClock() {
               }
 
               {selectedProjectsOrdered.length > 0 &&
-              <>
-                <div className="h-px bg-gradient-to-r from-transparent via-white/18 to-transparent shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-white/45 text-[0.62rem] font-bold uppercase tracking-wider mb-2.5">
-                    Проекты в расчёте
+              <div
+                className="rounded-2xl bg-black/22 border border-white/12 p-3 sm:p-4 lg:p-5 min-h-0 min-w-0 shadow-inner isolate"
+                aria-label="График дохода">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2.5 mb-2">
+                  <div className="min-w-0">
+                    <p className="text-white/55 text-[0.62rem] font-extrabold uppercase tracking-[0.12em] text-center sm:text-left sm:pt-0.5">
+                      Динамика накоплений
+                    </p>
+                    <p className="text-white/28 text-[0.52rem] sm:text-[0.55rem] font-medium leading-snug mt-1 text-center sm:text-left max-w-md">
+                      Карточки проектов — в полосе под заголовком; клик выделяет кривую, повторный клик — все
+                      серии. Вертикальный курсор рисуется поверх графика.
+                    </p>
+                  </div>
+                  <AnimatePresence mode="wait">
+                      {chartFocusProject &&
+                      <motion.div
+                        key={chartFocusProject.id}
+                        initial={{ opacity: 0, y: -6, filter: 'blur(4px)' }}
+                        animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                        exit={{ opacity: 0, y: -4, filter: 'blur(2px)' }}
+                        transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                        className="flex flex-wrap items-center justify-center sm:justify-end gap-2 shrink-0">
+                        <span className="inline-flex items-center gap-2 rounded-full border border-amber-200/30 bg-amber-400/10 pl-2.5 pr-1 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
+                          <span
+                            className="h-2 w-2 rounded-full bg-amber-300 shadow-[0_0_10px_rgba(253,224,71,0.85)]"
+                            aria-hidden
+                          />
+                          <span className="text-[0.62rem] sm:text-[0.65rem] font-bold text-white/90 max-w-[min(12rem,50vw)] truncate">
+                            {chartFocusProject.name || 'Проект'}
+                          </span>
+                          {projectIsEndedByDeadline(chartFocusProject, nowTick) ?
+                            <span className="text-[0.48rem] font-extrabold uppercase tracking-wide text-slate-200/95 px-1.5 py-0.5 rounded-md bg-slate-700/55 border border-white/12 shrink-0">
+                              Завершён
+                            </span>
+                          : null}
+                        </span>
+                      <motion.button
+                        type="button"
+                        whileTap={{ scale: 0.94 }}
+                        onClick={() => setChartFocusProjectId(null)}
+                        className="inline-flex items-center gap-1 rounded-full border border-white/20 bg-white/10 px-2.5 py-1 text-[0.6rem] font-bold uppercase tracking-wide text-white/75 hover:text-white hover:bg-white/15 hover:border-white/30 transition-colors">
+                        <XIcon size={12} strokeWidth={2.5} className="opacity-80" aria-hidden />
+                        Все
+                      </motion.button>
+                    </motion.div>
+                    }
+                  </AnimatePresence>
+                </div>
+
+                {/* Рельс проектов — внутри панели графика (как в терминалах); под слоем с SVG, курсор и тултип — выше */}
+                <div className="relative z-0 mb-2 sm:mb-2.5 rounded-xl border border-white/[0.09] bg-gradient-to-b from-white/[0.07] to-white/[0.02] px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                  <p className="text-white/38 text-[0.55rem] font-bold uppercase tracking-[0.1em] px-1 mb-1.5">
+                    Проекты
                   </p>
                   <div
-                    className="flex gap-2.5 overflow-x-auto pb-2 -mx-0.5 px-0.5 snap-x snap-mandatory [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.3)_transparent]"
-                    aria-label="Проекты на главном экране">
-                    {selectedProjectsOrdered.map((p) =>
-                      <motion.div
+                    className="flex gap-2 overflow-x-auto pb-0.5 -mx-0.5 px-0.5 snap-x snap-mandatory [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.28)_transparent]"
+                    aria-label="Проекты и выделение на графике">
+                    {selectedProjectsOrdered.map((p) => {
+                      const selected = chartFocusProjectId === p.id;
+                      const contractEnded = projectIsEndedByDeadline(p, nowTick);
+                      return (
+                        <motion.button
                           key={p.id}
+                          type="button"
                           layout
                           initial={{ opacity: 0, scale: 0.97 }}
                           animate={{ opacity: 1, scale: 1 }}
-                          className="snap-start shrink-0 w-[min(11.5rem,72vw)] rounded-xl bg-white/10 backdrop-blur-sm border border-white/18 shadow-md px-3 py-2.5">
-                          <p className="text-white/88 text-[0.68rem] sm:text-[0.72rem] font-bold truncate text-left mb-1 leading-tight">
-                            {p.name || 'Проект'}
-                          </p>
+                          whileTap={{ scale: 0.97 }}
+                          whileHover={{ scale: 1.02 }}
+                          aria-pressed={selected}
+                          aria-label={
+                            selected ?
+                              `Снять выделение: ${p.name || 'Проект'}`
+                            : `Показать на графике: ${p.name || 'Проект'}`
+                          }
+                          onClick={() =>
+                            setChartFocusProjectId((id) => (id === p.id ? null : p.id))
+                          }
+                          className={`snap-start shrink-0 w-[min(10.5rem,68vw)] rounded-xl px-2.5 py-2 text-left
+                            backdrop-blur-md border shadow-md cursor-pointer
+                            transition-[box-shadow,border-color,background-color,transform,opacity] duration-300 ease-out
+                            focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200/60
+                            focus-visible:ring-offset-2 focus-visible:ring-offset-emerald-950/40
+                            ${contractEnded ? 'opacity-[0.82] ' : ''}
+                            ${
+                              selected ?
+                                'bg-gradient-to-br from-amber-400/[0.2] via-white/[0.1] to-cyan-400/[0.1] border-amber-200/45 shadow-[0_8px_32px_rgba(251,191,36,0.12),inset_0_1px_0_rgba(255,255,255,0.2)]'
+                              : contractEnded ?
+                                'bg-slate-950/35 border-white/10 hover:border-white/20'
+                              : 'bg-black/25 border-white/14 hover:border-white/26 hover:bg-black/35 hover:shadow-[0_6px_22px_rgba(0,0,0,0.2)]'
+                            }`}>
+                          <div className="flex items-start justify-between gap-1 mb-0.5 flex-wrap">
+                            <p className="text-white/[0.9] text-[0.65rem] sm:text-[0.7rem] font-bold truncate leading-tight min-w-0 flex-1 basis-[min(100%,5rem)]">
+                              {p.name || 'Проект'}
+                            </p>
+                            <div className="flex shrink-0 gap-1 flex-wrap justify-end">
+                              {contractEnded ?
+                                <span className="text-[0.46rem] font-extrabold uppercase tracking-[0.1em] text-slate-200/90 px-1 py-0.5 rounded bg-slate-600/50 border border-white/12">
+                                  Завершён
+                                </span>
+                              : null}
+                              {selected ?
+                                <span className="text-[0.46rem] font-extrabold uppercase tracking-[0.1em] text-amber-100/90 px-1 py-0.5 rounded bg-amber-400/22 border border-amber-200/28">
+                                  График
+                                </span>
+                              : null}
+                            </div>
+                          </div>
                           <div
                             className="relative font-black tracking-tight leading-none text-white flex justify-start tabular-nums"
                             style={{
-                              fontSize: 'clamp(0.62rem, 1.75vmin, 0.95rem)',
-                              textShadow: '0 1px 8px rgba(0,0,0,0.35)'
+                              fontSize: 'clamp(0.58rem, 1.65vmin, 0.88rem)',
+                              textShadow: selected ?
+                                '0 0 16px rgba(253, 224, 71, 0.22), 0 1px 6px rgba(0,0,0,0.35)'
+                              : '0 1px 6px rgba(0,0,0,0.35)'
                             }}>
                             <AnimatedCounter
                               value={projectEarningsAt(p, nowTick)}
@@ -1293,17 +1739,13 @@ export function MoneyClock() {
                               decimals={2}
                             />
                           </div>
-                        </motion.div>
-                    )}
+                        </motion.button>
+                      );
+                    })}
                   </div>
                 </div>
 
-                <div
-                  className="rounded-2xl bg-black/22 border border-white/12 p-3 sm:p-4 lg:p-5 min-h-0 min-w-0 shadow-inner"
-                  aria-label="График дохода">
-                  <p className="text-white/55 text-[0.62rem] font-extrabold uppercase tracking-[0.12em] mb-3 text-center sm:text-left">
-                    Динамика накоплений
-                  </p>
+                <div className="relative z-[1] min-w-0">
                   <IncomeChart
                     projects={selectedProjectsOrdered}
                     nowMs={nowTick}
@@ -1312,10 +1754,13 @@ export function MoneyClock() {
                     lastPayrollYmd={lastPayrollYmd}
                     fxSnapshot={fxSnapshot}
                     fxHistoryRows={fxHistoryRows}
+                    chartFocusProjectId={chartFocusProjectId}
+                    inflationYearly={inflationYearly}
+                    inflationCurrencyCodes={inflationDisplayCurrencies}
                     embedded
                   />
                 </div>
-              </>
+              </div>
               }
 
               <AnimatePresence>
@@ -1396,12 +1841,97 @@ export function MoneyClock() {
                       }
                     </span>
                   </div>
+
+                  {moneyAwarenessSnap &&
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                    className="mx-auto mt-5 w-full max-w-lg rounded-2xl border border-fuchsia-200/22 bg-gradient-to-br from-fuchsia-500/[0.14] via-white/[0.05] to-violet-600/[0.1] px-4 py-4 sm:px-5 sm:py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.11)]">
+                    <p className="text-center text-white/48 text-[0.52rem] sm:text-[0.54rem] font-extrabold uppercase tracking-[0.16em] mb-2">
+                      Money Awareness Engine
+                    </p>
+                    <p
+                      className="text-center font-black tabular-nums text-white leading-tight"
+                      style={{ fontSize: 'clamp(1rem, 3.4vmin, 1.45rem)' }}>
+                      <span className="text-white/55 text-[0.65em] font-bold block mb-1 normal-case tracking-normal">
+                        Мой темп (шэринг)
+                      </span>
+                      +{getCurrencySymbol(moneyAwarenessSnap.rateCurrency)}
+                      {moneyAwarenessSnap.rate >= 0.01 ?
+                        moneyAwarenessSnap.rate.toFixed(3)
+                      : moneyAwarenessSnap.rate >= 0.001 ?
+                        moneyAwarenessSnap.rate.toFixed(4)
+                      : moneyAwarenessSnap.rate.toFixed(5)}
+                      /sec · {moneyAwarenessSnap.rateCurrency}
+                    </p>
+                    {moneyAwarenessSnap.demoPct != null ?
+                      <>
+                        <p
+                          className="text-center text-white/82 font-bold mt-3 leading-snug px-1"
+                          style={{ fontSize: 'clamp(0.8rem, 2.4vmin, 1.05rem)' }}>
+                          Выше{' '}
+                          <span className="text-fuchsia-200 drop-shadow-sm">
+                            ~{moneyAwarenessSnap.demoPct}%
+                          </span>{' '}
+                          на условной EUR-лестнице
+                        </p>
+                        <p className="text-center text-white/70 text-[0.58rem] sm:text-[0.6rem] font-semibold mt-1 px-2">
+                          На языке «вирусного» сравнения: roughly &quot;I earn more than ~{moneyAwarenessSnap.demoPct}%
+                          &quot; of this <strong className="text-white/85">demo</strong> ladder — не реальный опрос людей.
+                        </p>
+                        <p className="text-center text-white/34 text-[0.48rem] sm:text-[0.5rem] leading-snug mt-2 px-2">
+                          Модель: грубые якоря ~20–150k €/год → ставка/сек. Не финансовая рекомендация.
+                        </p>
+                      </>
+                    : <p className="text-center text-white/42 text-[0.55rem] mt-3 px-2 leading-snug">
+                        Загрузите курсы — появится демо-сравнение с той же EUR-шкалой (для контекста, не для
+                        хвастовства).
+                      </p>
+                    }
+                    <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
+                      <motion.button
+                        type="button"
+                        whileTap={{ scale: 0.96 }}
+                        onClick={() => void handleShareMoneyAwareness()}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-fuchsia-200/35 bg-fuchsia-500/20 px-3 py-2 text-[0.62rem] sm:text-[0.65rem] font-extrabold uppercase tracking-wide text-fuchsia-50 hover:bg-fuchsia-500/30 transition-colors">
+                        <Share2 size={14} strokeWidth={2.4} className="opacity-90" aria-hidden />
+                        Поделиться
+                      </motion.button>
+                      <motion.button
+                        type="button"
+                        whileTap={{ scale: 0.96 }}
+                        onClick={() => void handleCopyAwareness('en')}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-2 text-[0.6rem] sm:text-[0.62rem] font-bold text-white/85 hover:bg-white/16 transition-colors">
+                        <Copy size={14} strokeWidth={2.2} className="opacity-85" aria-hidden />
+                        EN
+                      </motion.button>
+                      <motion.button
+                        type="button"
+                        whileTap={{ scale: 0.96 }}
+                        onClick={() => void handleCopyAwareness('ru')}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-2 text-[0.6rem] sm:text-[0.62rem] font-bold text-white/85 hover:bg-white/16 transition-colors">
+                        <Copy size={14} strokeWidth={2.2} className="opacity-85" aria-hidden />
+                        RU
+                      </motion.button>
+                    </div>
+                    {awarenessToast ?
+                      <p
+                        className="text-center text-amber-200/95 text-[0.58rem] font-semibold mt-3"
+                        role="status">
+                        {awarenessToast}
+                      </p>
+                    : null}
+                  </motion.div>
+                  }
                 </>
                 }
               </motion.div>
             </AnimatePresence>
-            </div>
-          </motion.div>
+              </div>
+            </motion.div>
+            <RetroGnomesFrame />
+          </div>
         </div>
 
       <AnimatePresence>

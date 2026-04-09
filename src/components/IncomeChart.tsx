@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { useI18n } from '../i18n';
 import {
   type ProjectEntry,
   projectEarningsAt,
@@ -42,6 +43,14 @@ type Series = {
   muted?: boolean;
 };
 
+export type ChartSeriesLabels = {
+  defaultProject: string;
+  others: string;
+  projects: string;
+  account: string;
+  allFx: string;
+};
+
 const LINE_COLORS = ['#ffffff', '#fef9c3', '#bbf7d0', '#a5f3fc', '#e9d5ff'];
 const BALANCE_LINE = '#fde68a';
 const FX_MERGE_LINE = '#fb7185';
@@ -75,9 +84,13 @@ function strokeColorForSeries(all: Series[], s: Series, idx: number): string {
   return LINE_COLORS[n % LINE_COLORS.length];
 }
 
-function chartLabelFromProjectName(name: string, maxLen = 22): string {
-  const t = name.trim() || 'Проект';
-  return t.length > maxLen ? `${t.slice(0, maxLen - 1)}…` : t;
+function chartLabelFromProjectName(
+  name: string,
+  defaultName: string,
+  maxLen = 22
+): string {
+  const n = name.trim() || defaultName;
+  return n.length > maxLen ? `${n.slice(0, maxLen - 1)}…` : n;
 }
 
 function buildIncomeSeries(
@@ -89,8 +102,16 @@ function buildIncomeSeries(
     lastPayrollYmd: string;
   },
   fxMerge?: { snapshot: FxSnapshot; targetCode: string } | null,
-  focusProjectId?: string | null
+  focusProjectId?: string | null,
+  chartLabels?: ChartSeriesLabels
 ): { series: Series[]; tMin: number; tMax: number } {
+  const L: ChartSeriesLabels = chartLabels ?? {
+    defaultProject: 'Project',
+    others: 'others',
+    projects: 'projects',
+    account: 'account',
+    allFx: 'all (FX)'
+  };
   const range = getIncomeChartTimeRange(projects, nowMs);
   if (!range) {
     return { series: [], tMin: 0, tMax: 0 };
@@ -120,7 +141,7 @@ function buildIncomeSeries(
     series.push({
       id: `proj-focus-${focus.id}`,
       code: fCode,
-      label: `${chartLabelFromProjectName(focus.name)} · ${fCode}`,
+      label: `${chartLabelFromProjectName(focus.name, L.defaultProject)} · ${fCode}`,
       points: heroPoints,
       kind: 'projects',
       muted: false
@@ -142,7 +163,7 @@ function buildIncomeSeries(
       series.push({
         id: `proj-muted-${code}`,
         code,
-        label: `${code} · остальные`,
+        label: `${code} · ${L.others}`,
         points,
         kind: 'projects',
         muted: true
@@ -169,7 +190,7 @@ function buildIncomeSeries(
       series.push({
         id: `proj-${code}`,
         code,
-        label: `${code} · проекты`,
+        label: `${code} · ${L.projects}`,
         points,
         kind: 'projects'
       });
@@ -199,7 +220,7 @@ function buildIncomeSeries(
     series.push({
       id: `bal-${bCode}`,
       code: bCode,
-      label: `${bCode} · счёт`,
+      label: `${bCode} · ${L.account}`,
       points: balPoints,
       kind: 'balance',
       muted: Boolean(focus)
@@ -234,7 +255,7 @@ function buildIncomeSeries(
       series.push({
         id: `fx-${target}`,
         code: target,
-        label: `${target} · все проекты (курс)`,
+        label: `${target} · ${L.allFx}`,
         points: fxPoints,
         kind: 'fx'
       });
@@ -276,16 +297,16 @@ function formatCompact(n: number): string {
   return n.toFixed(0);
 }
 
-function formatChartAxisDate(ms: number): string {
-  return new Date(ms).toLocaleDateString(undefined, {
+function formatChartAxisDate(ms: number, localeTag: string): string {
+  return new Date(ms).toLocaleDateString(localeTag, {
     day: 'numeric',
     month: 'short',
     year: 'numeric'
   });
 }
 
-function formatChartAxisNowDate(ms: number): string {
-  return new Date(ms).toLocaleDateString(undefined, {
+function formatChartAxisNowDate(ms: number, localeTag: string): string {
+  return new Date(ms).toLocaleDateString(localeTag, {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
@@ -293,17 +314,17 @@ function formatChartAxisNowDate(ms: number): string {
   });
 }
 
-function formatChartAxisTime(ms: number): string {
-  return new Date(ms).toLocaleTimeString(undefined, {
+function formatChartAxisTime(ms: number, localeTag: string): string {
+  return new Date(ms).toLocaleTimeString(localeTag, {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit'
   });
 }
 
-function formatMoneyAmount(n: number): string {
-  if (!Number.isFinite(n)) return '0,00';
-  return n.toLocaleString(undefined, {
+function formatMoneyAmount(n: number, localeTag: string): string {
+  if (!Number.isFinite(n)) return (0).toLocaleString(localeTag, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return n.toLocaleString(localeTag, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   });
@@ -424,6 +445,20 @@ export function IncomeChart({
   /** Коды валют, по которым строилась инфляция (для подписи) */
   inflationCurrencyCodes?: readonly string[];
 }) {
+  const { t, locale } = useI18n();
+  const localeTag = locale === 'ru' ? 'ru-RU' : 'en-US';
+
+  const chartLabels = useMemo<ChartSeriesLabels>(
+    () => ({
+      defaultProject: t('chart.defaultProject'),
+      others: t('chart.series.others'),
+      projects: t('chart.series.projects'),
+      account: t('chart.series.account'),
+      allFx: t('chart.series.allFx')
+    }),
+    [t]
+  );
+
   const { series, tMin, tMax } = useMemo(() => {
     const base = buildIncomeSeries(
       projects,
@@ -436,7 +471,8 @@ export function IncomeChart({
       fxSnapshot ?
         { snapshot: fxSnapshot, targetCode: balanceCurrency }
       : null,
-      chartFocusProjectId ?? null
+      chartFocusProjectId ?? null,
+      chartLabels
     );
     let nextSeries = [...base.series];
     const quotes = frankfurterQuoteCurrencies(projects, balanceCurrency);
@@ -451,7 +487,8 @@ export function IncomeChart({
           quotes,
           base.tMin,
           base.tMax,
-          STEPS
+          STEPS,
+          locale
         )
       : null;
     if (hist) {
@@ -473,7 +510,7 @@ export function IncomeChart({
       nextSeries.push({
         id: 'cpi-blended',
         code: balanceCurrency,
-        label: inflationChartLabel([...inflationCurrencyCodes]),
+        label: inflationChartLabel([...inflationCurrencyCodes], locale),
         points: infPts,
         kind: 'infHist'
       });
@@ -489,7 +526,9 @@ export function IncomeChart({
     fxHistoryRows,
     chartFocusProjectId,
     inflationYearly,
-    inflationCurrencyCodes
+    inflationCurrencyCodes,
+    chartLabels,
+    locale
   ]);
 
   const plotW = VB_W - PAD_L - PAD_R;
@@ -544,8 +583,8 @@ export function IncomeChart({
           : 'rounded-r80 bg-white/10 border border-white/20 px-4 py-8 text-center text-white/60 text-sm font-medium backdrop-blur-sm w-full max-w-[min(100%,42rem)]'
         }
         role="img"
-        aria-label="График дохода">
-        Укажите дату начала у проекта — появится график накопленного дохода.
+        aria-label={t('chart.ariaPanel')}>
+        {t('chart.empty')}
       </div>
     );
   }
@@ -578,10 +617,10 @@ export function IncomeChart({
       ref={wrapRef}
       className={shellClass}
       role="img"
-      aria-label="График накопленного дохода по проектам и остатка на счёте">
+      aria-label={t('chart.ariaMain')}>
       {!embedded &&
       <p className="text-white/85 text-xs sm:text-sm font-bold text-center uppercase tracking-wide mb-2 px-1">
-        Проекты и счёт
+        {t('chart.heading')}
       </p>
       }
       <svg
@@ -763,7 +802,7 @@ export function IncomeChart({
           fontSize="8"
           fontFamily="inherit"
           textAnchor="end">
-          {hover ? 'Y: линия под курсором' : hasProjectFocus ? 'Y: компания' : 'Y: первая в списке'}
+          {hover ? t('chart.yHover') : hasProjectFocus ? t('chart.yCompany') : t('chart.yFirst')}
         </text>
 
         <rect
@@ -833,7 +872,7 @@ export function IncomeChart({
           fill="rgba(255,255,255,0.42)"
           fontSize="10"
           fontFamily="inherit">
-          с начала (раньше всех)
+          {t('chart.fromStart')}
         </text>
         <text
           x={PAD_L}
@@ -842,7 +881,7 @@ export function IncomeChart({
           fontSize="12"
           fontFamily="inherit"
           fontWeight="600">
-          {formatChartAxisDate(tMin)}
+          {formatChartAxisDate(tMin, localeTag)}
         </text>
         {showMidDate &&
         <text
@@ -852,7 +891,7 @@ export function IncomeChart({
           fontSize="10"
           fontFamily="inherit"
           textAnchor="middle">
-          {formatChartAxisDate(midMs)}
+          {formatChartAxisDate(midMs, localeTag)}
         </text>
         }
         <text
@@ -862,7 +901,7 @@ export function IncomeChart({
           fontSize="10"
           fontFamily="inherit"
           textAnchor="end">
-          сейчас
+          {t('chart.now')}
         </text>
         <text
           x={VB_W - PAD_R}
@@ -872,7 +911,7 @@ export function IncomeChart({
           fontFamily="inherit"
           fontWeight="600"
           textAnchor="end">
-          {formatChartAxisNowDate(nowMs)}
+          {formatChartAxisNowDate(nowMs, localeTag)}
         </text>
         <text
           x={VB_W - PAD_R}
@@ -882,7 +921,7 @@ export function IncomeChart({
           fontFamily="inherit"
           textAnchor="end"
           style={{ fontVariantNumeric: 'tabular-nums' }}>
-          {formatChartAxisTime(nowMs)}
+          {formatChartAxisTime(nowMs, localeTag)}
         </text>
       </svg>
 
@@ -895,7 +934,7 @@ export function IncomeChart({
           transform: 'translate(-50%, calc(-100% - 10px))'
         }}>
         <p className="font-bold text-white/90 mb-1.5 border-b border-white/15 pb-1">
-          {formatChartAxisDate(hover.t)}
+          {formatChartAxisDate(hover.t, localeTag)}
         </p>
         <ul className="space-y-1 font-medium">
           {series.map((s, idx) => {
@@ -938,10 +977,10 @@ export function IncomeChart({
                   {s.kind === 'fxHist' ?
                     `${val.toFixed(1)}%`
                   : s.kind === 'infHist' ?
-                    `${val.toFixed(1)} инд.`
+                    `${val.toFixed(1)} ${t('chart.indexSuffix')}`
                   : <>
                       {getCurrencySymbol(s.code)}
-                      {formatMoneyAmount(val)}
+                      {formatMoneyAmount(val, localeTag)}
                     </>
                   }
                 </span>
@@ -961,7 +1000,7 @@ export function IncomeChart({
           );
           const peakLabel =
             s.kind === 'fxHist' ? `${peak.toFixed(0)}%`
-            : s.kind === 'infHist' ? `${peak.toFixed(0)} инд.`
+            : s.kind === 'infHist' ? `${peak.toFixed(0)} ${t('chart.indexSuffix')}`
             : formatCompact(peak);
           return (
             <span
@@ -998,7 +1037,7 @@ export function IncomeChart({
       <div className="text-center text-white/38 text-[0.55rem] sm:text-[0.58rem] mt-1.5 px-2 leading-snug space-y-1">
         {series.some((s) => s.kind === 'fxHist') &&
         <p>
-          История курсов:{' '}
+          {t('chart.legend.fxHistory')}{' '}
           <a
             href="https://www.frankfurter.dev/"
             target="_blank"
@@ -1006,12 +1045,12 @@ export function IncomeChart({
             className="text-sky-200/85 underline underline-offset-2 decoration-sky-200/35">
             api.frankfurter.dev
           </a>
-          . Средний относительный индекс (100% = курс на дату начала графика).
+          {t('chart.legend.fxBlurb')}
         </p>
         }
         {series.some((s) => s.kind === 'infHist') &&
         <p>
-          Инфляция (CPI, годовая %):{' '}
+          {t('chart.legend.inf')}{' '}
           <a
             href="https://data.worldbank.org/indicator/FP.CPI.TOTL.ZG"
             target="_blank"
@@ -1019,8 +1058,7 @@ export function IncomeChart({
             className="text-orange-200/85 underline underline-offset-2 decoration-orange-200/35">
             World Bank
           </a>
-          , индикатор FP.CPI.TOTL.ZG. Линия — средний накопленный индекс уровня цен по экономикам выбранных
-          валют (100 = 1 янв. года старта графика); валюта ≠ страна — используется статический маппинг.
+          {t('chart.legend.infBlurb')}
         </p>
         }
       </div>

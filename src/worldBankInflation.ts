@@ -274,9 +274,14 @@ export function inflationIndexSeriesPoints(
   return points;
 }
 
-export function inflationChartLabel(currencies: string[]): string {
+export function inflationChartLabel(
+  currencies: string[],
+  locale: 'en' | 'ru' = 'en'
+): string {
   const uniq = [...new Set(currencies.map((c) => normalizeCurrencyCode(c)))].sort();
   const short = uniq.slice(0, 4).join(', ');
   const more = uniq.length > 4 ? ` +${uniq.length - 4}` : '';
-  return `Инфляция CPI (средн., ${short}${more}) · индекс 100 = начало года старта`;
+  return locale === 'ru' ?
+      `Инфляция CPI (средн., ${short}${more}) · индекс 100 = начало года старта`
+    : `Inflation CPI (blend, ${short}${more}) · index 100 = start year Jan 1`;
 }

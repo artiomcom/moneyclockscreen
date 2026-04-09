@@ -178,7 +178,8 @@ export function buildRelativeFxIndexSeries(
   quoteCodes: string[],
   tMin: number,
   tMax: number,
-  steps: number
+  steps: number,
+  locale: 'en' | 'ru' = 'en'
 ): { label: string; points: [number, number][] } | null {
   const base = normalizeCurrencyCode(baseRaw);
   const quotes = [...new Set(quoteCodes.map((c) => normalizeCurrencyCode(c)))].filter(
@@ -225,9 +226,13 @@ export function buildRelativeFxIndexSeries(
   }
 
   const label =
-    quotes.length === 1 ?
-      `Курс ${quotes[0]}/${base} (индекс, 100% = старт графика)`
-    : `Курс средн. индекс ${quotes.join(', ')}/${base}`;
+    locale === 'ru' ?
+      quotes.length === 1 ?
+        `Курс ${quotes[0]}/${base} (индекс, 100% = старт графика)`
+      : `Курс средн. индекс ${quotes.join(', ')}/${base}`
+    : quotes.length === 1 ?
+      `FX ${quotes[0]}/${base} (index, 100% = chart start)`
+    : `FX mean index ${quotes.join(', ')}/${base}`;
 
   return { label, points };
 }

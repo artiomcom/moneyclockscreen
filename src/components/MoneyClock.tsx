@@ -74,6 +74,8 @@ import {
   writeStoredTheme,
   type ThemePreference
 } from '../themeStorage';
+import { useI18n } from '../i18n';
+import type { AppLocale } from '../i18n/localeStorage';
 function InputField({
   label,
   value,
@@ -106,10 +108,11 @@ function InputField({
 
 }
 
-function formatYmdLong(ymd: string): string {
+function formatYmdLong(ymd: string, locale: AppLocale): string {
   const ts = parseLocalDateYmd(ymd);
+  const tag = locale === 'ru' ? 'ru-RU' : 'en-US';
   return ts != null ?
-  new Date(ts).toLocaleDateString(undefined, {
+  new Date(ts).toLocaleDateString(tag, {
     day: 'numeric',
     month: 'long',
     year: 'numeric'
@@ -160,6 +163,7 @@ function getInitialMoneyClockState(): MoneyClockSavedState {
 }
 
 export function MoneyClock() {
+  const { t, locale, setLocale } = useI18n();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
   const [projectsBundle, setProjectsBundle] = useState<ProjectsBundle>(
@@ -683,24 +687,26 @@ export function MoneyClock() {
     }
     try {
       await navigator.clipboard.writeText(combined);
-      showAwarenessToast('Скопировано в буфер обмена');
+      showAwarenessToast(t('awareness.copied'));
     } catch {
-      showAwarenessToast('Не удалось скопировать');
+      showAwarenessToast(t('awareness.copyFail'));
     }
-  }, [moneyAwarenessSnap, showAwarenessToast]);
+  }, [moneyAwarenessSnap, showAwarenessToast, t]);
 
   const handleCopyAwareness = useCallback(
     async (lang: 'en' | 'ru') => {
       if (!moneyAwarenessSnap) return;
-      const t = lang === 'en' ? moneyAwarenessSnap.lines.en : moneyAwarenessSnap.lines.ru;
+      const clip = lang === 'en' ? moneyAwarenessSnap.lines.en : moneyAwarenessSnap.lines.ru;
       try {
-        await navigator.clipboard.writeText(t);
-        showAwarenessToast(lang === 'en' ? 'English — в буфере' : 'Русский — в буфере');
+        await navigator.clipboard.writeText(clip);
+        showAwarenessToast(
+          lang === 'en' ? t('awareness.clipboardEn') : t('awareness.clipboardRu')
+        );
       } catch {
-        showAwarenessToast('Ошибка копирования');
+        showAwarenessToast(t('awareness.clipboardErr'));
       }
     },
-    [moneyAwarenessSnap, showAwarenessToast]
+    [moneyAwarenessSnap, showAwarenessToast, t]
   );
 
   const projectEndedInfo = useMemo(() => {
@@ -781,9 +787,7 @@ export function MoneyClock() {
         input.value = '';
         const parsed = parseMoneyClockJson(String(reader.result ?? ''));
         if (!parsed) {
-          window.alert(
-            'Файл не подходит. Нужен JSON экспорта MoneyClock: поле v: 1 и блоки mode, projectsBundle и т.д. Файл profile-artem-miherea.json уже совмещён: приложение + вложенный profile.'
-          );
+          window.alert(t('import.badFile'));
           return;
         }
         setProjectsBundle(parsed.projectsBundle);
@@ -796,7 +800,7 @@ export function MoneyClock() {
       };
       reader.readAsText(file, 'UTF-8');
     },
-    []
+    [t]
   );
 
   const updateVacation = useCallback(
@@ -861,11 +865,10 @@ export function MoneyClock() {
         <div className="flex items-start justify-between gap-2">
           <div>
             <p className="text-violet-900 text-xs font-black uppercase tracking-wide">
-              Профиль (из JSON)
+              {t('profile.title')}
             </p>
             <p className="text-violet-800/80 text-xs mt-0.5">
-              Хранится вместе с настройками; попадает в «Скачать JSON». Редактируйте исходный файл
-              и импортируйте снова.
+              {t('profile.storedHint')}
             </p>
           </div>
           <motion.button
@@ -874,7 +877,7 @@ export function MoneyClock() {
             whileTap={{ scale: 0.96 }}
             className="shrink-0 text-xs font-bold text-violet-700 underline decoration-violet-400">
             
-            Убрать из сохранения
+            {t('profile.remove')}
           </motion.button>
         </div>
 
@@ -892,13 +895,13 @@ export function MoneyClock() {
         <div className="flex flex-col gap-1.5 text-sm text-gray-700 dark:text-cyan-100/80">
           {pr.location &&
           <p>
-            <span className="font-bold text-gray-500">Локация: </span>
+            <span className="font-bold text-gray-500">{t('profile.location')} </span>
             {pr.location}
           </p>
           }
           {pr.availability &&
           <p>
-            <span className="font-bold text-gray-500">Формат: </span>
+            <span className="font-bold text-gray-500">{t('profile.format')} </span>
             {pr.availability}
           </p>
           }
@@ -912,7 +915,7 @@ export function MoneyClock() {
           }
           {pr.phone &&
           <p>
-            <span className="font-bold text-gray-500">Тел.: </span>
+            <span className="font-bold text-gray-500">{t('profile.phone')} </span>
             <a href={`tel:${pr.phone.replace(/\s/g, '')}`} className="text-sky-700 underline">
               {pr.phone}
             </a>
@@ -935,7 +938,7 @@ export function MoneyClock() {
 
         {topSkills.length > 0 &&
         <p className="text-xs text-gray-600 text-center">
-          <span className="font-bold text-gray-500">Top skills: </span>
+          <span className="font-bold text-gray-500">{t('profile.topSkills')} </span>
           {topSkills.join(' · ')}
         </p>
         }
@@ -949,23 +952,25 @@ export function MoneyClock() {
         {(metaHints || metaVersion) &&
         <p className="text-xs text-violet-900/90 bg-white/60 rounded-r80-sm px-3 py-2 border border-violet-100">
           {metaVersion &&
-          <span className="font-bold">Версия профиля: {metaVersion}. </span>
+          <span className="font-bold">
+            {t('profile.version')} {metaVersion}.{' '}
+          </span>
           }
           {metaHints}
         </p>
         }
       </motion.div>);
 
-  }, [profileBundle, clearProfileBundle]);
+  }, [profileBundle, clearProfileBundle, t]);
 
   const settingsForm = (
     <>
       <motion.h2
         className="text-gray-800 dark:text-fuchsia-200/95 text-2xl font-black text-center tracking-tight mb-1">
-        Проекты
+        {t('settings.projectsTitle')}
       </motion.h2>
       <p className="text-gray-500 dark:text-cyan-200/45 text-sm text-center mb-4">
-        Настройки и ставки по контрактам
+        {t('settings.projectsSubtitle')}
       </p>
 
       {profileSettingsBlock}
@@ -974,7 +979,7 @@ export function MoneyClock() {
         layout
         className="bg-emerald-50/90 rounded-r80 p-5 border-2 border-emerald-100 mb-4 flex flex-col gap-1 dark:bg-[#0a1520] dark:border-cyan-600/35 dark:shadow-[inset_0_1px_0_0_rgba(0,255,255,0.06)]">
         <InputField
-          label="Остаток после последней зарплаты (на её дату)"
+          label={t('settings.balanceLabel')}
           value={currentBalance}
           onChange={setCurrentBalance}
           placeholder="0"
@@ -982,7 +987,7 @@ export function MoneyClock() {
         />
         <div className="flex flex-col gap-1.5">
           <label className="text-gray-700 dark:text-cyan-100/90 text-sm font-bold text-center">
-            Дата последней зарплаты
+            {t('settings.payrollDate')}
           </label>
           <input
             type="date"
@@ -990,13 +995,12 @@ export function MoneyClock() {
             onChange={(e) => setLastPayrollYmd(e.target.value)}
             className="w-full px-4 py-3.5 rounded-r80-sm border-2 border-sky-400 text-gray-700 dark:border-cyan-500/60 dark:bg-slate-950 dark:text-cyan-50 text-base font-medium outline-none transition-all focus:ring-2 focus:ring-sky-300 dark:focus:ring-cyan-500 bg-white" />
           <p className="text-gray-500 dark:text-cyan-200/45 text-xs text-center leading-relaxed px-1">
-            Введите сумму, которая была на счёте после этой выплаты. К остатку на главном экране
-            каждую секунду прибавляется ставка × время с полуночи следующего дня после этой даты.
+            {t('settings.payrollHint')}
           </p>
         </div>
         <div className="flex flex-col gap-1.5">
           <label className="text-gray-700 dark:text-cyan-100/90 text-sm font-bold text-center">
-            Валюта счёта
+            {t('settings.accountCcy')}
           </label>
           <select
             value={normalizeCurrencyCode(currentBalanceCurrency)}
@@ -1004,14 +1008,14 @@ export function MoneyClock() {
             className="w-full px-4 py-3.5 rounded-r80-sm border-2 border-sky-400 text-gray-700 dark:border-cyan-500/60 dark:bg-slate-950 dark:text-cyan-50 text-base font-medium outline-none transition-all focus:ring-2 focus:ring-sky-300 dark:focus:ring-cyan-500 bg-white">
             {MONEYCLOCK_CURRENCIES.map((c) =>
             <option key={c.code} value={c.code}>
-                {c.labelRu}
+                {locale === 'ru' ? c.labelRu : c.labelEn}
               </option>
             )}
           </select>
         </div>
         <div className="flex flex-col gap-1.5 pt-2 border-t border-emerald-200/50">
           <label className="text-gray-700 dark:text-cyan-100/90 text-sm font-bold text-center">
-            Доля на руки после налогов (оценка)
+            {t('settings.takeHome')}
           </label>
           <input
             type="range"
@@ -1025,17 +1029,14 @@ export function MoneyClock() {
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={Math.round(takeHomeFraction * 100)}
-            aria-label="Доля на руки после налогов в процентах"
+            aria-label={t('settings.takeHomeAria')}
           />
           <p className="text-gray-600 dark:text-cyan-300/55 text-[0.7rem] text-center leading-relaxed px-1">
-            {Math.round(takeHomeFraction * 100)}% контрактной суммы — для блока «реальная ставка» на главном
-            экране. Оценка, не бухучёт.
+            {t('settings.takeHomeHint', { pct: Math.round(takeHomeFraction * 100) })}
           </p>
         </div>
         <p className="text-gray-500 dark:text-cyan-200/45 text-xs text-center leading-relaxed px-1">
-          Счётчик «всего заработано» — сумма по выбранным проектам. Остаток на счёте — отдельно:
-          база после зарплаты плюс доначисление с даты (см. выше). К остатку идут только проекты в
-          валюте счёта; остальные валюты — в блоке «всего заработано».
+          {t('settings.balanceFooter')}
         </p>
       </motion.div>
 
@@ -1048,11 +1049,10 @@ export function MoneyClock() {
             
               <div className="flex flex-col gap-2">
                 <label className="text-gray-700 dark:text-cyan-100/90 text-sm font-bold text-center">
-                  Projects
+                  {t('settings.projectsPicker')}
                 </label>
                 <p className="text-gray-500 dark:text-cyan-200/45 text-xs text-center leading-relaxed px-1">
-                  Галочка — проект входит в общую сумму и виджет на главном экране (можно несколько).
-                  Имя — какой проект редактируется ниже.
+                  {t('settings.projectsPickerHint')}
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
                   {projects.map((p) => {
@@ -1072,7 +1072,7 @@ export function MoneyClock() {
                           checked={onDash}
                           onChange={() => toggleProjectOnDashboard(p.id)}
                           className="h-4 w-4 shrink-0 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                          aria-label={`Показать «${p.name || 'проект'}» на главном экране`}
+                          aria-label={`${t('settings.showOnDashboard')}: ${p.name || t('common.projectFallback')}`}
                         />
                         <motion.button
                           type="button"
@@ -1083,14 +1083,14 @@ export function MoneyClock() {
                             background: isEditing ? '#22c55e' : 'transparent',
                             color: isEditing ? '#fff' : '#374151'
                           }}
-                          title="Редактировать поля этого проекта">
+                          title={t('settings.editProject')}>
                           {p.name || 'Untitled'}
                         </motion.button>
                         {contractEnded ?
                           <span
                             className="shrink-0 text-[0.55rem] font-extrabold uppercase tracking-wide text-slate-600 px-1 py-0.5 rounded border border-slate-300 bg-slate-200/80"
-                            title="Дата окончания проекта уже прошла — начисление по сроку остановлено">
-                            Завершён
+                            title={t('settings.endedBadgeTitle')}>
+                            {t('settings.contractEnded')}
                           </span>
                         : null}
                         {projects.length > 1 &&
@@ -1111,7 +1111,7 @@ export function MoneyClock() {
                     onClick={addProject}
                     whileTap={{ scale: 0.96 }}
                     className="p-2.5 rounded-r80-sm flex items-center justify-center bg-sky-50 text-sky-600 border-2 border-sky-200"
-                    aria-label="Add project">
+                    aria-label={t('chart.addProject')}>
                     
                     <PlusIcon size={22} strokeWidth={2.5} />
                   </motion.button>
@@ -1119,7 +1119,7 @@ export function MoneyClock() {
               </div>
 
               <InputField
-              label="Project name"
+              label={t('settings.projectName')}
               value={activeProject.name}
               onChange={(v) => patchActiveProject({ name: v })}
               placeholder="Name"
@@ -1127,7 +1127,7 @@ export function MoneyClock() {
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-gray-700 dark:text-cyan-100/90 text-sm font-bold text-center">
-                  Валюта проекта
+                  {t('settings.projectCcy')}
                 </label>
                 <select
                   value={normalizeCurrencyCode(activeProject.currencyCode)}
@@ -1137,7 +1137,7 @@ export function MoneyClock() {
                   className="w-full px-4 py-3.5 rounded-r80-sm border-2 border-sky-400 text-gray-700 dark:border-cyan-500/60 dark:bg-slate-950 dark:text-cyan-50 text-base font-medium outline-none transition-all focus:ring-2 focus:ring-sky-300 dark:focus:ring-cyan-500 bg-white">
                   {MONEYCLOCK_CURRENCIES.map((c) =>
                   <option key={c.code} value={c.code}>
-                      {c.labelRu}
+                      {locale === 'ru' ? c.labelRu : c.labelEn}
                     </option>
                   )}
                 </select>
@@ -1145,7 +1145,7 @@ export function MoneyClock() {
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-gray-700 dark:text-cyan-100/90 text-sm font-bold text-center">
-                  Дата начала работы
+                  {t('settings.workStart')}
                 </label>
                 <input
                   type="date"
@@ -1154,15 +1154,13 @@ export function MoneyClock() {
                   className="w-full px-4 py-3.5 rounded-r80-sm border-2 border-sky-400 text-gray-700 dark:border-cyan-500/60 dark:bg-slate-950 dark:text-cyan-50 text-base font-medium outline-none transition-all focus:ring-2 focus:ring-sky-300 dark:focus:ring-cyan-500 bg-white"
                 />
                 <p className="text-gray-500 dark:text-cyan-200/45 text-xs text-center leading-relaxed px-1">
-                  От полуночи этого дня считается прошедшее календарное время (в т.ч. за годы); оно
-                  умножается на ставку проекта (месячный платёж, почасовая или сумма контракта за
-                  срок до даты окончания). Время в отпусках ниже из интервала вычитается.
+                  {t('settings.workStartHint')}
                 </p>
               </div>
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-gray-700 dark:text-cyan-100/90 text-sm font-bold text-center">
-                  Дата окончания проекта
+                  {t('settings.workEnd')}
                 </label>
                 <input
                   type="date"
@@ -1171,10 +1169,7 @@ export function MoneyClock() {
                   className="w-full px-4 py-3.5 rounded-r80-sm border-2 border-sky-400 text-gray-700 dark:border-cyan-500/60 dark:bg-slate-950 dark:text-cyan-50 text-base font-medium outline-none transition-all focus:ring-2 focus:ring-sky-300 dark:focus:ring-cyan-500 bg-white"
                 />
                 <p className="text-gray-500 dark:text-cyan-200/45 text-xs text-center leading-relaxed px-1">
-                  Для типа «вся сумма контракта» срок = интервал между датами (минус отпуск), ставка =
-                  сумма / этот срок. Для месячного и почасового типа дата конца только ограничивает
-                  период начисления. Пустое окончание — бесконечный срок (до смены даты). Старые
-                  сохранения без типа оплаты считаются режимом «контракт целиком».
+                  {t('settings.workEndHint')}
                 </p>
               </div>
 
@@ -1182,12 +1177,11 @@ export function MoneyClock() {
                 <div className="flex items-center justify-center gap-2">
                   <CalendarIcon size={18} className="text-sky-600" />
                   <span className="text-gray-700 text-sm font-bold">
-                    Отпуска (прошлые и запланированные)
+                    {t('settings.vacations')}
                   </span>
                 </div>
                 <p className="text-gray-500 text-xs text-center leading-relaxed">
-                  Укажите периоды календарём: эти дни не идут в расчёт времени от даты начала работы
-                  (концы дней включительно).
+                  {t('settings.vacationsHint')}
                 </p>
                 <div className="flex flex-col gap-3">
                   {(activeProject.vacations ?? []).map((vac, idx) =>
@@ -1198,14 +1192,14 @@ export function MoneyClock() {
                     
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-xs font-bold text-gray-500">
-                          Отпуск {idx + 1}
+                          {t('settings.vacationN', { n: idx + 1 })}
                         </span>
                         <motion.button
                         type="button"
                         onClick={() => removeVacationEntry(vac.id)}
                         whileTap={{ scale: 0.92 }}
                         className="p-2 rounded-r80-sm text-gray-400 hover:bg-red-50 hover:text-red-600"
-                        aria-label="Удалить отпуск">
+                        aria-label={t('settings.removeVacation')}>
                         
                           <Trash2Icon size={18} />
                         </motion.button>
@@ -1213,7 +1207,7 @@ export function MoneyClock() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div className="flex flex-col gap-1">
                           <label className="text-gray-600 text-xs font-bold text-center">
-                            С даты
+                            {t('settings.vacationFrom')}
                           </label>
                           <input
                           type="date"
@@ -1227,7 +1221,7 @@ export function MoneyClock() {
                         </div>
                         <div className="flex flex-col gap-1">
                           <label className="text-gray-600 text-xs font-bold text-center">
-                            По дату
+                            {t('settings.vacationTo')}
                           </label>
                           <input
                           type="date"
@@ -1250,13 +1244,13 @@ export function MoneyClock() {
                   className="flex items-center justify-center gap-2 py-3 rounded-r80-sm font-bold text-sm bg-amber-50 text-amber-900 border-2 border-amber-200">
                   
                   <PlusIcon size={20} strokeWidth={2.5} />
-                  Добавить отпуск
+                  {t('settings.addVacation')}
                 </motion.button>
               </div>
             
               <div className="flex flex-col gap-1.5">
                 <label className="text-gray-700 dark:text-cyan-100/90 text-sm font-bold text-center">
-                  Тип оплаты
+                  {t('settings.billingType')}
                 </label>
                 <select
                   value={activeProject.projectBilling}
@@ -1266,27 +1260,24 @@ export function MoneyClock() {
                   })
                   }
                   className="w-full px-4 py-3.5 rounded-r80-sm border-2 border-sky-400 text-gray-700 dark:border-cyan-500/60 dark:bg-slate-950 dark:text-cyan-50 text-base font-medium outline-none transition-all focus:ring-2 focus:ring-sky-300 dark:focus:ring-cyan-500 bg-white">
-                  <option value="monthly">Месячный платёж</option>
-                  <option value="hourly">Почасовая ставка</option>
-                  <option value="contract">Вся сумма контракта</option>
+                  <option value="monthly">{t('settings.billing.monthly')}</option>
+                  <option value="hourly">{t('settings.billing.hourly')}</option>
+                  <option value="contract">{t('settings.billing.contract')}</option>
                 </select>
                 <p className="text-gray-500 dark:text-cyan-200/45 text-xs text-center leading-relaxed px-1">
-                  {activeProject.projectBilling === 'monthly' &&
-                  'Как зарплата: сумма в месяц делится на 22×8 рабочих часов, начисление идёт за каждую секунду календарного времени от даты начала.'}
-                  {activeProject.projectBilling === 'hourly' &&
-                  'Ставка за один час; в секунду = сумма / 3600. Подходит для почасовки.'}
-                  {activeProject.projectBilling === 'contract' &&
-                  'Общая сумма договора; ставка = она делится на календарный срок между датой начала и окончания (минус отпуск). К концу срока начисление сходится к этой сумме.'}
+                  {activeProject.projectBilling === 'monthly' && t('settings.billingHelp.monthly')}
+                  {activeProject.projectBilling === 'hourly' && t('settings.billingHelp.hourly')}
+                  {activeProject.projectBilling === 'contract' && t('settings.billingHelp.contract')}
                 </p>
               </div>
 
               <InputField
               label={
               activeProject.projectBilling === 'monthly' ?
-              'Месячный платёж' :
+              t('settings.amount.monthly') :
               activeProject.projectBilling === 'hourly' ?
-              'Ставка за час' :
-              'Сумма контракта целиком'
+              t('settings.amount.hourly') :
+              t('settings.amount.contract')
               }
               value={activeProject.projectAmount}
               onChange={(v) => patchActiveProject({ projectAmount: v })}
@@ -1295,9 +1286,9 @@ export function MoneyClock() {
               }
               suffix={
               activeProject.projectBilling === 'monthly' ?
-              `${getCurrencySymbol(activeProject.currencyCode)} / мес` :
+              `${getCurrencySymbol(activeProject.currencyCode)}${t('settings.suffix.perMonth')}` :
               activeProject.projectBilling === 'hourly' ?
-              `${getCurrencySymbol(activeProject.currencyCode)} / ч` :
+              `${getCurrencySymbol(activeProject.currencyCode)}${t('settings.suffix.perHour')}` :
               getCurrencySymbol(activeProject.currencyCode)
               } />
             
@@ -1315,11 +1306,10 @@ export function MoneyClock() {
 
       <div className="mt-5 pt-5 border-t border-gray-200">
         <p className="text-gray-700 text-sm font-bold text-center mb-1">
-          Сохранение данных
+          {t('settings.dataTitle')}
         </p>
         <p className="text-gray-500 dark:text-cyan-200/45 text-xs text-center mb-4 leading-relaxed">
-          Настройки автоматически записываются в браузер (localStorage). Файл JSON
-          — резервная копия или перенос на другой компьютер.
+          {t('settings.dataHint')}
         </p>
         <div className="flex flex-col sm:flex-row gap-2">
           <motion.button
@@ -1329,7 +1319,7 @@ export function MoneyClock() {
             className="flex-1 flex items-center justify-center gap-2 py-3.5 px-4 rounded-r80-sm font-bold text-sm bg-sky-50 text-sky-800 border-2 border-sky-200">
             
             <DownloadIcon size={20} strokeWidth={2.2} />
-            Скачать JSON
+            {t('settings.downloadJson')}
           </motion.button>
           <motion.button
             type="button"
@@ -1338,7 +1328,7 @@ export function MoneyClock() {
             className="flex-1 flex items-center justify-center gap-2 py-3.5 px-4 rounded-r80-sm font-bold text-sm bg-gray-100 text-gray-800 border-2 border-gray-200">
             
             <UploadIcon size={20} strokeWidth={2.2} />
-            Загрузить JSON
+            {t('settings.uploadJson')}
           </motion.button>
         </div>
       </div>
@@ -1363,11 +1353,37 @@ export function MoneyClock() {
 
       <div className="relative z-10 flex-1 w-full max-w-[min(100%,96rem)] mx-auto px-5 pt-6 pb-10 flex flex-col min-h-0">
         <header className="flex items-center justify-end gap-2 shrink-0 mb-4">
+          <div className="flex items-center rounded-r80-sm border border-white/15 bg-black/20 p-0.5 mr-1">
+            <motion.button
+              type="button"
+              onClick={() => setLocale('en')}
+              whileTap={{ scale: 0.95 }}
+              aria-pressed={locale === 'en'}
+              className={`px-2.5 py-1.5 rounded-r80-sm text-xs font-extrabold uppercase tracking-wide transition-colors ${
+                locale === 'en' ?
+                  'bg-white/20 text-white'
+                : 'text-white/55 hover:text-white/85'
+              }`}>
+              {t('lang.en')}
+            </motion.button>
+            <motion.button
+              type="button"
+              onClick={() => setLocale('ru')}
+              whileTap={{ scale: 0.95 }}
+              aria-pressed={locale === 'ru'}
+              className={`px-2.5 py-1.5 rounded-r80-sm text-xs font-extrabold uppercase tracking-wide transition-colors ${
+                locale === 'ru' ?
+                  'bg-white/20 text-white'
+                : 'text-white/55 hover:text-white/85'
+              }`}>
+              {t('lang.ru')}
+            </motion.button>
+          </div>
           <motion.button
             type="button"
-            onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+            onClick={() => setTheme((th) => (th === 'dark' ? 'light' : 'dark'))}
             whileTap={{ scale: 0.92 }}
-            aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема (аркада)'}
+            aria-label={theme === 'dark' ? t('theme.lightAria') : t('theme.darkAria')}
             className="w-14 h-14 rounded-r80 bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg border border-white/10 dark:bg-cyan-500/10 dark:border-cyan-400/45 dark:shadow-[0_0_20px_rgba(0,255,255,0.25)]">
             {theme === 'dark' ?
               <Sun size={26} className="text-amber-200" strokeWidth={2.2} />
@@ -1377,7 +1393,7 @@ export function MoneyClock() {
             type="button"
             onClick={() => setSettingsOpen(true)}
             whileTap={{ scale: 0.92 }}
-            aria-label="Open settings"
+            aria-label={t('settings.aria')}
             aria-expanded={settingsOpen}
             className="w-14 h-14 rounded-r80 bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg border border-white/10 dark:bg-fuchsia-950/40 dark:border-fuchsia-400/40 dark:shadow-[0_0_18px_rgba(255,0,255,0.2)]">
             <SettingsIcon size={26} className="text-white dark:text-fuchsia-100" strokeWidth={2} />
@@ -1410,12 +1426,12 @@ export function MoneyClock() {
                 <>
                   <section
                     className="text-center max-w-2xl mx-auto space-y-4 sm:space-y-5 pt-2 pb-2"
-                    aria-label="Темп">
+                    aria-label={t('hero.aria')}>
                     <p className="text-white/40 text-[0.65rem] font-extrabold uppercase tracking-[0.22em]">
-                      Сейчас
+                      {t('hero.now')}
                     </p>
                     <p className="text-white/75 text-base sm:text-lg font-medium leading-snug max-w-sm mx-auto">
-                      Каждую секунду жизни вы прибавляете
+                      {t('hero.perSecondLife')}
                     </p>
                     <div
                       className="font-black tabular-nums leading-none text-[var(--accent-money)] flex flex-wrap items-baseline justify-center gap-x-1"
@@ -1429,19 +1445,20 @@ export function MoneyClock() {
                         decimals={heroRateBasis.perSec >= 0.01 ? 4 : 5}
                         prefix=""
                       />
-                      <span className="text-white/35 text-[0.35em] font-bold ml-1">/ сек</span>
+                      <span className="text-white/35 text-[0.35em] font-bold ml-1">{t('hero.perSec')}</span>
                     </div>
                     <p className="text-white/45 text-sm tabular-nums">
-                      номинал ≈ {heroRateBasis.symbol}
-                      {realRateBreakdown.nominalPerHour.toFixed(2)}/час · {heroRateBasis.code}
+                      {t('hero.nominalApprox')} {heroRateBasis.symbol}
+                      {realRateBreakdown.nominalPerHour.toFixed(2)}
+                      {t('hero.perHour')} · {heroRateBasis.code}
                     </p>
                   </section>
 
                   <section
                     className="max-w-lg mx-auto border-t border-white/10 pt-5 mt-2 space-y-1 text-center"
-                    aria-label="Реальная покупательная способность">
+                    aria-label={t('hero.insightAria')}>
                     <p className="text-white/35 text-[0.62rem] font-bold uppercase tracking-[0.18em]">
-                      После налогов и инфляции
+                      {t('hero.insightTitle')}
                     </p>
                     <p className="font-bold text-xl sm:text-2xl text-white tabular-nums">
                       {heroRateBasis.symbol}
@@ -1449,23 +1466,23 @@ export function MoneyClock() {
                         realRateBreakdown.purchasingPowerPerHour ??
                         realRateBreakdown.afterTaxPerHour
                       ).toFixed(2)}
-                      /час
+                      {t('hero.perHour')}
                     </p>
                   </section>
 
                   {futureYearly ?
                     <section
                       className="max-w-lg mx-auto border-t border-white/10 pt-5 mt-1 space-y-1 text-center"
-                      aria-label="Прогноз на год">
+                      aria-label={t('hero.futureAria')}>
                       <p className="text-white/35 text-[0.62rem] font-bold uppercase tracking-[0.18em]">
-                        За 12 месяцев (оценка)
+                        {t('hero.futureTitle')}
                       </p>
                       <p className="text-white/80 text-base sm:text-lg font-semibold tabular-nums">
                         ≈ {heroRateBasis.symbol}
                         {formatCompactAnnual(futureYearly.path)} → {heroRateBasis.symbol}
                         {formatCompactAnnual(futureYearly.plus20)}
                         <span className="text-white/40 font-normal text-sm block sm:inline sm:ml-2">
-                          при +20% к ставке
+                          {t('hero.futureIfPlus20')}
                         </span>
                       </p>
                     </section>
@@ -1477,33 +1494,33 @@ export function MoneyClock() {
                       whileTap={{ scale: 0.98 }}
                       onClick={() => setShowFullBreakdown((v) => !v)}
                       className="text-[0.68rem] font-bold uppercase tracking-wide text-white/55 border border-white/18 px-4 py-2.5 rounded-r80-sm hover:bg-white/[0.06] hover:text-white/85 transition-colors">
-                      {showFullBreakdown ? 'Скрыть детали' : 'Валюты, счёт, курсы'}
+                      {showFullBreakdown ? t('hero.btnHideDetails') : t('hero.btnShowDetails')}
                     </motion.button>
                     <motion.button
                       type="button"
                       whileTap={{ scale: 0.98 }}
                       onClick={() => setSettingsOpen(true)}
                       className="text-[0.68rem] font-extrabold uppercase tracking-wide text-[#061018] bg-[var(--accent-money)] px-5 py-2.5 rounded-r80-sm hover:brightness-110 transition-[filter]">
-                      Настроить проекты
+                      {t('hero.btnEditProjects')}
                     </motion.button>
                   </div>
                 </>
               : !hasPositiveAccrualRate ?
                 <section className="text-center py-10 space-y-5 max-w-md mx-auto px-2">
                   <p className="text-white/70 text-base font-medium leading-relaxed">
-                    Добавьте проект и сумму в настройках — здесь появится темп в реальном времени.
+                    {t('hero.emptyPrompt')}
                   </p>
                   <motion.button
                     type="button"
                     whileTap={{ scale: 0.97 }}
                     onClick={() => setSettingsOpen(true)}
                     className="text-[0.75rem] font-extrabold uppercase tracking-wide text-[#061018] bg-[var(--accent-money)] px-6 py-3 rounded-r80-sm hover:brightness-110">
-                    Открыть настройки
+                    {t('hero.emptyCta')}
                   </motion.button>
                 </section>
               : (
                 <p className="text-center text-amber-200/90 text-sm py-8 px-4 max-w-md mx-auto leading-relaxed">
-                  Для одной строки темпа включите курсы API или выберите проекты в одной валюте.
+                  {t('hero.noFxHint')}
                 </p>
               )}
 

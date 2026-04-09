@@ -6,17 +6,18 @@ export const MONEYCLOCK_CURRENCIES: readonly {
   code: string;
   symbol: string;
   labelRu: string;
+  labelEn: string;
 }[] = [
-  { code: 'USD', symbol: '$', labelRu: 'Доллар США (USD)' },
-  { code: 'EUR', symbol: '€', labelRu: 'Евро (EUR)' },
-  { code: 'GBP', symbol: '£', labelRu: 'Фунт (GBP)' },
-  { code: 'MDL', symbol: 'L', labelRu: 'Молдавский лей (MDL)' },
-  { code: 'RON', symbol: 'lei', labelRu: 'Румынский лей (RON)' },
-  { code: 'UAH', symbol: '₴', labelRu: 'Гривна (UAH)' },
-  { code: 'RUB', symbol: '₽', labelRu: 'Рубль (RUB)' },
-  { code: 'CHF', symbol: 'Fr', labelRu: 'Швейцарский франк (CHF)' },
-  { code: 'TRY', symbol: '₺', labelRu: 'Лира (TRY)' },
-  { code: 'PLN', symbol: 'zł', labelRu: 'Злотый (PLN)' }
+  { code: 'USD', symbol: '$', labelRu: 'Доллар США (USD)', labelEn: 'US dollar (USD)' },
+  { code: 'EUR', symbol: '€', labelRu: 'Евро (EUR)', labelEn: 'Euro (EUR)' },
+  { code: 'GBP', symbol: '£', labelRu: 'Фунт (GBP)', labelEn: 'Pound sterling (GBP)' },
+  { code: 'MDL', symbol: 'L', labelRu: 'Молдавский лей (MDL)', labelEn: 'Moldovan leu (MDL)' },
+  { code: 'RON', symbol: 'lei', labelRu: 'Румынский лей (RON)', labelEn: 'Romanian leu (RON)' },
+  { code: 'UAH', symbol: '₴', labelRu: 'Гривна (UAH)', labelEn: 'Hryvnia (UAH)' },
+  { code: 'RUB', symbol: '₽', labelRu: 'Рубль (RUB)', labelEn: 'Ruble (RUB)' },
+  { code: 'CHF', symbol: 'Fr', labelRu: 'Швейцарский франк (CHF)', labelEn: 'Swiss franc (CHF)' },
+  { code: 'TRY', symbol: '₺', labelRu: 'Лира (TRY)', labelEn: 'Turkish lira (TRY)' },
+  { code: 'PLN', symbol: 'zł', labelRu: 'Злотый (PLN)', labelEn: 'Złoty (PLN)' }
 ];
 
 export const DEFAULT_CURRENCY_CODE = 'USD';

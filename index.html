@@ -18,6 +18,13 @@
       } catch (_) {
         document.documentElement.classList.add('dark');
       }
+      try {
+        var loc = localStorage.getItem('moneyclock-locale');
+        if (loc === 'ru') document.documentElement.lang = 'ru';
+        else document.documentElement.lang = 'en';
+      } catch (_) {
+        document.documentElement.lang = 'en';
+      }
     </script>
     <div id="root"></div>
     <script type="module" src="/src/index.tsx"></script>

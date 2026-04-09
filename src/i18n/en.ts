@@ -34,6 +34,10 @@ export const en: Record<string, string> = {
     'Each currency separately. Active contracts first; within a group sorted by amount in',
   'breakdown.sortHintFxApi': '(API rate).',
   'breakdown.sortHintNoFx': 'Without rates, sorted by currency code.',
+  'breakdown.sortParagraphFx':
+    'Each currency separately. Active contracts first; within each group, sorted by descending amount converted to {ccy} (API rate).',
+  'breakdown.sortParagraphNoFx':
+    'Each currency separately. Active contracts first; without FX, within each group sort is by currency code.',
   'breakdown.endedBadge': 'Ended',
   'breakdown.inAccount': 'On account now',
   'breakdown.noContractsInCcy': 'No contracts in',

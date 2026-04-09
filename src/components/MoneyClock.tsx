@@ -1528,21 +1528,15 @@ export function MoneyClock() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 items-start">
                 <div className="space-y-3 text-center md:text-left min-w-0">
                   <p className="text-white/60 text-[0.65rem] sm:text-xs font-extrabold uppercase tracking-[0.14em]">
-                    Всего заработано
+                    {t('breakdown.totalEarned')}
                   </p>
                   <p className="text-white/42 text-[0.6rem] sm:text-[0.62rem] leading-snug max-w-md mx-auto md:mx-0">
-                    Каждая валюта отдельно. Сначала — валюты с действующими контрактами
                     {fxSnapshot ?
-                      <>
-                        , внутри группы порядок по убыванию суммы в пересчёте на{' '}
-                        {normalizeCurrencyCode(currentBalanceCurrency)} (курс API).
-                      </>
-                    :
-                      <>
-                        ; без курса внутри группы — по коду валюты.
-                      </>
-                    }{' '}
-                    «Завершены» — все контракты в этой валюте уже по сроку закрыты.
+                      t('breakdown.sortParagraphFx', {
+                        ccy: normalizeCurrencyCode(currentBalanceCurrency)
+                      })
+                    : t('breakdown.sortParagraphNoFx')}{' '}
+                    {t('breakdown.sortEndedNote')}
                   </p>
                   <div
                     className="relative font-black tracking-tight leading-none text-white flex flex-col md:flex-row md:flex-wrap items-center md:items-baseline justify-center md:justify-start gap-x-6 gap-y-3"
@@ -1576,7 +1570,7 @@ export function MoneyClock() {
                                 </span>
                                 {!ccyActive ?
                                   <span className="text-[0.48rem] font-extrabold uppercase tracking-[0.12em] text-slate-200/85 px-1.5 py-0.5 rounded-r80-sm bg-slate-600/40 border border-white/12">
-                                    Завершены
+                                    {t('breakdown.endedBadge')}
                                   </span>
                                 : null}
                               </span>
@@ -1600,7 +1594,7 @@ export function MoneyClock() {
                                 </span>
                                 {!ccyActive ?
                                   <span className="text-[0.48rem] font-extrabold uppercase tracking-[0.12em] text-slate-200/85 px-1.5 py-0.5 rounded-r80-sm bg-slate-600/40 border border-white/12">
-                                    Завершены
+                                    {t('breakdown.endedBadge')}
                                   </span>
                                 : null}
                               </span>

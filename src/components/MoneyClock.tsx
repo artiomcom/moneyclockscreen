@@ -16,8 +16,6 @@ import {
   Copy,
   Moon,
   Sun,
-  Maximize2,
-  Minimize2,
   TrendingUp
 } from 'lucide-react';
 import { ParticleBackground } from './ParticleBackground';
@@ -199,7 +197,6 @@ export function MoneyClock() {
   const [fxReady, setFxReady] = useState(false);
   const [fxHistoryRows, setFxHistoryRows] = useState<FrankfurterRow[] | null>(null);
   const [inflationYearly, setInflationYearly] = useState<BlendedInflationYear[] | null>(null);
-  const [chartFocusProjectId, setChartFocusProjectId] = useState<string | null>(null);
   const [awarenessToast, setAwarenessToast] = useState<string | null>(null);
   const [portalToast, setPortalToast] = useState<string | null>(null);
   const [lastExportMs, setLastExportMs] = useState<number | null>(() => readLastExportMs());
@@ -211,7 +208,6 @@ export function MoneyClock() {
   const [detailStep, setDetailStep] = useState<0 | 1 | 2 | 3>(0);
   /** Multi-currency breakdown: default one merged total, expand for all tickers */
   const [showAllCurrencies, setShowAllCurrencies] = useState(false);
-  const [chartExpanded, setChartExpanded] = useState(false);
 
   useEffect(() => {
     applyThemeToDocument(theme);
@@ -220,10 +216,6 @@ export function MoneyClock() {
 
   useEffect(() => {
     if (detailStep === 0) setShowAllCurrencies(false);
-  }, [detailStep]);
-
-  useEffect(() => {
-    if (detailStep < 3) setChartExpanded(false);
   }, [detailStep]);
 
   const { projects, activeProjectId, selectedProjectIds } = projectsBundle;
@@ -254,17 +246,6 @@ export function MoneyClock() {
       return startMs(b) - startMs(a);
     });
   }, [projects, selectedProjectIds, nowTick]);
-
-  useEffect(() => {
-    if (detailStep !== 3 || selectedProjectsOrdered.length === 0) return;
-    setChartFocusProjectId((prev) => {
-      if (prev != null) return prev;
-      const live = selectedProjectsOrdered.find(
-        (p) => p.workStartDate.trim() && !projectIsEndedByDeadline(p, Date.now())
-      );
-      return (live ?? selectedProjectsOrdered[0])!.id;
-    });
-  }, [detailStep, selectedProjectsOrdered]);
 
   const singleSelectedForCopy =
     selectedProjectsOrdered.length === 1 ? selectedProjectsOrdered[0] : null;
@@ -487,23 +468,6 @@ export function MoneyClock() {
       .catch(() => setInflationYearly(null));
     return () => ac.abort();
   }, [inflationLoadKey]);
-
-  useEffect(() => {
-    if (
-      chartFocusProjectId &&
-      !selectedProjectIds.includes(chartFocusProjectId)
-    ) {
-      setChartFocusProjectId(null);
-    }
-  }, [selectedProjectIds, chartFocusProjectId]);
-
-  const chartFocusProject = useMemo(
-    () =>
-      chartFocusProjectId ?
-        selectedProjectsOrdered.find((p) => p.id === chartFocusProjectId) ?? null
-      : null,
-    [chartFocusProjectId, selectedProjectsOrdered]
-  );
 
   const computeInitialEarnings = useCallback(
     (nowMs: number) =>
@@ -2152,148 +2116,9 @@ export function MoneyClock() {
               <div
                 className="rounded-r80 bg-black/22 border border-white/12 p-3 sm:p-4 lg:p-5 min-h-0 min-w-0 shadow-inner isolate"
                 aria-label={t('chart.ariaPanel')}>
-                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2.5 mb-2">
-                  <div className="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
-                    <div className="min-w-0">
-                      <p className="text-white/55 text-[0.62rem] font-extrabold uppercase tracking-[0.12em] text-center sm:text-left sm:pt-0.5">
-                        {t('chart.panelTitle')}
-                      </p>
-                      <p className="text-white/35 text-[0.55rem] font-medium mt-1 text-center sm:text-left">
-                        {chartExpanded ? t('chart.panelHint') : t('chart.panelHintCompact')}
-                      </p>
-                    </div>
-                    <motion.button
-                      type="button"
-                      whileTap={{ scale: 0.96 }}
-                      onClick={() => setChartExpanded((v) => !v)}
-                      aria-expanded={chartExpanded}
-                      aria-label={chartExpanded ? t('chart.collapseAria') : t('chart.expandAria')}
-                      className="shrink-0 self-center sm:self-start inline-flex items-center gap-1.5 rounded-r80-sm border border-white/18 bg-white/[0.06] px-2.5 py-1.5 text-[0.6rem] sm:text-[0.62rem] font-bold uppercase tracking-wide text-white/75 hover:bg-white/10 hover:text-white/90 transition-colors">
-                      {chartExpanded ?
-                        <Minimize2 size={14} strokeWidth={2.4} className="opacity-90 shrink-0" aria-hidden />
-                      : <Maximize2 size={14} strokeWidth={2.4} className="opacity-90 shrink-0" aria-hidden />}
-                      {chartExpanded ? t('chart.collapse') : t('chart.expand')}
-                    </motion.button>
-                  </div>
-                  <AnimatePresence mode="wait">
-                      {chartFocusProject &&
-                      <motion.div
-                        key={chartFocusProject.id}
-                        initial={{ opacity: 0, y: -6, filter: 'blur(4px)' }}
-                        animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                        exit={{ opacity: 0, y: -4, filter: 'blur(2px)' }}
-                        transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-                        className="flex flex-wrap items-center justify-center sm:justify-end gap-2 shrink-0">
-                        <span className="inline-flex items-center gap-2 rounded-r80-sm border border-amber-200/30 bg-amber-400/10 pl-2.5 pr-1 py-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
-                          <span
-                            className="h-2 w-2 rounded-none bg-amber-300 shadow-[0_0_10px_rgba(253,224,71,0.85)]"
-                            aria-hidden
-                          />
-                          <span className="text-[0.62rem] sm:text-[0.65rem] font-bold text-white/90 max-w-[min(12rem,50vw)] truncate">
-                            {chartFocusProject.name || t('chart.defaultProject')}
-                          </span>
-                          {projectIsEndedByDeadline(chartFocusProject, nowTick) ?
-                            <span className="text-[0.48rem] font-extrabold uppercase tracking-wide text-slate-200/95 px-1.5 py-0.5 rounded-r80-sm bg-slate-700/55 border border-white/12 shrink-0">
-                              {t('settings.contractEnded')}
-                            </span>
-                          : null}
-                        </span>
-                      <motion.button
-                        type="button"
-                        whileTap={{ scale: 0.94 }}
-                        onClick={() => setChartFocusProjectId(null)}
-                        className="inline-flex items-center gap-1 rounded-r80-sm border border-white/20 bg-white/10 px-2.5 py-1 text-[0.6rem] font-bold uppercase tracking-wide text-white/75 hover:text-white hover:bg-white/15 hover:border-white/30 transition-colors">
-                        <XIcon size={12} strokeWidth={2.5} className="opacity-80" aria-hidden />
-                        {t('chart.all')}
-                      </motion.button>
-                    </motion.div>
-                    }
-                  </AnimatePresence>
-                </div>
-
-                {/* Рельс проектов — внутри панели графика (как в терминалах); под слоем с SVG, курсор и тултип — выше */}
-                <div className="relative z-0 mb-2 sm:mb-2.5 rounded-r80-sm border border-white/[0.09] bg-gradient-to-b from-white/[0.07] to-white/[0.02] px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-                  <p className="text-white/38 text-[0.55rem] font-bold uppercase tracking-[0.1em] px-1 mb-1.5">
-                    {t('chart.projects')}
-                  </p>
-                  <div
-                    className="flex gap-2 overflow-x-auto pb-0.5 -mx-0.5 px-0.5 snap-x snap-mandatory [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.28)_transparent]"
-                    aria-label={t('chart.projects')}>
-                    {selectedProjectsOrdered.map((p) => {
-                      const selected = chartFocusProjectId === p.id;
-                      const contractEnded = projectIsEndedByDeadline(p, nowTick);
-                      return (
-                        <motion.button
-                          key={p.id}
-                          type="button"
-                          layout
-                          initial={{ opacity: 0, scale: 0.97 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          whileTap={{ scale: 0.97 }}
-                          whileHover={{ scale: 1.02 }}
-                          aria-pressed={selected}
-                          aria-label={
-                            selected ?
-                              t('chart.unfocus', {
-                                name: p.name || t('chart.defaultProject')
-                              })
-                            : t('chart.focusLine', {
-                                name: p.name || t('chart.defaultProject')
-                              })
-                          }
-                          onClick={() =>
-                            setChartFocusProjectId((id) => (id === p.id ? null : p.id))
-                          }
-                          className={`snap-start shrink-0 w-[min(10.5rem,68vw)] rounded-r80-sm px-2.5 py-2 text-left
-                            backdrop-blur-md border shadow-md cursor-pointer
-                            transition-[box-shadow,border-color,background-color,transform,opacity] duration-300 ease-out
-                            focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200/60
-                            focus-visible:ring-offset-2 focus-visible:ring-offset-emerald-950/40
-                            ${contractEnded ? 'opacity-[0.82] ' : ''}
-                            ${
-                              selected ?
-                                'bg-gradient-to-br from-amber-400/[0.2] via-white/[0.1] to-cyan-400/[0.1] border-amber-200/45 shadow-[0_8px_32px_rgba(251,191,36,0.12),inset_0_1px_0_rgba(255,255,255,0.2)]'
-                              : contractEnded ?
-                                'bg-slate-950/35 border-white/10 hover:border-white/20'
-                              : 'bg-black/25 border-white/14 hover:border-white/26 hover:bg-black/35 hover:shadow-[0_6px_22px_rgba(0,0,0,0.2)]'
-                            }`}>
-                          <div className="flex items-start justify-between gap-1 mb-0.5 flex-wrap">
-                            <p className="text-white/[0.9] text-[0.65rem] sm:text-[0.7rem] font-bold truncate leading-tight min-w-0 flex-1 basis-[min(100%,5rem)]">
-                              {p.name || t('chart.defaultProject')}
-                            </p>
-                            <div className="flex shrink-0 gap-1 flex-wrap justify-end">
-                              {contractEnded ?
-                                <span className="text-[0.46rem] font-extrabold uppercase tracking-[0.1em] text-slate-200/90 px-1 py-0.5 rounded bg-slate-600/50 border border-white/12">
-                                  {t('settings.contractEnded')}
-                                </span>
-                              : null}
-                              {selected ?
-                                <span className="text-[0.46rem] font-extrabold uppercase tracking-[0.1em] text-amber-100/90 px-1 py-0.5 rounded bg-amber-400/22 border border-amber-200/28">
-                                  {t('chart.graphBadge')}
-                                </span>
-                              : null}
-                            </div>
-                          </div>
-                          <div
-                            className="relative font-black tracking-tight leading-none text-white flex justify-start tabular-nums"
-                            style={{
-                              fontSize: 'clamp(0.58rem, 1.65vmin, 0.88rem)',
-                              textShadow: selected ?
-                                '0 0 16px rgba(253, 224, 71, 0.22), 0 1px 6px rgba(0,0,0,0.35)'
-                              : '0 1px 6px rgba(0,0,0,0.35)'
-                            }}>
-                            <AnimatedCounter
-                              value={projectEarningsAt(p, nowTick)}
-                              prefix={getCurrencySymbol(p.currencyCode)}
-                              decimals={2}
-                            />
-                          </div>
-                        </motion.button>
-                      );
-                    })}
-                  </div>
-                </div>
-
+                <p className="text-white/45 text-[0.58rem] font-extrabold uppercase tracking-[0.14em] text-center mb-3 sm:mb-4">
+                  {t('chart.panelTitle')}
+                </p>
                 <div className="relative z-[1] min-w-0">
                   <IncomeChart
                     projects={selectedProjectsOrdered}
@@ -2303,11 +2128,21 @@ export function MoneyClock() {
                     lastPayrollYmd={lastPayrollYmd}
                     fxSnapshot={fxSnapshot}
                     fxHistoryRows={fxHistoryRows}
-                    chartFocusProjectId={chartFocusProjectId}
                     inflationYearly={inflationYearly}
                     inflationCurrencyCodes={inflationDisplayCurrencies}
+                    trajectoryHint={
+                      trajectorySnap ?
+                        {
+                          y12: trajectorySnap.y12,
+                          y12plus: trajectorySnap.y12plus,
+                          deltaYear: trajectorySnap.deltaYear,
+                          symbol: trajectorySnap.symbol
+                        }
+                      : null
+                    }
+                    onOpenGrow={() => setSettingsOpen(true)}
                     embedded
-                    variant={chartExpanded ? 'expanded' : 'compact'}
+                    variant="expanded"
                   />
                 </div>
               </div>

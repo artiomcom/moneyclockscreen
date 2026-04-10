@@ -119,6 +119,31 @@ export const ru: Record<string, string> = {
   'chart.projects': 'Проекты',
   'chart.graphBadge': 'График',
   'chart.all': 'Все',
+  'chart.range1y': '1 год',
+  'chart.rangeAll': 'Всё время',
+  'chart.advancedShow': 'Детали графика',
+  'chart.advancedHide': 'Простой вид',
+  'chart.productAria': 'Рост дохода и тренд',
+  'chart.productKicker': 'Как идёте',
+  'chart.productAboveTrend':
+    'Вы опережаете прямолинейный тренд в этом окне — накопления растут сильнее «ровной» линии.',
+  'chart.productBelowTrend':
+    'Относительно прямой линии от начала окна вы примерно на {pct}% ниже.',
+  'chart.productNeutralTrend': 'Близко к ровному линейному тренду в этом окне.',
+  'chart.productNow': 'Накоплено (сейчас)',
+  'chart.productTrendEnd': 'Тренд (аппрокс.)',
+  'chart.productGapTrend': 'Разрыв к тренду',
+  'chart.productYou': 'Вы',
+  'chart.productTrend': 'Тренд',
+  'chart.productNeedRates':
+    'Включите курсы API в настройках или оставьте проекты в одной валюте — тогда будет одна суммарная линия дохода.',
+  'chart.productDisclaimer':
+    'Тренд — линейная аппроксимация по накоплениям по контрактам в этом окне. Иллюстрация, не прогноз.',
+  'chart.productTrajectoryLead': 'Сценарий по ставке (~12 мес.)',
+  'chart.productSteady12': 'Стабильный темп',
+  'chart.productPlus20': 'Если ставка +20%',
+  'chart.productPerYearHint': '/ год к стабильному',
+  'chart.ctaGrow': 'Увеличить доход',
 
   'footer.perSec': '/ sec',
   'footer.sigmaPerSec': 'Σ ≈ +',

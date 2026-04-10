@@ -116,6 +116,31 @@ export const en: Record<string, string> = {
   'chart.projects': 'Projects',
   'chart.graphBadge': 'Chart',
   'chart.all': 'All',
+  'chart.range1y': '1Y',
+  'chart.rangeAll': 'All time',
+  'chart.advancedShow': 'Chart details',
+  'chart.advancedHide': 'Simple view',
+  'chart.productAria': 'Income growth and trend',
+  'chart.productKicker': 'How you’re doing',
+  'chart.productAboveTrend':
+    'You’re outpacing a straight-line trend in this window — momentum is on your side.',
+  'chart.productBelowTrend':
+    'Versus a straight-line trend from the start of this window, you’re about {pct}% lower.',
+  'chart.productNeutralTrend': 'Close to a steady linear trend in this window.',
+  'chart.productNow': 'Earned (now)',
+  'chart.productTrendEnd': 'Trend (fit)',
+  'chart.productGapTrend': 'Gap vs trend',
+  'chart.productYou': 'You',
+  'chart.productTrend': 'Trend',
+  'chart.productNeedRates':
+    'Enable API rates in settings (or use projects in one currency) to see one combined income line.',
+  'chart.productDisclaimer':
+    'Trend = linear fit on contract earnings in this window. Illustrative, not a forecast.',
+  'chart.productTrajectoryLead': 'Rate outlook (~12 months)',
+  'chart.productSteady12': 'Steady pace',
+  'chart.productPlus20': 'If rate +20%',
+  'chart.productPerYearHint': '/ yr vs steady',
+  'chart.ctaGrow': 'Grow your income',
 
   'footer.perSec': '/ sec',
   'footer.sigmaPerSec': 'Σ ≈ +',

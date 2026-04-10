@@ -1,4 +1,6 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Maximize2, Minimize2, XIcon } from 'lucide-react';
 import { useI18n } from '../i18n';
 import {
   type ProjectEntry,
@@ -6,7 +8,8 @@ import {
   parseLocalDateYmd,
   normalizeCurrencyCode,
   getCurrencySymbol,
-  balanceOnAccountAt
+  balanceOnAccountAt,
+  projectIsEndedByDeadline
 } from '../moneyClockPersistence';
 import {
   convertAmountThroughSnapshot,
@@ -25,6 +28,7 @@ import {
 
 export const INCOME_CHART_STEPS = 64;
 const STEPS = INCOME_CHART_STEPS;
+const HOVER_HIT_PX = 24;
 const VB_W = 520;
 const VB_H = 248;
 const PAD_L = 58;
@@ -58,6 +62,8 @@ const FX_HIST_LINE = '#38bdf8';
 const INF_HIST_LINE = '#fb923c';
 const FOCUS_PROJECT_LINE = '#fef08a';
 const MUTED_PROJECT_LINE = 'rgba(203, 213, 225, 0.42)';
+const PRODUCT_YOU_LINE = '#34d399';
+const PRODUCT_TREND_LINE = 'rgba(255, 255, 255, 0.38)';
 
 export function getIncomeChartTimeRange(
   projects: ProjectEntry[],
@@ -103,7 +109,9 @@ function buildIncomeSeries(
   },
   fxMerge?: { snapshot: FxSnapshot; targetCode: string } | null,
   focusProjectId?: string | null,
-  chartLabels?: ChartSeriesLabels
+  chartLabels?: ChartSeriesLabels,
+  /** Optional view window (e.g. last 1Y). Clamped to data range. */
+  viewWindow?: { tMin: number; tMax: number } | null
 ): { series: Series[]; tMin: number; tMax: number } {
   const L: ChartSeriesLabels = chartLabels ?? {
     defaultProject: 'Project',
@@ -116,7 +124,14 @@ function buildIncomeSeries(
   if (!range) {
     return { series: [], tMin: 0, tMax: 0 };
   }
-  const { tMin, tMax } = range;
+  let { tMin, tMax } = range;
+  if (viewWindow) {
+    tMin = Math.max(tMin, viewWindow.tMin);
+    tMax = Math.min(tMax, viewWindow.tMax);
+  }
+  if (tMax <= tMin) {
+    return { series: [], tMin: 0, tMax: 0 };
+  }
 
   const byCcy = new Map<string, ProjectEntry[]>();
   for (const p of projects) {
@@ -265,6 +280,149 @@ function buildIncomeSeries(
   return { series, tMin, tMax };
 }
 
+/** Cumulative contract earnings in account currency (FX) or only balance-ccy projects without FX. */
+function buildMergedEarningsPoints(
+  projects: ProjectEntry[],
+  tMin: number,
+  tMax: number,
+  steps: number,
+  fxSnapshot: FxSnapshot | null,
+  balanceCurrency: string
+): { points: [number, number][]; code: string } | null {
+  if (tMax <= tMin || projects.length === 0) return null;
+  const target = normalizeCurrencyCode(balanceCurrency);
+  const points: [number, number][] = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = tMin + (i / steps) * (tMax - tMin);
+    let sum = 0;
+    if (fxSnapshot) {
+      let ok = true;
+      for (const p of projects) {
+        const raw = projectEarningsAt(p, t);
+        const c = convertAmountThroughSnapshot(
+          raw,
+          p.currencyCode,
+          target,
+          fxSnapshot
+        );
+        if (c == null) {
+          ok = false;
+          break;
+        }
+        sum += c;
+      }
+      if (!ok) return null;
+    } else {
+      const filtered = projects.filter(
+        (p) => normalizeCurrencyCode(p.currencyCode) === target
+      );
+      if (filtered.length === 0) return null;
+      for (const p of filtered) {
+        sum += projectEarningsAt(p, t);
+      }
+    }
+    points.push([t, sum]);
+  }
+  return { points, code: target };
+}
+
+function linearTrendFromPoints(
+  points: [number, number][]
+): { trend: [number, number][]; yEndActual: number; yEndPred: number } {
+  const n = points.length;
+  if (n < 2) {
+    const y = points[0]?.[1] ?? 0;
+    return { trend: points.map(([t]) => [t, y]), yEndActual: y, yEndPred: y };
+  }
+  const t0 = points[0][0];
+  const t1 = points[n - 1][0];
+  const span = t1 - t0 || 1;
+  let sumX = 0;
+  let sumY = 0;
+  let sumXY = 0;
+  let sumXX = 0;
+  for (const [t, y] of points) {
+    const x = (t - t0) / span;
+    sumX += x;
+    sumY += y;
+    sumXY += x * y;
+    sumXX += x * x;
+  }
+  const denom = n * sumXX - sumX * sumX;
+  const b = denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0;
+  const a = (sumY - b * sumX) / n;
+  const trend = points.map(([t]) => {
+    const x = (t - t0) / span;
+    return [t, a + b * x] as [number, number];
+  });
+  const yEndActual = points[n - 1][1];
+  const yEndPred = a + b;
+  return { trend, yEndActual, yEndPred };
+}
+
+function sharedValueBounds(
+  a: [number, number][],
+  b: [number, number][]
+): { minV: number; maxV: number } {
+  const vals = [...a, ...b].map(([, y]) => y).filter((y) => Number.isFinite(y));
+  if (vals.length === 0) return { minV: 0, maxV: 1 };
+  let minV = Math.min(...vals);
+  let maxV = Math.max(...vals);
+  if (maxV <= minV) {
+    minV -= 1;
+    maxV += 1;
+  }
+  const pad = (maxV - minV) * 0.06;
+  return { minV: minV - pad, maxV: maxV + pad };
+}
+
+function pickHoverProductMode(
+  sx: number,
+  sy: number,
+  real: [number, number][],
+  trend: [number, number][],
+  tMin: number,
+  tMax: number,
+  minV: number,
+  maxV: number
+): { t: number; which: 'real' | 'trend' | null } {
+  const plotW = VB_W - PAD_L - PAD_R;
+  const t =
+    tMax > tMin ? tMin + ((sx - PAD_L) / plotW) * (tMax - tMin) : tMin;
+  const tClamped = Math.max(tMin, Math.min(tMax, t));
+
+  const distTo = (pts: [number, number][]): number => {
+    let best = HOVER_HIT_PX + 1;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [ta, va] = pts[i];
+      const [tb, vb] = pts[i + 1];
+      const x1 = xScale(ta, tMin, tMax);
+      const y1 = yScaleSeries(va, minV, maxV);
+      const x2 = xScale(tb, tMin, tMax);
+      const y2 = yScaleSeries(vb, minV, maxV);
+      const d = distPointToSegment(sx, sy, x1, y1, x2, y2);
+      if (d < best) best = d;
+    }
+    return best;
+  };
+
+  const dR = distTo(real);
+  const dT = distTo(trend);
+  if (dR > HOVER_HIT_PX && dT > HOVER_HIT_PX) {
+    return { t: tClamped, which: null };
+  }
+  if (dR <= dT) return { t: tClamped, which: 'real' };
+  return { t: tClamped, which: 'trend' };
+}
+
+function formatCompactAnnualChart(n: number): string {
+  if (!Number.isFinite(n)) return '—';
+  const r = Math.round(Math.abs(n));
+  if (r >= 1_000_000) return `${Math.round(n / 1_000_000)}M`;
+  if (r >= 1000) return `${Math.round(n / 1000)}k`;
+  return `${Math.round(n)}`;
+}
+
 function xScale(t: number, tMin: number, tMax: number): number {
   const w = VB_W - PAD_L - PAD_R;
   if (tMax <= tMin) return PAD_L;
@@ -372,8 +530,6 @@ function distPointToSegment(
   return Math.hypot(px - (x1 + u * dx), py - (y1 + u * dy));
 }
 
-const HOVER_HIT_PX = 24;
-
 function pickHoverFromSvg(
   sx: number,
   sy: number,
@@ -414,6 +570,13 @@ function pickHoverFromSvg(
   return { t: tClamped, seriesId: bestId };
 }
 
+export type ChartTrajectoryHint = {
+  y12: number;
+  y12plus: number;
+  deltaYear: number;
+  symbol: string;
+};
+
 export function IncomeChart({
   projects,
   nowMs,
@@ -423,34 +586,34 @@ export function IncomeChart({
   embedded = false,
   fxSnapshot = null,
   fxHistoryRows = null,
-  chartFocusProjectId = null,
   inflationYearly = null,
   inflationCurrencyCodes = [],
-  variant = 'expanded'
+  variant: _variant = 'expanded',
+  trajectoryHint = null,
+  onOpenGrow
 }: {
   projects: ProjectEntry[];
   nowMs: number;
   balanceAfterPayroll: number;
   balanceCurrency: string;
   lastPayrollYmd: string;
-  /** Компактный вид: ниже график, без средней даты на оси, без легенды с пиками, тултип только по активной линии */
   variant?: 'compact' | 'expanded';
-  /** Без внешней «карточки» — внутри общего glass-блока */
   embedded?: boolean;
-  /** Если есть — добавляется суммарная линия «все проекты» в валюте счёта по курсу */
   fxSnapshot?: FxSnapshot | null;
-  /** История Frankfurter: относительный индекс курсов (отдельная ось по масштабу серии) */
   fxHistoryRows?: FrankfurterRow[] | null;
-  /** Одна компания на переднем плане; остальные серии приглушены */
-  chartFocusProjectId?: string | null;
-  /** Годовой CPI (World Bank), смешанный по экономикам выбранных валют */
   inflationYearly?: BlendedInflationYear[] | null;
-  /** Коды валют, по которым строилась инфляция (для подписи) */
   inflationCurrencyCodes?: readonly string[];
+  trajectoryHint?: ChartTrajectoryHint | null;
+  onOpenGrow?: () => void;
 }) {
   const { t, locale } = useI18n();
   const localeTag = locale === 'ru' ? 'ru-RU' : 'en-US';
-  const compact = variant === 'compact';
+  const [chartRange, setChartRange] = useState<'1y' | 'all'>('all');
+  const [advancedDetails, setAdvancedDetails] = useState(false);
+  const [internalFocusId, setInternalFocusId] = useState<string | null>(null);
+  const [advChartTall, setAdvChartTall] = useState(false);
+
+  const compact = advancedDetails ? !advChartTall : true;
 
   const chartLabels = useMemo<ChartSeriesLabels>(
     () => ({
@@ -463,7 +626,63 @@ export function IncomeChart({
     [t]
   );
 
+  const dataRange = useMemo(
+    () => getIncomeChartTimeRange(projects, nowMs),
+    [projects, nowMs]
+  );
+
+  const viewWindow = useMemo(() => {
+    if (!dataRange) return null;
+    if (chartRange === 'all') {
+      return { tMin: dataRange.tMin, tMax: dataRange.tMax };
+    }
+    const cut = nowMs - 365.25 * DAY_MS;
+    return { tMin: Math.max(dataRange.tMin, cut), tMax: dataRange.tMax };
+  }, [dataRange, chartRange, nowMs]);
+
+  const productMerged = useMemo(() => {
+    if (!viewWindow || viewWindow.tMax <= viewWindow.tMin || projects.length === 0) {
+      return null;
+    }
+    return buildMergedEarningsPoints(
+      projects,
+      viewWindow.tMin,
+      viewWindow.tMax,
+      STEPS,
+      fxSnapshot,
+      balanceCurrency
+    );
+  }, [viewWindow, projects, fxSnapshot, balanceCurrency]);
+
+  const productInsight = useMemo(() => {
+    if (!productMerged) return null;
+    const { trend, yEndActual, yEndPred } = linearTrendFromPoints(productMerged.points);
+    const denom = Math.max(Math.abs(yEndPred), 1e-9);
+    const pctVsTrend = ((yEndActual - yEndPred) / denom) * 100;
+    return {
+      trend,
+      yEndActual,
+      yEndPred,
+      pctVsTrend,
+      symbol: getCurrencySymbol(productMerged.code)
+    };
+  }, [productMerged]);
+
+  const productYBounds = useMemo(() => {
+    if (!productMerged || !productInsight) return { minV: 0, maxV: 1 };
+    return sharedValueBounds(productMerged.points, productInsight.trend);
+  }, [productMerged, productInsight]);
+
+  useEffect(() => {
+    if (internalFocusId && !projects.some((p) => p.id === internalFocusId)) {
+      setInternalFocusId(null);
+    }
+  }, [projects, internalFocusId]);
+
   const { series, tMin, tMax } = useMemo(() => {
+    if (!embedded || !advancedDetails) {
+      return { series: [] as Series[], tMin: 0, tMax: 0 };
+    }
     const base = buildIncomeSeries(
       projects,
       nowMs,
@@ -475,8 +694,9 @@ export function IncomeChart({
       fxSnapshot ?
         { snapshot: fxSnapshot, targetCode: balanceCurrency }
       : null,
-      chartFocusProjectId ?? null,
-      chartLabels
+      internalFocusId ?? null,
+      chartLabels,
+      viewWindow
     );
     let nextSeries = [...base.series];
     const quotes = frankfurterQuoteCurrencies(projects, balanceCurrency);
@@ -521,6 +741,8 @@ export function IncomeChart({
     }
     return { ...base, series: nextSeries };
   }, [
+    embedded,
+    advancedDetails,
     projects,
     nowMs,
     balanceAfterPayroll,
@@ -528,11 +750,12 @@ export function IncomeChart({
     lastPayrollYmd,
     fxSnapshot,
     fxHistoryRows,
-    chartFocusProjectId,
+    internalFocusId,
     inflationYearly,
     inflationCurrencyCodes,
     chartLabels,
-    locale
+    locale,
+    viewWindow
   ]);
 
   const plotW = VB_W - PAD_L - PAD_R;
@@ -545,9 +768,17 @@ export function IncomeChart({
     tipX: number;
     tipY: number;
   } | null>(null);
+  const [productHover, setProductHover] = useState<{
+    t: number;
+    which: 'real' | 'trend';
+    tipX: number;
+    tipY: number;
+  } | null>(null);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const productSvgRef = useRef<SVGSVGElement>(null);
+  const productWrapRef = useRef<HTMLDivElement>(null);
 
   const updateHover = useCallback(
     (clientX: number, clientY: number) => {
@@ -577,6 +808,422 @@ export function IncomeChart({
   );
 
   const handleLeave = useCallback(() => setHover(null), []);
+
+  const updateProductHover = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!viewWindow || !productMerged || !productInsight) return;
+      const svg = productSvgRef.current;
+      const wrap = productWrapRef.current;
+      if (!svg || !wrap) return;
+      const pt = svg.createSVGPoint();
+      pt.x = clientX;
+      pt.y = clientY;
+      const ctm = svg.getScreenCTM();
+      if (!ctm) return;
+      const p = pt.matrixTransform(ctm.inverse());
+      const { minV, maxV } = productYBounds;
+      const { t: ht, which } = pickHoverProductMode(
+        p.x,
+        p.y,
+        productMerged.points,
+        productInsight.trend,
+        viewWindow.tMin,
+        viewWindow.tMax,
+        minV,
+        maxV
+      );
+      if (which == null) {
+        setProductHover(null);
+        return;
+      }
+      const wr = wrap.getBoundingClientRect();
+      setProductHover({
+        t: ht,
+        which,
+        tipX: clientX - wr.left,
+        tipY: clientY - wr.top
+      });
+    },
+    [viewWindow, productMerged, productInsight, productYBounds]
+  );
+
+  const handleProductLeave = useCallback(() => setProductHover(null), []);
+
+  if (!dataRange) {
+    return (
+      <div
+        className={
+          embedded ?
+            'w-full py-8 sm:py-10 text-center text-white/55 text-sm font-medium'
+          : 'rounded-r80 bg-white/10 border border-white/20 px-4 py-8 text-center text-white/60 text-sm font-medium backdrop-blur-sm w-full max-w-[min(100%,42rem)]'
+        }
+        role="img"
+        aria-label={t('chart.ariaPanel')}>
+        {t('chart.empty')}
+      </div>
+    );
+  }
+
+  if (embedded && !advancedDetails) {
+    if (!productMerged || !productInsight || !viewWindow) {
+      return (
+        <div
+          ref={productWrapRef}
+          className="w-full min-w-0 relative rounded-r80-sm border border-white/10 bg-white/[0.04] px-3 py-4 sm:px-4 sm:py-5 space-y-4"
+          role="img"
+          aria-label={t('chart.ariaPanel')}>
+          <p className="text-white/75 text-sm font-semibold text-center leading-snug">
+            {t('chart.productNeedRates')}
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => setChartRange('1y')}
+              className={`rounded-r80-sm px-3 py-1.5 text-[0.65rem] font-extrabold uppercase tracking-wide border transition-colors ${
+                chartRange === '1y' ?
+                  'border-emerald-400/50 bg-emerald-500/20 text-emerald-100'
+                : 'border-white/18 bg-white/[0.06] text-white/65 hover:bg-white/10'
+              }`}>
+              {t('chart.range1y')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setChartRange('all')}
+              className={`rounded-r80-sm px-3 py-1.5 text-[0.65rem] font-extrabold uppercase tracking-wide border transition-colors ${
+                chartRange === 'all' ?
+                  'border-emerald-400/50 bg-emerald-500/20 text-emerald-100'
+                : 'border-white/18 bg-white/[0.06] text-white/65 hover:bg-white/10'
+              }`}>
+              {t('chart.rangeAll')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setAdvancedDetails(true)}
+              className="rounded-r80-sm px-3 py-1.5 text-[0.65rem] font-bold uppercase tracking-wide border border-violet-400/35 bg-violet-500/15 text-violet-100 hover:bg-violet-500/25">
+              {t('chart.advancedShow')}
+            </button>
+          </div>
+          {onOpenGrow ?
+            <div className="flex justify-center pt-1">
+              <button
+                type="button"
+                onClick={onOpenGrow}
+                className="text-[0.72rem] font-extrabold uppercase tracking-wide text-[#061018] bg-[var(--accent-money)] px-5 py-2.5 rounded-r80-sm hover:brightness-110">
+                {t('hero.ctaGrow')}
+              </button>
+            </div>
+          : null}
+        </div>
+      );
+    }
+
+    const { minV, maxV } = productYBounds;
+    const { tMin: ptMin, tMax: ptMax } = viewWindow;
+    const realPts = productMerged.points;
+    const trendPts = productInsight.trend;
+    const sym = productInsight.symbol;
+    const pct = productInsight.pctVsTrend;
+    const verdictKey =
+      pct > 2 ? 'above'
+      : pct < -2 ? 'below'
+      : 'neutral';
+    const verdictText =
+      verdictKey === 'above' ? t('chart.productAboveTrend')
+      : verdictKey === 'below' ?
+        t('chart.productBelowTrend', { pct: String(Math.round(Math.abs(pct))) })
+      : t('chart.productNeutralTrend');
+
+    const pathD = (pts: [number, number][]) =>
+      pts
+        .map(([tt, v], i) => {
+          const x = xScale(tt, ptMin, ptMax);
+          const y = yScaleSeries(v, minV, maxV);
+          return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
+        })
+        .join(' ');
+
+    const lastReal = realPts[realPts.length - 1]!;
+    const lastTrend = trendPts[trendPts.length - 1]!;
+    const lxR = xScale(lastReal[0], ptMin, ptMax);
+    const lyR = yScaleSeries(lastReal[1], minV, maxV);
+    const lxT = xScale(lastTrend[0], ptMin, ptMax);
+    const lyT = yScaleSeries(lastTrend[1], minV, maxV);
+
+    const gapTrend = productInsight.yEndActual - productInsight.yEndPred;
+
+    return (
+      <div
+        ref={productWrapRef}
+        className="w-full min-w-0 relative rounded-r80-sm border border-cyan-400/15 bg-gradient-to-b from-white/[0.07] to-transparent px-3 py-4 sm:px-5 sm:py-5 space-y-4"
+        role="img"
+        aria-label={t('chart.productAria')}>
+        <div className="text-center space-y-2 max-w-lg mx-auto">
+          <p className="text-emerald-200/90 text-[0.62rem] font-extrabold uppercase tracking-[0.14em]">
+            {t('chart.productKicker')}
+          </p>
+          <p className="text-white text-base sm:text-lg font-bold leading-snug px-1">
+            {verdictText}
+          </p>
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm tabular-nums pt-1">
+            <div className="text-left min-w-[7rem]">
+              <p className="text-white/40 text-[0.55rem] font-bold uppercase tracking-wider">
+                {t('chart.productNow')}
+              </p>
+              <p className="text-white font-black text-lg">
+                {sym}
+                {formatCompactAnnualChart(productInsight.yEndActual)}
+              </p>
+            </div>
+            <div className="text-left min-w-[7rem]">
+              <p className="text-white/40 text-[0.55rem] font-bold uppercase tracking-wider">
+                {t('chart.productTrendEnd')}
+              </p>
+              <p className="text-white/70 font-bold text-lg">
+                {sym}
+                {formatCompactAnnualChart(productInsight.yEndPred)}
+              </p>
+            </div>
+            <div className="text-left min-w-[7rem]">
+              <p className="text-white/40 text-[0.55rem] font-bold uppercase tracking-wider">
+                {t('chart.productGapTrend')}
+              </p>
+              <p
+                className={`font-black text-lg ${
+                  gapTrend >= 0 ? 'text-[var(--accent-money)]' : 'text-amber-200/90'
+                }`}>
+                {gapTrend >= 0 ? '+' : '−'}
+                {sym}
+                {formatCompactAnnualChart(Math.abs(gapTrend))}
+              </p>
+            </div>
+          </div>
+          {trajectoryHint ?
+            <div className="rounded-r80-sm border border-fuchsia-400/20 bg-fuchsia-500/[0.08] px-3 py-3 text-left max-w-md mx-auto">
+              <p className="text-fuchsia-200/80 text-[0.55rem] font-extrabold uppercase tracking-wider mb-2 text-center">
+                {t('chart.productTrajectoryLead')}
+              </p>
+              <div className="flex flex-wrap justify-between gap-2 text-xs tabular-nums text-white/85">
+                <span>
+                  {t('chart.productSteady12')}:{' '}
+                  <strong>
+                    {trajectoryHint.symbol}
+                    {formatCompactAnnualChart(trajectoryHint.y12)}
+                  </strong>
+                </span>
+                <span>
+                  {t('chart.productPlus20')}:{' '}
+                  <strong>
+                    {trajectoryHint.symbol}
+                    {formatCompactAnnualChart(trajectoryHint.y12plus)}
+                  </strong>
+                </span>
+              </div>
+              <p className="text-[var(--accent-money)] font-bold text-sm mt-2 text-center tabular-nums">
+                {trajectoryHint.deltaYear >= 0 ? '+' : '−'}
+                {trajectoryHint.symbol}
+                {formatCompactAnnualChart(Math.abs(trajectoryHint.deltaYear))}
+                <span className="text-white/45 font-medium text-[0.65rem] ml-1">
+                  {t('chart.productPerYearHint')}
+                </span>
+              </p>
+            </div>
+          : null}
+          <p className="text-white/32 text-[0.55rem] leading-snug px-2">
+            {t('chart.productDisclaimer')}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => setChartRange('1y')}
+            className={`rounded-r80-sm px-3 py-1.5 text-[0.65rem] font-extrabold uppercase tracking-wide border transition-colors ${
+              chartRange === '1y' ?
+                'border-emerald-400/50 bg-emerald-500/20 text-emerald-100'
+              : 'border-white/18 bg-white/[0.06] text-white/65 hover:bg-white/10'
+            }`}>
+            {t('chart.range1y')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setChartRange('all')}
+            className={`rounded-r80-sm px-3 py-1.5 text-[0.65rem] font-extrabold uppercase tracking-wide border transition-colors ${
+              chartRange === 'all' ?
+                'border-emerald-400/50 bg-emerald-500/20 text-emerald-100'
+              : 'border-white/18 bg-white/[0.06] text-white/65 hover:bg-white/10'
+            }`}>
+            {t('chart.rangeAll')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setAdvancedDetails(true)}
+            className="rounded-r80-sm px-3 py-1.5 text-[0.65rem] font-bold uppercase tracking-wide border border-violet-400/35 bg-violet-500/15 text-violet-100 hover:bg-violet-500/25">
+            {t('chart.advancedShow')}
+          </button>
+        </div>
+
+        <svg
+          ref={productSvgRef}
+          viewBox={`0 0 ${VB_W} ${VB_H}`}
+          className="w-full h-auto block mx-auto touch-none select-none"
+          style={{ maxHeight: 'clamp(12rem, min(36vh, 340px), 22rem)' }}
+          aria-hidden>
+          <defs>
+            <linearGradient id="product-fill-you" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={PRODUCT_YOU_LINE} stopOpacity="0.22" />
+              <stop offset="100%" stopColor={PRODUCT_YOU_LINE} stopOpacity="0.02" />
+            </linearGradient>
+          </defs>
+          <line
+            x1={PAD_L}
+            y1={y0}
+            x2={VB_W - PAD_R}
+            y2={y0}
+            stroke="rgba(255,255,255,0.2)"
+            strokeWidth="1"
+          />
+          <line
+            x1={PAD_L}
+            y1={PAD_T}
+            x2={PAD_L}
+            y2={y0}
+            stroke="rgba(255,255,255,0.15)"
+            strokeWidth="1"
+          />
+          {[0, 0.5, 1].map((frac) => (
+            <line
+              key={frac}
+              x1={PAD_L}
+              y1={PAD_T + plotH * (1 - frac)}
+              x2={VB_W - PAD_R}
+              y2={PAD_T + plotH * (1 - frac)}
+              stroke="rgba(255,255,255,0.06)"
+              strokeWidth="1"
+            />
+          ))}
+          {(() => {
+            const areaD =
+              `M ${xScale(realPts[0][0], ptMin, ptMax).toFixed(1)} ${y0.toFixed(1)} ` +
+              realPts
+                .map(([tt, v]) => {
+                  const x = xScale(tt, ptMin, ptMax);
+                  const y = yScaleSeries(v, minV, maxV);
+                  return `L ${x.toFixed(1)} ${y.toFixed(1)}`;
+                })
+                .join(' ') +
+              ` L ${xScale(realPts[realPts.length - 1][0], ptMin, ptMax).toFixed(1)} ${y0.toFixed(1)} Z`;
+            return <path d={areaD} fill="url(#product-fill-you)" />;
+          })()}
+          <path
+            d={pathD(trendPts)}
+            fill="none"
+            stroke={PRODUCT_TREND_LINE}
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d={pathD(realPts)}
+            fill="none"
+            stroke={PRODUCT_YOU_LINE}
+            strokeWidth="3.3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ filter: 'drop-shadow(0 0 10px rgba(52,211,153,0.35))' }}
+          />
+          <text
+            x={Math.min(lxR + 4, VB_W - PAD_R - 36)}
+            y={Math.max(lyR - 6, PAD_T + 10)}
+            fill="rgba(255,255,255,0.9)"
+            fontSize="9"
+            fontWeight="800"
+            fontFamily="inherit">
+            {t('chart.productYou')}
+          </text>
+          <text
+            x={Math.min(lxT + 4, VB_W - PAD_R - 40)}
+            y={Math.min(lyT + 14, y0 - 8)}
+            fill="rgba(255,255,255,0.45)"
+            fontSize="9"
+            fontWeight="700"
+            fontFamily="inherit">
+            {t('chart.productTrend')}
+          </text>
+          <text
+            x={PAD_L - 6}
+            y={PAD_T + 11}
+            fill="rgba(255,255,255,0.65)"
+            fontSize="10"
+            fontWeight="700"
+            textAnchor="end"
+            style={{ fontVariantNumeric: 'tabular-nums' }}>
+            {formatCompact(maxV)} {sym}
+          </text>
+          <text
+            x={PAD_L - 6}
+            y={y0 - 1}
+            fill="rgba(255,255,255,0.45)"
+            fontSize="9"
+            textAnchor="end"
+            style={{ fontVariantNumeric: 'tabular-nums' }}>
+            {formatCompact(minV)} {sym}
+          </text>
+          <rect
+            x={PAD_L}
+            y={PAD_T}
+            width={plotW}
+            height={plotH}
+            fill="transparent"
+            style={{ cursor: 'crosshair', touchAction: 'none' }}
+            onMouseMove={(e) => updateProductHover(e.clientX, e.clientY)}
+            onMouseLeave={handleProductLeave}
+            onTouchStart={(e) => {
+              const tt = e.touches[0];
+              if (tt) updateProductHover(tt.clientX, tt.clientY);
+            }}
+            onTouchMove={(e) => {
+              const tt = e.touches[0];
+              if (tt) updateProductHover(tt.clientX, tt.clientY);
+            }}
+            onTouchEnd={handleProductLeave}
+          />
+        </svg>
+
+        {productHover ?
+          <div
+            className="pointer-events-none absolute z-20 rounded-r80-sm border border-white/25 bg-black/85 px-2.5 py-2 text-[0.7rem] text-white shadow-xl backdrop-blur-md max-w-[min(16rem,calc(100%-1rem))]"
+            style={{
+              left: productHover.tipX,
+              top: productHover.tipY,
+              transform: 'translate(-50%, calc(-100% - 10px))'
+            }}>
+            <p className="font-bold text-white/90 mb-1 border-b border-white/12 pb-1">
+              {formatChartAxisDate(productHover.t, localeTag)}
+            </p>
+            <p className="text-emerald-200/95 font-semibold tabular-nums">
+              {t('chart.productYou')}: {sym}
+              {formatMoneyAmount(interpolateValueAtT(realPts, productHover.t), localeTag)}
+            </p>
+            <p className="text-white/55 font-medium tabular-nums mt-0.5">
+              {t('chart.productTrend')}: {sym}
+              {formatMoneyAmount(interpolateValueAtT(trendPts, productHover.t), localeTag)}
+            </p>
+          </div>
+        : null}
+
+        {onOpenGrow ?
+          <div className="flex justify-center pt-1">
+            <button
+              type="button"
+              onClick={onOpenGrow}
+              className="text-[0.72rem] font-extrabold uppercase tracking-wide text-[#061018] bg-[var(--accent-money)] px-6 py-3 rounded-r80-sm hover:brightness-110 shadow-[0_0_20px_rgba(0,255,160,0.2)]">
+              {t('chart.ctaGrow')}
+            </button>
+          </div>
+        : null}
+      </div>
+    );
+  }
 
   if (series.length === 0) {
     return (
@@ -612,6 +1259,10 @@ export function IncomeChart({
   const yAxisFxPct = focusSeries.kind === 'fxHist';
   const yAxisInfIdx = focusSeries.kind === 'infHist';
   const hasProjectFocus = series.some((s) => s.id.startsWith('proj-focus-'));
+  const chartFocusProject =
+    internalFocusId ?
+      projects.find((p) => p.id === internalFocusId) ?? null
+    : null;
 
   const shellClass = embedded ?
     'w-full min-w-0 relative rounded-r80-sm border border-transparent dark:border-cyan-400/18'
@@ -628,6 +1279,122 @@ export function IncomeChart({
         {t('chart.heading')}
       </p>
       }
+      {embedded && advancedDetails ?
+        <div className="space-y-2 mb-2 sm:mb-3">
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => setChartRange('1y')}
+              className={`rounded-r80-sm px-2.5 py-1.5 text-[0.6rem] font-extrabold uppercase tracking-wide border transition-colors ${
+                chartRange === '1y' ?
+                  'border-cyan-400/45 bg-cyan-500/20 text-cyan-50'
+                : 'border-white/16 bg-white/[0.06] text-white/60 hover:bg-white/10'
+              }`}>
+              {t('chart.range1y')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setChartRange('all')}
+              className={`rounded-r80-sm px-2.5 py-1.5 text-[0.6rem] font-extrabold uppercase tracking-wide border transition-colors ${
+                chartRange === 'all' ?
+                  'border-cyan-400/45 bg-cyan-500/20 text-cyan-50'
+                : 'border-white/16 bg-white/[0.06] text-white/60 hover:bg-white/10'
+              }`}>
+              {t('chart.rangeAll')}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAdvancedDetails(false);
+                setInternalFocusId(null);
+              }}
+              className="rounded-r80-sm px-2.5 py-1.5 text-[0.6rem] font-bold uppercase tracking-wide border border-white/20 bg-white/10 text-white/80 hover:bg-white/15">
+              {t('chart.advancedHide')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setAdvChartTall((v) => !v)}
+              aria-expanded={advChartTall}
+              className="inline-flex items-center gap-1 rounded-r80-sm border border-white/18 bg-white/[0.06] px-2 py-1.5 text-[0.58rem] font-bold uppercase tracking-wide text-white/75 hover:bg-white/10">
+              {advChartTall ?
+                <Minimize2 size={13} strokeWidth={2.4} aria-hidden />
+              : <Maximize2 size={13} strokeWidth={2.4} aria-hidden />}
+              {advChartTall ? t('chart.collapse') : t('chart.expand')}
+            </button>
+          </div>
+          <p className="text-white/38 text-[0.55rem] text-center px-1">
+            {compact ? t('chart.panelHintCompact') : t('chart.panelHint')}
+          </p>
+          <AnimatePresence mode="wait">
+            {chartFocusProject ?
+              <motion.div
+                key={chartFocusProject.id}
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                className="flex flex-wrap items-center justify-center gap-2">
+                <span className="inline-flex items-center gap-2 rounded-r80-sm border border-amber-200/30 bg-amber-400/10 pl-2.5 pr-1 py-1">
+                  <span
+                    className="h-2 w-2 rounded-none bg-amber-300"
+                    aria-hidden
+                  />
+                  <span className="text-[0.6rem] font-bold text-white/90 max-w-[min(11rem,45vw)] truncate">
+                    {chartFocusProject.name || t('chart.defaultProject')}
+                  </span>
+                  {projectIsEndedByDeadline(chartFocusProject, nowMs) ?
+                    <span className="text-[0.48rem] font-extrabold uppercase text-slate-200/95 px-1.5 py-0.5 rounded-r80-sm bg-slate-700/55 border border-white/12 shrink-0">
+                      {t('settings.contractEnded')}
+                    </span>
+                  : null}
+                </span>
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.94 }}
+                  onClick={() => setInternalFocusId(null)}
+                  className="inline-flex items-center gap-1 rounded-r80-sm border border-white/20 bg-white/10 px-2 py-1 text-[0.58rem] font-bold uppercase text-white/75 hover:text-white">
+                  <XIcon size={12} strokeWidth={2.5} aria-hidden />
+                  {t('chart.all')}
+                </motion.button>
+              </motion.div>
+            : null}
+          </AnimatePresence>
+          <div className="rounded-r80-sm border border-white/[0.09] bg-gradient-to-b from-white/[0.06] to-white/[0.02] px-2 py-2">
+            <p className="text-white/35 text-[0.52rem] font-bold uppercase tracking-[0.1em] px-1 mb-1">
+              {t('chart.projects')}
+            </p>
+            <div className="flex gap-2 overflow-x-auto pb-0.5 snap-x [scrollbar-width:thin]">
+              {projects.map((p) => {
+                const selected = internalFocusId === p.id;
+                const ended = projectIsEndedByDeadline(p, nowMs);
+                return (
+                  <motion.button
+                    key={p.id}
+                    type="button"
+                    whileTap={{ scale: 0.97 }}
+                    aria-pressed={selected}
+                    onClick={() =>
+                      setInternalFocusId((prev) => (prev === p.id ? null : p.id))
+                    }
+                    className={`snap-start shrink-0 min-w-[5.5rem] max-w-[9rem] rounded-r80-sm border px-2 py-1.5 text-left transition-colors ${
+                      selected ?
+                        'border-amber-300/50 bg-amber-400/15 shadow-[inset_0_0_0_1px_rgba(253,224,71,0.2)]'
+                      : 'border-white/12 bg-black/20 hover:border-white/22 hover:bg-white/[0.06]'
+                    }`}>
+                    <span className="block text-[0.58rem] font-bold text-white/88 truncate">
+                      {p.name || t('chart.defaultProject')}
+                    </span>
+                    {ended ?
+                      <span className="text-[0.48rem] text-amber-200/80 font-semibold">
+                        {t('settings.contractEnded')}
+                      </span>
+                    : null}
+                  </motion.button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      : null}
       <svg
         ref={svgRef}
         viewBox={`0 0 ${VB_W} ${VB_H}`}

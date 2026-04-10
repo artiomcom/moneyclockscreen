@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  SettingsIcon,
   CalendarIcon,
   PlusIcon,
   Trash2Icon,
@@ -1039,8 +1038,51 @@ export function MoneyClock() {
 
   }, [profileBundle, clearProfileBundle, t]);
 
+  const appLocalesSortedByLabel = useMemo(
+    () =>
+      [...APP_LOCALES].sort((a, b) =>
+        t(`lang.${a}`).localeCompare(t(`lang.${b}`), intlLocaleTag[locale], {
+          sensitivity: 'base',
+          numeric: true
+        })
+      ),
+    [locale, t]
+  );
+
   const settingsForm = (
     <>
+      <div className="flex flex-col sm:flex-row sm:items-end gap-3 mb-5 pb-5 border-b border-gray-200 dark:border-cyan-900/50">
+        <div className="flex-1 flex flex-col gap-1.5 min-w-0">
+          <label
+            className="text-gray-700 dark:text-cyan-100/90 text-sm font-bold text-center"
+            htmlFor="moneyclock-locale-select-settings">
+            {t('lang.selectAria')}
+          </label>
+          <select
+            id="moneyclock-locale-select-settings"
+            value={locale}
+            onChange={(e) => setLocale(e.target.value as AppLocale)}
+            aria-label={t('lang.selectAria')}
+            className="w-full px-4 py-3.5 rounded-r80-sm border-2 border-sky-400 text-gray-700 dark:border-cyan-500/60 dark:bg-slate-950 dark:text-cyan-50 text-base font-medium outline-none transition-all focus:ring-2 focus:ring-sky-300 dark:focus:ring-cyan-500 bg-white">
+            {appLocalesSortedByLabel.map((loc) =>
+              <option key={loc} value={loc}>
+                {t(`lang.${loc}`)}
+              </option>
+            )}
+          </select>
+        </div>
+        <motion.button
+          type="button"
+          onClick={() => setTheme((th) => (th === 'dark' ? 'light' : 'dark'))}
+          whileTap={{ scale: 0.96 }}
+          aria-label={theme === 'dark' ? t('theme.lightAria') : t('theme.darkAria')}
+          className="shrink-0 w-full sm:w-14 h-14 rounded-r80-sm flex items-center justify-center bg-gray-100 text-gray-800 border-2 border-gray-200 dark:bg-slate-800 dark:text-amber-200 dark:border-cyan-600/40">
+          {theme === 'dark' ?
+            <Sun size={26} className="text-amber-400" strokeWidth={2.2} />
+          : <Moon size={26} className="text-slate-600" strokeWidth={2.2} />}
+        </motion.button>
+      </div>
+
       <motion.h2
         className="text-gray-800 dark:text-fuchsia-200/95 text-2xl font-black text-center tracking-tight mb-1">
         {t('settings.projectsTitle')}
@@ -1443,43 +1485,6 @@ export function MoneyClock() {
       <ParticleBackground arcade={theme === 'dark'} />
 
       <div className="relative z-10 flex-1 w-full max-w-[min(100%,96rem)] mx-auto px-5 pt-6 pb-10 flex flex-col min-h-0">
-        <header className="flex items-center justify-end gap-2 shrink-0 mb-4">
-          <label className="sr-only" htmlFor="moneyclock-locale-select">
-            {t('lang.selectAria')}
-          </label>
-          <select
-            id="moneyclock-locale-select"
-            value={locale}
-            onChange={(e) => setLocale(e.target.value as AppLocale)}
-            aria-label={t('lang.selectAria')}
-            className="rounded-r80-sm border border-white/15 bg-black/35 text-white text-xs font-extrabold uppercase tracking-wide px-2 py-2 mr-1 max-w-[4.5rem] sm:max-w-[6rem] cursor-pointer outline-none focus:ring-2 focus:ring-white/30">
-            {APP_LOCALES.map((loc) =>
-              <option key={loc} className="text-gray-900" value={loc}>
-                {t(`lang.${loc}`)}
-              </option>
-            )}
-          </select>
-          <motion.button
-            type="button"
-            onClick={() => setTheme((th) => (th === 'dark' ? 'light' : 'dark'))}
-            whileTap={{ scale: 0.92 }}
-            aria-label={theme === 'dark' ? t('theme.lightAria') : t('theme.darkAria')}
-            className="w-14 h-14 rounded-r80 bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg border border-white/10 dark:bg-cyan-500/10 dark:border-cyan-400/45 dark:shadow-[0_0_20px_rgba(0,255,255,0.25)]">
-            {theme === 'dark' ?
-              <Sun size={26} className="text-amber-200" strokeWidth={2.2} />
-            : <Moon size={26} className="text-white" strokeWidth={2.2} />}
-          </motion.button>
-          <motion.button
-            type="button"
-            onClick={() => setSettingsOpen(true)}
-            whileTap={{ scale: 0.92 }}
-            aria-label={t('settings.aria')}
-            aria-expanded={settingsOpen}
-            className="w-14 h-14 rounded-r80 bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg border border-white/10 dark:bg-fuchsia-950/40 dark:border-fuchsia-400/40 dark:shadow-[0_0_18px_rgba(255,0,255,0.2)]">
-            <SettingsIcon size={26} className="text-white dark:text-fuchsia-100" strokeWidth={2} />
-          </motion.button>
-        </header>
-
         <div className="flex-1 flex flex-col justify-center py-6 sm:py-8 w-full min-h-0">
           <div className="relative w-full max-w-4xl xl:max-w-5xl mx-auto px-1 sm:px-2 pt-6 sm:pt-9 pb-11 sm:pb-14">
             <motion.div

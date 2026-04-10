@@ -3,6 +3,8 @@
  * Процентиль — не опрос населения, а позиция на упрощённой лог-шкале EUR-якорей.
  */
 
+import type { AppLocale } from './i18n/localeStorage';
+
 const SECONDS_PER_YEAR = 365.25 * 86400;
 
 /** Условные ступени годового дохода (EUR, брутто-ордер) → демо-процентиль на кривой */
@@ -63,10 +65,9 @@ export type MoneyAwarenessSharePayload = {
   appLabel?: string;
 };
 
-export function buildMoneyAwarenessShareLines(p: MoneyAwarenessSharePayload): {
-  ru: string;
-  en: string;
-} {
+export function buildMoneyAwarenessShareLines(
+  p: MoneyAwarenessSharePayload
+): Record<AppLocale, string> {
   const sym = p.currencySymbol;
   const code = p.currencyCode;
   const r = p.ratePerSec;
@@ -75,33 +76,50 @@ export function buildMoneyAwarenessShareLines(p: MoneyAwarenessSharePayload): {
   const app = p.appLabel ?? 'MoneyClock';
   const pct = p.demoPercentile;
 
-  const ru =
-    pct != null ?
-      [
-        `💸 ${app}: мой темп +${sym}${rf}/сек (~${sym}${perMin}/мин) в ${code}.`,
-        `📊 Демо-шкала (не опрос людей): выше ~${pct}% условных «ступеней» EUR-дохода.`,
-        ``,
-        `Оценка для осознанности, не финсовет.`
-      ].join('\n')
-    : [
-        `💸 ${app}: мой темп +${sym}${rf}/сек (~${sym}${perMin}/мин) в ${code}.`,
-        ``,
-        `Оценка для осознанности, не финсовет.`
-      ].join('\n');
+  const line1: Record<AppLocale, string> = {
+    en: `💸 ${app}: I'm earning ~+${sym}${rf}/sec (~${sym}${perMin}/min) in ${code}.`,
+    ru: `💸 ${app}: мой темп +${sym}${rf}/сек (~${sym}${perMin}/мин) в ${code}.`,
+    es: `💸 ${app}: mi ritmo +${sym}${rf}/s (~${sym}${perMin}/min) en ${code}.`,
+    fr: `💸 ${app}: mon rythme +${sym}${rf}/s (~${sym}${perMin}/min) en ${code}.`,
+    de: `💸 ${app}: mein Tempo +${sym}${rf}/s (~${sym}${perMin}/Min.) in ${code}.`,
+    zh: `💸 ${app}：我的节奏 +${sym}${rf}/秒（约 ${sym}${perMin}/分钟），${code}。`,
+    ja: `💸 ${app}: ペース +${sym}${rf}/秒（約 ${sym}${perMin}/分）、${code}。`,
+    pt: `💸 ${app}: meu ritmo +${sym}${rf}/s (~${sym}${perMin}/min) em ${code}.`
+  };
 
-  const en =
-    pct != null ?
-      [
-        `💸 ${app}: I'm earning ~+${sym}${rf}/sec (~${sym}${perMin}/min) in ${code}.`,
-        `📊 Demo ladder (not a real survey): above ~${pct}% of illustrative EUR income rungs.`,
-        ``,
-        `#MoneyClock #moneyawareness — awareness only, not advice.`
-      ].join('\n')
-    : [
-        `💸 ${app}: I'm earning ~+${sym}${rf}/sec (~${sym}${perMin}/min) in ${code}.`,
-        ``,
-        `#MoneyClock #moneyawareness — awareness only, not advice.`
-      ].join('\n');
+  const ladder: Record<AppLocale, string | null> =
+    pct == null ?
+      { en: null, ru: null, es: null, fr: null, de: null, zh: null, ja: null, pt: null }
+    : {
+        en: `📊 Demo ladder (not a real survey): above ~${pct}% of illustrative EUR income rungs.`,
+        ru: `📊 Демо-шкала (не опрос людей): выше ~${pct}% условных «ступеней» EUR-дохода.`,
+        es: `📊 Escala demo (no es una encuesta real): por encima del ~${pct}% en peldaños ilustrativos de ingreso en EUR.`,
+        fr: `📊 Échelle démo (pas un vrai sondage) : au-dessus de ~${pct}% des barres illustratives de revenu en EUR.`,
+        de: `📊 Demo-Leiter (keine echte Umfrage): über ~${pct}% der illustrativen EUR-Einkommensstufen.`,
+        zh: `📊 演示阶梯（非真实调查）：高于约 ${pct}% 的示意性 EUR 收入档位。`,
+        ja: `📊 デモラダー（実調査ではありません）：EUR 収入の示意段階で約上位 ${pct}%。`,
+        pt: `📊 Escala demo (não é pesquisa real): acima de ~${pct}% dos degraus ilustrativos de renda em EUR.`
+      };
 
-  return { ru, en };
+  const footer: Record<AppLocale, string> = {
+    en: `#MoneyClock #moneyawareness — awareness only, not advice.`,
+    ru: `Оценка для осознанности, не финсовет.`,
+    es: `#MoneyClock #moneyawareness — solo contexto, no asesoramiento.`,
+    fr: `#MoneyClock #moneyawareness — prise de conscience seulement, pas un conseil.`,
+    de: `#MoneyClock #moneyawareness — nur zur Einordnung, keine Beratung.`,
+    zh: `#MoneyClock #moneyawareness — 仅供认知参考，非理财建议。`,
+    ja: `#MoneyClock #moneyawareness — 認識用であり助言ではありません。`,
+    pt: `#MoneyClock #moneyawareness — só para reflexão, não é aconselhamento.`
+  };
+
+  const locales: AppLocale[] = ['en', 'ru', 'es', 'fr', 'de', 'zh', 'ja', 'pt'];
+  const out = {} as Record<AppLocale, string>;
+  for (const loc of locales) {
+    const mid = ladder[loc];
+    out[loc] =
+      mid != null ?
+        [line1[loc], mid, '', footer[loc]].join('\n')
+      : [line1[loc], '', footer[loc]].join('\n');
+  }
+  return out;
 }

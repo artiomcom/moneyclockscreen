@@ -83,7 +83,8 @@ import {
   type ThemePreference
 } from '../themeStorage';
 import { useI18n } from '../i18n';
-import type { AppLocale } from '../i18n/localeStorage';
+import { intlLocaleTag } from '../i18n/localeMeta';
+import { APP_LOCALES, type AppLocale } from '../i18n/localeStorage';
 function InputField({
   label,
   value,
@@ -118,7 +119,7 @@ function InputField({
 
 function formatYmdLong(ymd: string, locale: AppLocale): string {
   const ts = parseLocalDateYmd(ymd);
-  const tag = locale === 'ru' ? 'ru-RU' : 'en-US';
+  const tag = intlLocaleTag[locale];
   return ts != null ?
   new Date(ts).toLocaleDateString(tag, {
     day: 'numeric',
@@ -126,6 +127,13 @@ function formatYmdLong(ymd: string, locale: AppLocale): string {
     year: 'numeric'
   }) :
   ymd;
+}
+
+function currencyOptionLabel(
+  c: (typeof MONEYCLOCK_CURRENCIES)[number],
+  locale: AppLocale
+): string {
+  return locale === 'ru' ? c.labelRu : c.labelEn;
 }
 
 function formatCompactAnnual(n: number): string {
@@ -723,12 +731,13 @@ export function MoneyClock() {
 
   const handleShareMoneyAwareness = useCallback(async () => {
     if (!moneyAwarenessSnap) return;
-    const combined = `${moneyAwarenessSnap.lines.en}\n\n---\n\n${moneyAwarenessSnap.lines.ru}`;
+    const text =
+      moneyAwarenessSnap.lines[locale] ?? moneyAwarenessSnap.lines.en;
     if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       try {
         await navigator.share({
           title: 'MoneyClock',
-          text: moneyAwarenessSnap.lines.en
+          text
         });
         return;
       } catch (e) {
@@ -736,28 +745,23 @@ export function MoneyClock() {
       }
     }
     try {
-      await navigator.clipboard.writeText(combined);
+      await navigator.clipboard.writeText(text);
       showAwarenessToast(t('awareness.copied'));
     } catch {
       showAwarenessToast(t('awareness.copyFail'));
     }
-  }, [moneyAwarenessSnap, showAwarenessToast, t]);
+  }, [moneyAwarenessSnap, locale, showAwarenessToast, t]);
 
-  const handleCopyAwareness = useCallback(
-    async (lang: 'en' | 'ru') => {
-      if (!moneyAwarenessSnap) return;
-      const clip = lang === 'en' ? moneyAwarenessSnap.lines.en : moneyAwarenessSnap.lines.ru;
-      try {
-        await navigator.clipboard.writeText(clip);
-        showAwarenessToast(
-          lang === 'en' ? t('awareness.clipboardEn') : t('awareness.clipboardRu')
-        );
-      } catch {
-        showAwarenessToast(t('awareness.clipboardErr'));
-      }
-    },
-    [moneyAwarenessSnap, showAwarenessToast, t]
-  );
+  const handleCopyAwareness = useCallback(async () => {
+    if (!moneyAwarenessSnap) return;
+    const clip = moneyAwarenessSnap.lines[locale] ?? moneyAwarenessSnap.lines.en;
+    try {
+      await navigator.clipboard.writeText(clip);
+      showAwarenessToast(t('awareness.copied'));
+    } catch {
+      showAwarenessToast(t('awareness.clipboardErr'));
+    }
+  }, [moneyAwarenessSnap, locale, showAwarenessToast, t]);
 
   const projectEndedInfo = useMemo(() => {
     const p = singleSelectedForCopy;
@@ -1080,7 +1084,7 @@ export function MoneyClock() {
             className="w-full px-4 py-3.5 rounded-r80-sm border-2 border-sky-400 text-gray-700 dark:border-cyan-500/60 dark:bg-slate-950 dark:text-cyan-50 text-base font-medium outline-none transition-all focus:ring-2 focus:ring-sky-300 dark:focus:ring-cyan-500 bg-white">
             {MONEYCLOCK_CURRENCIES.map((c) =>
             <option key={c.code} value={c.code}>
-                {locale === 'ru' ? c.labelRu : c.labelEn}
+                {currencyOptionLabel(c, locale)}
               </option>
             )}
           </select>
@@ -1209,7 +1213,7 @@ export function MoneyClock() {
                   className="w-full px-4 py-3.5 rounded-r80-sm border-2 border-sky-400 text-gray-700 dark:border-cyan-500/60 dark:bg-slate-950 dark:text-cyan-50 text-base font-medium outline-none transition-all focus:ring-2 focus:ring-sky-300 dark:focus:ring-cyan-500 bg-white">
                   {MONEYCLOCK_CURRENCIES.map((c) =>
                   <option key={c.code} value={c.code}>
-                      {locale === 'ru' ? c.labelRu : c.labelEn}
+                      {currencyOptionLabel(c, locale)}
                     </option>
                   )}
                 </select>
@@ -1440,32 +1444,21 @@ export function MoneyClock() {
 
       <div className="relative z-10 flex-1 w-full max-w-[min(100%,96rem)] mx-auto px-5 pt-6 pb-10 flex flex-col min-h-0">
         <header className="flex items-center justify-end gap-2 shrink-0 mb-4">
-          <div className="flex items-center rounded-r80-sm border border-white/15 bg-black/20 p-0.5 mr-1">
-            <motion.button
-              type="button"
-              onClick={() => setLocale('en')}
-              whileTap={{ scale: 0.95 }}
-              aria-pressed={locale === 'en'}
-              className={`px-2.5 py-1.5 rounded-r80-sm text-xs font-extrabold uppercase tracking-wide transition-colors ${
-                locale === 'en' ?
-                  'bg-white/20 text-white'
-                : 'text-white/55 hover:text-white/85'
-              }`}>
-              {t('lang.en')}
-            </motion.button>
-            <motion.button
-              type="button"
-              onClick={() => setLocale('ru')}
-              whileTap={{ scale: 0.95 }}
-              aria-pressed={locale === 'ru'}
-              className={`px-2.5 py-1.5 rounded-r80-sm text-xs font-extrabold uppercase tracking-wide transition-colors ${
-                locale === 'ru' ?
-                  'bg-white/20 text-white'
-                : 'text-white/55 hover:text-white/85'
-              }`}>
-              {t('lang.ru')}
-            </motion.button>
-          </div>
+          <label className="sr-only" htmlFor="moneyclock-locale-select">
+            {t('lang.selectAria')}
+          </label>
+          <select
+            id="moneyclock-locale-select"
+            value={locale}
+            onChange={(e) => setLocale(e.target.value as AppLocale)}
+            aria-label={t('lang.selectAria')}
+            className="rounded-r80-sm border border-white/15 bg-black/35 text-white text-xs font-extrabold uppercase tracking-wide px-2 py-2 mr-1 max-w-[4.5rem] sm:max-w-[6rem] cursor-pointer outline-none focus:ring-2 focus:ring-white/30">
+            {APP_LOCALES.map((loc) =>
+              <option key={loc} className="text-gray-900" value={loc}>
+                {t(`lang.${loc}`)}
+              </option>
+            )}
+          </select>
           <motion.button
             type="button"
             onClick={() => setTheme((th) => (th === 'dark' ? 'light' : 'dark'))}
@@ -2013,15 +2006,12 @@ export function MoneyClock() {
                     <>
                       {' '}
                       ·{' '}
-                      {new Date(fxSnapshot.updatedUtc).toLocaleString(
-                        locale === 'ru' ? 'ru-RU' : 'en-US',
-                        {
+                      {new Date(fxSnapshot.updatedUtc).toLocaleString(intlLocaleTag[locale], {
                         day: 'numeric',
                         month: 'short',
                         hour: '2-digit',
                         minute: '2-digit'
-                      }
-                      )}
+                      })}
                     </>
                   : null}{' '}
                   <a
@@ -2283,18 +2273,10 @@ export function MoneyClock() {
                       <motion.button
                         type="button"
                         whileTap={{ scale: 0.96 }}
-                        onClick={() => void handleCopyAwareness('en')}
+                        onClick={() => void handleCopyAwareness()}
                         className="inline-flex items-center gap-1.5 rounded-r80-sm border border-white/20 bg-white/10 px-3 py-2 text-[0.6rem] sm:text-[0.62rem] font-bold text-white/85 hover:bg-white/16 transition-colors">
                         <Copy size={14} strokeWidth={2.2} className="opacity-85" aria-hidden />
-                        {t('lang.en')}
-                      </motion.button>
-                      <motion.button
-                        type="button"
-                        whileTap={{ scale: 0.96 }}
-                        onClick={() => void handleCopyAwareness('ru')}
-                        className="inline-flex items-center gap-1.5 rounded-r80-sm border border-white/20 bg-white/10 px-3 py-2 text-[0.6rem] sm:text-[0.62rem] font-bold text-white/85 hover:bg-white/16 transition-colors">
-                        <Copy size={14} strokeWidth={2.2} className="opacity-85" aria-hidden />
-                        {t('lang.ru')}
+                        {t('awareness.copyCurrent')}
                       </motion.button>
                     </div>
                     {awarenessToast ?

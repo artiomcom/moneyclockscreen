@@ -25,6 +25,7 @@ import {
   inflationIndexSeriesPoints,
   type BlendedInflationYear
 } from '../worldBankInflation';
+import { intlLocaleTag } from '../i18n/localeMeta';
 
 export const INCOME_CHART_STEPS = 64;
 const STEPS = INCOME_CHART_STEPS;
@@ -607,7 +608,7 @@ export function IncomeChart({
   onOpenGrow?: () => void;
 }) {
   const { t, locale } = useI18n();
-  const localeTag = locale === 'ru' ? 'ru-RU' : 'en-US';
+  const localeTag = intlLocaleTag[locale];
   const [chartRange, setChartRange] = useState<'1y' | 'all'>('all');
   const [advancedDetails, setAdvancedDetails] = useState(false);
   const [internalFocusId, setInternalFocusId] = useState<string | null>(null);
@@ -698,7 +699,7 @@ export function IncomeChart({
       chartLabels,
       viewWindow
     );
-    let nextSeries = [...base.series];
+    const nextSeries = [...base.series];
     const quotes = frankfurterQuoteCurrencies(projects, balanceCurrency);
     const hist =
       fxHistoryRows &&

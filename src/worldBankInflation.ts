@@ -1,3 +1,4 @@
+import type { AppLocale } from './i18n/localeStorage';
 import { normalizeCurrencyCode } from './moneyClockPersistence';
 
 /**
@@ -274,14 +275,27 @@ export function inflationIndexSeriesPoints(
   return points;
 }
 
-export function inflationChartLabel(
-  currencies: string[],
-  locale: 'en' | 'ru' = 'en'
-): string {
+export function inflationChartLabel(currencies: string[], locale: AppLocale = 'en'): string {
   const uniq = [...new Set(currencies.map((c) => normalizeCurrencyCode(c)))].sort();
   const short = uniq.slice(0, 4).join(', ');
   const more = uniq.length > 4 ? ` +${uniq.length - 4}` : '';
-  return locale === 'ru' ?
-      `Инфляция CPI (средн., ${short}${more}) · индекс 100 = начало года старта`
-    : `Inflation CPI (blend, ${short}${more}) · index 100 = start year Jan 1`;
+  const tail = `${short}${more}`;
+  switch (locale) {
+    case 'ru':
+      return `Инфляция CPI (средн., ${tail}) · индекс 100 = начало года старта`;
+    case 'es':
+      return `Inflación IPC (media, ${tail}) · índice 100 = 1 ene. del año inicial`;
+    case 'fr':
+      return `Inflation IPC (moyenne, ${tail}) · indice 100 = 1er jan. année de début`;
+    case 'de':
+      return `Inflation VPI (Mischung, ${tail}) · Index 100 = 1. Jan. Startjahr`;
+    case 'zh':
+      return `通胀 CPI（混合，${tail}）· 指数100 = 起始年1月1日`;
+    case 'ja':
+      return `インフレ CPI（ブレンド、${tail}）· 指数100 = 開始年1月1日`;
+    case 'pt':
+      return `Inflação IPC (média, ${tail}) · índice 100 = 1º jan. do ano inicial`;
+    default:
+      return `Inflation CPI (blend, ${tail}) · index 100 = start year Jan 1`;
+  }
 }

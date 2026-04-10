@@ -8,9 +8,16 @@ import React, {
 } from 'react';
 import { en } from './en';
 import { ru } from './ru';
+import { es } from './es';
+import { fr } from './fr';
+import { de } from './de';
+import { zh } from './zh';
+import { ja } from './ja';
+import { pt } from './pt';
 import { readStoredLocale, writeStoredLocale, type AppLocale } from './localeStorage';
+import { htmlLang } from './localeMeta';
 
-const DICTS: Record<AppLocale, Record<string, string>> = { en, ru };
+const DICTS: Record<AppLocale, Record<string, string>> = { en, ru, es, fr, de, zh, ja, pt };
 
 export type TranslateFn = (
   key: string,
@@ -43,7 +50,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    document.documentElement.lang = locale === 'ru' ? 'ru' : 'en';
+    document.documentElement.lang = htmlLang[locale];
   }, [locale]);
 
   const t = useCallback<TranslateFn>(

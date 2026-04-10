@@ -1,3 +1,4 @@
+import type { AppLocale } from './i18n/localeStorage';
 import { normalizeCurrencyCode, type ProjectEntry } from './moneyClockPersistence';
 
 export type FrankfurterRow = {
@@ -179,7 +180,7 @@ export function buildRelativeFxIndexSeries(
   tMin: number,
   tMax: number,
   steps: number,
-  locale: 'en' | 'ru' = 'en'
+  locale: AppLocale = 'en'
 ): { label: string; points: [number, number][] } | null {
   const base = normalizeCurrencyCode(baseRaw);
   const quotes = [...new Set(quoteCodes.map((c) => normalizeCurrencyCode(c)))].filter(
@@ -225,14 +226,53 @@ export function buildRelativeFxIndexSeries(
     points.push([t, sum / n]);
   }
 
-  const label =
-    locale === 'ru' ?
-      quotes.length === 1 ?
-        `Курс ${quotes[0]}/${base} (индекс, 100% = старт графика)`
-      : `Курс средн. индекс ${quotes.join(', ')}/${base}`
-    : quotes.length === 1 ?
-      `FX ${quotes[0]}/${base} (index, 100% = chart start)`
-    : `FX mean index ${quotes.join(', ')}/${base}`;
+  const qList = quotes.join(', ');
+  const label = (() => {
+    const single = (templates: { one: string; many: string }) =>
+      quotes.length === 1 ? templates.one : templates.many;
+    switch (locale) {
+      case 'ru':
+        return single({
+          one: `Курс ${quotes[0]}/${base} (индекс, 100% = старт графика)`,
+          many: `Курс средн. индекс ${qList}/${base}`
+        });
+      case 'es':
+        return single({
+          one: `Tipo ${quotes[0]}/${base} (índice, 100% = inicio del gráfico)`,
+          many: `Tipo índice medio ${qList}/${base}`
+        });
+      case 'fr':
+        return single({
+          one: `Taux ${quotes[0]}/${base} (indice, 100% = début du graphique)`,
+          many: `Taux indice moyen ${qList}/${base}`
+        });
+      case 'de':
+        return single({
+          one: `Kurs ${quotes[0]}/${base} (Index, 100% = Diagrammstart)`,
+          many: `Kurs Mittelindex ${qList}/${base}`
+        });
+      case 'zh':
+        return single({
+          one: `汇率 ${quotes[0]}/${base}（指数，100% = 图表起点）`,
+          many: `汇率平均指数 ${qList}/${base}`
+        });
+      case 'ja':
+        return single({
+          one: `為替 ${quotes[0]}/${base}（指数、100% = チャート開始）`,
+          many: `為替平均指数 ${qList}/${base}`
+        });
+      case 'pt':
+        return single({
+          one: `Câmbio ${quotes[0]}/${base} (índice, 100% = início do gráfico)`,
+          many: `Câmbio índice médio ${qList}/${base}`
+        });
+      default:
+        return single({
+          one: `FX ${quotes[0]}/${base} (index, 100% = chart start)`,
+          many: `FX mean index ${qList}/${base}`
+        });
+    }
+  })();
 
   return { label, points };
 }

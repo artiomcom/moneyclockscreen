@@ -2,6 +2,13 @@
 export const ru: Record<string, string> = {
   'lang.en': 'EN',
   'lang.ru': 'RU',
+  'lang.es': 'ES',
+  'lang.fr': 'FR',
+  'lang.de': 'DE',
+  'lang.zh': 'ZH',
+  'lang.ja': 'JA',
+  'lang.pt': 'PT',
+  'lang.selectAria': 'Язык интерфейса',
 
   'theme.lightAria': 'Светлая тема',
   'theme.darkAria': 'Тёмная тема',
@@ -162,9 +169,8 @@ export const ru: Record<string, string> = {
   'awareness.share': 'Поделиться',
   'awareness.copied': 'Скопировано в буфер обмена',
   'awareness.copyFail': 'Не удалось скопировать',
-  'awareness.clipboardEn': 'Английский — в буфере',
-  'awareness.clipboardRu': 'Русский — в буфере',
   'awareness.clipboardErr': 'Ошибка копирования',
+  'awareness.copyCurrent': 'Копировать текст для шаринга',
 
   'dates.start': 'Начало:',
   'dates.end': 'Окончание:',

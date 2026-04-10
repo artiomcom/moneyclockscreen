@@ -17,15 +17,17 @@ describe('moneyAwareness', () => {
   });
 
   it('buildMoneyAwarenessShareLines включает ставку и процентиль', () => {
-    const { ru, en } = buildMoneyAwarenessShareLines({
+    const lines = buildMoneyAwarenessShareLines({
       ratePerSec: 0.004,
       currencySymbol: '€',
       currencyCode: 'EUR',
       demoPercentile: 72
     });
-    expect(ru).toContain('0.004');
-    expect(ru).toContain('72');
-    expect(en).toMatch(/sec/i);
-    expect(en).toContain('72');
+    expect(lines.ru).toContain('0.004');
+    expect(lines.ru).toContain('72');
+    expect(lines.en).toMatch(/sec/i);
+    expect(lines.en).toContain('72');
+    expect(lines.es).toContain('0.004');
+    expect(lines.zh).toContain('72');
   });
 });

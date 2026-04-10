@@ -2,6 +2,13 @@
 export const en: Record<string, string> = {
   'lang.en': 'EN',
   'lang.ru': 'RU',
+  'lang.es': 'ES',
+  'lang.fr': 'FR',
+  'lang.de': 'DE',
+  'lang.zh': 'ZH',
+  'lang.ja': 'JA',
+  'lang.pt': 'PT',
+  'lang.selectAria': 'Interface language',
 
   'theme.lightAria': 'Light theme',
   'theme.darkAria': 'Dark theme',
@@ -160,9 +167,8 @@ export const en: Record<string, string> = {
   'awareness.share': 'Share',
   'awareness.copied': 'Copied to clipboard',
   'awareness.copyFail': 'Could not copy',
-  'awareness.clipboardEn': 'English copied to clipboard',
-  'awareness.clipboardRu': 'Russian copied to clipboard',
   'awareness.clipboardErr': 'Copy failed',
+  'awareness.copyCurrent': 'Copy share text',
 
   'dates.start': 'Start:',
   'dates.end': 'End:',

@@ -1,22 +1,3 @@
-const LS_KEY = 'moneyclock-debug-history';
-
-function envFlagOn(): boolean {
-  const v = import.meta.env.VITE_DEBUG_HISTORY;
-  if (typeof v !== 'string') return false;
-  const u = v.trim().toLowerCase();
-  return u === '1' || u === 'true' || u === 'yes';
-}
-
-/** Включается: `localStorage.setItem('moneyclock-debug-history','1'); location.reload()` или `VITE_DEBUG_HISTORY=1` в сборке. */
-export function isHistoryNavigationLoggingEnabled(): boolean {
-  if (envFlagOn()) return true;
-  try {
-    return localStorage.getItem(LS_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
 let installed = false;
 
 /**
@@ -27,11 +8,6 @@ export function installHistoryNavigationLogging(): void {
   if (typeof window === 'undefined' || typeof history === 'undefined') return;
   if (installed) return;
   installed = true;
-  if (!isHistoryNavigationLoggingEnabled()) return;
-
-  console.warn(
-    `[MoneyClock] Логирование History API включено. Выключить: localStorage.removeItem('${LS_KEY}'); location.reload()`
-  );
 
   const push = history.pushState.bind(history);
   const replace = history.replaceState.bind(history);

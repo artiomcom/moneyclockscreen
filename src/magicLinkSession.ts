@@ -1,5 +1,4 @@
 import { parseMagicLinkPath } from './cloudBackupApi';
-import { isHistoryNavigationLoggingEnabled } from './historyNavigationLogging';
 
 const KEY = 'mc_magic_link_id';
 
@@ -9,12 +8,10 @@ export function captureMagicLinkIdFromUrlToSession(): void {
     const id = parseMagicLinkPath(window.location.pathname);
     if (id) {
       sessionStorage.setItem(KEY, id);
-      if (isHistoryNavigationLoggingEnabled()) {
-        console.warn('[MoneyClock] magic link → sessionStorage', {
-          id,
-          pathname: window.location.pathname
-        });
-      }
+      console.warn('[MoneyClock] magic link → sessionStorage', {
+        id,
+        pathname: window.location.pathname
+      });
     }
   } catch {
     /* ignore */
@@ -60,14 +57,12 @@ export function ensureMagicLinkInAddressBar(id: string): void {
   };
   const fix = (): void => {
     try {
-      if (isHistoryNavigationLoggingEnabled()) {
-        console.warn('[MoneyClock] ensureMagicLinkInAddressBar', {
-          id,
-          pathname: window.location.pathname,
-          href: window.location.href,
-          alreadyMatches: pathMatches()
-        });
-      }
+      console.warn('[MoneyClock] ensureMagicLinkInAddressBar', {
+        id,
+        pathname: window.location.pathname,
+        href: window.location.href,
+        alreadyMatches: pathMatches()
+      });
       if (pathMatches()) return;
       window.history.replaceState(window.history.state ?? null, '', fullUrl);
     } catch {

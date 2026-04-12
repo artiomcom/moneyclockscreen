@@ -104,7 +104,6 @@ import {
   clearMagicLinkSession,
   ensureMagicLinkInAddressBar
 } from '../magicLinkSession';
-import { isHistoryNavigationLoggingEnabled } from '../historyNavigationLogging';
 function InputField({
   label,
   value,
@@ -772,13 +771,11 @@ export function MoneyClock() {
     const id =
       parseMagicLinkPath(window.location.pathname) || peekMagicLinkIdFromSession();
     if (!id) return;
-    if (isHistoryNavigationLoggingEnabled()) {
-      console.warn('[MoneyClock] cloud restore start', {
-        id,
-        pathname: window.location.pathname,
-        href: window.location.href
-      });
-    }
+    console.warn('[MoneyClock] cloud restore start', {
+      id,
+      pathname: window.location.pathname,
+      href: window.location.href
+    });
     let cancelled = false;
     void (async () => {
       const raw = await fetchCloudBackupJson(id);
@@ -797,13 +794,11 @@ export function MoneyClock() {
       applyImportedState(parsed);
       showPortalToast(t('settings.cloudRestoreOk'));
       clearMagicLinkSession();
-      if (isHistoryNavigationLoggingEnabled()) {
-        console.warn('[MoneyClock] cloud restore OK → ensureMagicLinkInAddressBar', {
-          id,
-          pathname: window.location.pathname,
-          href: window.location.href
-        });
-      }
+      console.warn('[MoneyClock] cloud restore OK → ensureMagicLinkInAddressBar', {
+        id,
+        pathname: window.location.pathname,
+        href: window.location.href
+      });
       ensureMagicLinkInAddressBar(id);
     })();
     return () => {

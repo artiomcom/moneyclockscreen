@@ -13,6 +13,7 @@ import {
   Layers,
   Share2,
   Copy,
+  CloudUpload,
   Moon,
   Sun,
   TrendingUp
@@ -84,6 +85,12 @@ import {
 import { useI18n } from '../i18n';
 import { intlLocaleTag } from '../i18n/localeMeta';
 import { APP_LOCALES, type AppLocale } from '../i18n/localeStorage';
+import {
+  postCloudBackup,
+  fetchCloudBackupJson,
+  parseMagicLinkPath,
+  buildMagicLinkUrl
+} from '../cloudBackupApi';
 function InputField({
   label,
   value,
@@ -207,6 +214,8 @@ export function MoneyClock() {
   const [awarenessToast, setAwarenessToast] = useState<string | null>(null);
   const [portalToast, setPortalToast] = useState<string | null>(null);
   const [lastExportMs, setLastExportMs] = useState<number | null>(() => readLastExportMs());
+  const [cloudSavePending, setCloudSavePending] = useState(false);
+  const [cloudLinkModal, setCloudLinkModal] = useState<string | null>(null);
   const [backupSnoozeUntil, setBackupSnoozeUntil] = useState(() =>
     readBackupBannerSnoozeUntil()
   );
@@ -728,6 +737,45 @@ export function MoneyClock() {
     window.setTimeout(() => setPortalToast(null), 2800);
   }, []);
 
+  const applyImportedState = useCallback((parsed: MoneyClockSavedState) => {
+    setProjectsBundle(parsed.projectsBundle);
+    setCurrentBalance(parsed.currentBalance);
+    setCurrentBalanceCurrency(parsed.currentBalanceCurrency);
+    setLastPayrollYmd(parsed.lastPayrollYmd);
+    setTakeHomeFraction(clampTakeHomeFraction(parsed.takeHomeFraction));
+    setProfileBundle(parsed.profile);
+    saveMoneyClockState(parsed);
+    touchLastExportTimestamp();
+    setLastExportMs(Date.now());
+  }, []);
+
+  useEffect(() => {
+    const id = parseMagicLinkPath(window.location.pathname);
+    if (!id) return;
+    let cancelled = false;
+    void (async () => {
+      const raw = await fetchCloudBackupJson(id);
+      if (cancelled) return;
+      if (raw == null) {
+        showPortalToast(t('settings.cloudRestoreFail'));
+        window.history.replaceState({}, '', '/');
+        return;
+      }
+      const parsed = parseMoneyClockJson(raw);
+      if (!parsed) {
+        showPortalToast(t('settings.cloudRestoreFail'));
+        window.history.replaceState({}, '', '/');
+        return;
+      }
+      applyImportedState(parsed);
+      showPortalToast(t('settings.cloudRestoreOk'));
+      window.history.replaceState({}, '', '/');
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [applyImportedState, showPortalToast, t]);
+
   const handleShareMoneyAwareness = useCallback(async () => {
     if (!moneyAwarenessSnap) return;
     const text =
@@ -840,6 +888,32 @@ export function MoneyClock() {
     }
   }, [persistSnapshot, showPortalToast, t]);
 
+  const handleCloudSave = useCallback(async () => {
+    if (cloudSavePending) return;
+    setCloudSavePending(true);
+    try {
+      const text = exportMoneyClockJsonString(persistSnapshot);
+      const { path } = await postCloudBackup(text);
+      setCloudLinkModal(buildMagicLinkUrl(path));
+      touchLastExportTimestamp();
+      setLastExportMs(Date.now());
+    } catch {
+      showPortalToast(t('settings.cloudErr'));
+    } finally {
+      setCloudSavePending(false);
+    }
+  }, [cloudSavePending, persistSnapshot, showPortalToast, t]);
+
+  const handleCopyCloudLink = useCallback(async () => {
+    if (!cloudLinkModal) return;
+    try {
+      await navigator.clipboard.writeText(cloudLinkModal);
+      showPortalToast(t('settings.cloudCopied'));
+    } catch {
+      showPortalToast(t('settings.copyJsonFail'));
+    }
+  }, [cloudLinkModal, showPortalToast, t]);
+
   const handleSnoozeBackupBanner = useCallback(() => {
     const until = Date.now() + 14 * 86400000;
     persistBackupBannerSnoozeUntil(until);
@@ -863,19 +937,11 @@ export function MoneyClock() {
           window.alert(t('import.badFile'));
           return;
         }
-        setProjectsBundle(parsed.projectsBundle);
-        setCurrentBalance(parsed.currentBalance);
-        setCurrentBalanceCurrency(parsed.currentBalanceCurrency);
-        setLastPayrollYmd(parsed.lastPayrollYmd);
-        setTakeHomeFraction(clampTakeHomeFraction(parsed.takeHomeFraction));
-        setProfileBundle(parsed.profile);
-        saveMoneyClockState(parsed);
-        touchLastExportTimestamp();
-        setLastExportMs(Date.now());
+        applyImportedState(parsed);
       };
       reader.readAsText(file, 'UTF-8');
     },
-    [t]
+    [applyImportedState, t]
   );
 
   const updateVacation = useCallback(
@@ -1464,6 +1530,15 @@ export function MoneyClock() {
             {t('settings.uploadJson')}
           </motion.button>
         </div>
+        <motion.button
+          type="button"
+          onClick={() => void handleCloudSave()}
+          disabled={cloudSavePending}
+          whileTap={{ scale: cloudSavePending ? 1 : 0.98 }}
+          className="mt-3 w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-r80-sm font-bold text-sm bg-cyan-50 text-cyan-900 border-2 border-cyan-200 dark:bg-cyan-950/45 dark:text-cyan-100 dark:border-cyan-500/45 disabled:opacity-60">
+          <CloudUpload size={20} strokeWidth={2.2} />
+          {cloudSavePending ? t('settings.cloudBusy') : t('settings.saveCloud')}
+        </motion.button>
       </div>
     </>
   );
@@ -2351,6 +2426,64 @@ export function MoneyClock() {
           </motion.div>
         </>
         }
+      </AnimatePresence>
+      <AnimatePresence>
+        {cloudLinkModal ?
+          <>
+            <motion.button
+              type="button"
+              aria-label={t('settings.cloudClose')}
+              className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-[2px] dark:bg-violet-950/65"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setCloudLinkModal(null)}
+            />
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="cloud-link-title"
+              className="fixed z-[61] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(92vw,22rem)] rounded-r80 border-2 border-cyan-200 bg-white p-5 shadow-2xl dark:bg-[#060914] dark:border-cyan-500/50"
+              initial={{ opacity: 0, scale: 0.94 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.94 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+              onClick={(e) => e.stopPropagation()}>
+              <p
+                id="cloud-link-title"
+                className="text-center text-base font-black text-gray-900 dark:text-cyan-100 mb-2">
+                {t('settings.cloudSavedTitle')}
+              </p>
+              <p className="text-center text-xs font-bold text-cyan-700 dark:text-cyan-300/90 mb-2">
+                {t('settings.cloudLinkLabel')}
+              </p>
+              <p className="break-all text-center text-xs font-mono text-gray-800 dark:text-cyan-50/90 bg-gray-50 dark:bg-slate-900/80 rounded-r80-sm px-3 py-2 border border-gray-200 dark:border-cyan-900/40 mb-3">
+                {cloudLinkModal}
+              </p>
+              <p className="text-center text-[0.65rem] text-gray-600 dark:text-cyan-200/55 leading-snug mb-4">
+                {t('settings.cloudSaveHint')}
+              </p>
+              <div className="flex flex-col gap-2">
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => void handleCopyCloudLink()}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-r80-sm font-bold text-sm bg-violet-50 text-violet-900 border-2 border-violet-200 dark:bg-violet-950/40 dark:text-violet-100 dark:border-violet-400/35">
+                  <Copy size={18} strokeWidth={2.2} />
+                  {t('settings.cloudCopyLink')}
+                </motion.button>
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setCloudLinkModal(null)}
+                  className="w-full py-2.5 rounded-r80-sm font-bold text-sm text-gray-600 dark:text-cyan-300/80">
+                  {t('settings.cloudClose')}
+                </motion.button>
+              </div>
+            </motion.div>
+          </>
+        : null}
       </AnimatePresence>
       {portalToast ?
         <div

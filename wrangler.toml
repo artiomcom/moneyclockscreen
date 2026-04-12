@@ -1,0 +1,11 @@
+# Cloudflare Pages + KV (cloud backup / magic links).
+# 1. Create a KV namespace: npx wrangler kv namespace create BACKUP_KV
+# 2. Put the id below, then: npm run build && npx wrangler pages deploy dist --project-name=YOUR_PROJECT
+
+name = "moneyclock"
+compatibility_date = "2024-09-23"
+pages_build_output_dir = "dist"
+
+[[kv_namespaces]]
+binding = "BACKUP_KV"
+id = "17908b9170c442f2aeb7978f0723bf93"

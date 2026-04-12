@@ -238,6 +238,18 @@ export const en: Record<string, string> = {
   'settings.copyJsonOk': 'JSON copied — keep it somewhere safe',
   'settings.copyJsonFail': 'Could not copy',
   'settings.uploadJson': 'Upload JSON',
+  'settings.saveCloud': 'Save to cloud',
+  'settings.cloudSavedTitle': 'Your profile is saved',
+  'settings.cloudLinkLabel': 'Your link',
+  'settings.cloudSaveHint':
+    'Keep it somewhere safe — it works like a magic link. Anyone with the link can open this backup. No account.',
+  'settings.cloudCopyLink': 'Copy link',
+  'settings.cloudCopied': 'Link copied',
+  'settings.cloudClose': 'Close',
+  'settings.cloudBusy': 'Saving…',
+  'settings.cloudErr': 'Could not save to the cloud. Deploy the app on Cloudflare Pages with a KV binding (see wrangler.toml).',
+  'settings.cloudRestoreFail': 'This cloud link is invalid or expired.',
+  'settings.cloudRestoreOk': 'Restored from your cloud link.',
 
   'backupBanner.title': 'Have a backup',
   'backupBanner.body':

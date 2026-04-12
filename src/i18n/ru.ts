@@ -240,6 +240,19 @@ export const ru: Record<string, string> = {
   'settings.copyJsonOk': 'JSON скопирован — сохраните в надёжном месте',
   'settings.copyJsonFail': 'Не удалось скопировать',
   'settings.uploadJson': 'Загрузить JSON',
+  'settings.saveCloud': 'Сохранить в облаке',
+  'settings.cloudSavedTitle': 'Ваш профиль сохранён',
+  'settings.cloudLinkLabel': 'Ваша ссылка',
+  'settings.cloudSaveHint':
+    'Сохраните её — это magic link. У кого есть ссылка, тот может открыть эту копию. Без регистрации.',
+  'settings.cloudCopyLink': 'Копировать ссылку',
+  'settings.cloudCopied': 'Ссылка скопирована',
+  'settings.cloudClose': 'Закрыть',
+  'settings.cloudBusy': 'Сохранение…',
+  'settings.cloudErr':
+    'Не удалось сохранить в облако. Нужен деплой на Cloudflare Pages с KV (см. wrangler.toml).',
+  'settings.cloudRestoreFail': 'Ссылка недействительна или данные не найдены.',
+  'settings.cloudRestoreOk': 'Данные загружены по ссылке из облака.',
 
   'backupBanner.title': 'Резервная копия',
   'backupBanner.body':

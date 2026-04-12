@@ -769,7 +769,6 @@ export function MoneyClock() {
       }
       applyImportedState(parsed);
       showPortalToast(t('settings.cloudRestoreOk'));
-      window.history.replaceState({}, '', '/');
     })();
     return () => {
       cancelled = true;

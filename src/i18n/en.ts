@@ -249,7 +249,8 @@ export const en: Record<string, string> = {
   'settings.cloudBusy': 'Saving…',
   'settings.cloudErr': 'Could not save to the cloud. Deploy the app on Cloudflare Pages with a KV binding (see wrangler.toml).',
   'settings.cloudRestoreFail': 'This cloud link is invalid or expired.',
-  'settings.cloudRestoreOk': 'Restored from your cloud link.',
+  'settings.cloudRestoreOk':
+    'Restored from your cloud link. The /u/… URL stays in the address bar as a bookmark to this backup.',
 
   'backupBanner.title': 'Have a backup',
   'backupBanner.body':

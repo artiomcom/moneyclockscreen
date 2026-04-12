@@ -252,7 +252,8 @@ export const ru: Record<string, string> = {
   'settings.cloudErr':
     'Не удалось сохранить в облако. Нужен деплой на Cloudflare Pages с KV (см. wrangler.toml).',
   'settings.cloudRestoreFail': 'Ссылка недействительна или данные не найдены.',
-  'settings.cloudRestoreOk': 'Данные загружены по ссылке из облака.',
+  'settings.cloudRestoreOk':
+    'Данные загружены по ссылке из облака. Адрес /u/… остаётся в строке — это закладка на эту копию.',
 
   'backupBanner.title': 'Резервная копия',
   'backupBanner.body':

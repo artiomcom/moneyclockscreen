@@ -1,3 +1,6 @@
+import { installHistoryNavigationLogging } from './historyNavigationLogging';
+installHistoryNavigationLogging();
+
 import "./index.css";
 import React from "react";
 import { render } from "react-dom";

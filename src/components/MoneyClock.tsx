@@ -745,6 +745,7 @@ export function MoneyClock() {
     setTakeHomeFraction(clampTakeHomeFraction(parsed.takeHomeFraction));
     setProfileBundle(parsed.profile);
     saveMoneyClockState(parsed);
+    initialMoneyClockRef.current = null;
     touchLastExportTimestamp();
     setLastExportMs(Date.now());
   }, []);
@@ -758,13 +759,11 @@ export function MoneyClock() {
       if (cancelled) return;
       if (raw == null) {
         showPortalToast(t('settings.cloudRestoreFail'));
-        window.history.replaceState({}, '', '/');
         return;
       }
       const parsed = parseMoneyClockJson(raw);
       if (!parsed) {
         showPortalToast(t('settings.cloudRestoreFail'));
-        window.history.replaceState({}, '', '/');
         return;
       }
       applyImportedState(parsed);

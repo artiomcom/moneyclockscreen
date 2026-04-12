@@ -1,0 +1,2 @@
+# SPA fallback: keep URL (e.g. /u/…) while serving index.html. Pages runs Functions first, so /api/* is unchanged.
+/*    /index.html   200

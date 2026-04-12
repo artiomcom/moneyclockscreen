@@ -101,7 +101,8 @@ import {
 import {
   captureMagicLinkIdFromUrlToSession,
   peekMagicLinkIdFromSession,
-  clearMagicLinkSession
+  clearMagicLinkSession,
+  ensureMagicLinkInAddressBar
 } from '../magicLinkSession';
 function InputField({
   label,
@@ -788,11 +789,7 @@ export function MoneyClock() {
       applyImportedState(parsed);
       showPortalToast(t('settings.cloudRestoreOk'));
       clearMagicLinkSession();
-      const norm = (window.location.pathname || '').replace(/\/$/, '') || '/';
-      const want = `/u/${id}`;
-      if (norm.toLowerCase() !== want.toLowerCase()) {
-        window.history.replaceState({}, '', want);
-      }
+      ensureMagicLinkInAddressBar(id);
     })();
     return () => {
       cancelled = true;

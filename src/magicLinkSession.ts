@@ -34,3 +34,32 @@ export function clearMagicLinkSession(): void {
     /* ignore */
   }
 }
+
+const id32 = (s: string) => /^[a-f0-9]{32}$/i.test(s);
+
+/**
+ * After a successful cloud restore, force `/u/<id>` into the address bar.
+ * Some environments mutate the path after React commits; retries win that race.
+ */
+export function ensureMagicLinkInAddressBar(id: string): void {
+  if (!id32(id)) return;
+  const wantPath = `/u/${id.toLowerCase()}`;
+  const fullUrl = `${window.location.origin}${wantPath}`;
+  const pathMatches = (): boolean => {
+    const p = (window.location.pathname || '').replace(/\/$/, '') || '/';
+    return p.toLowerCase() === wantPath.toLowerCase();
+  };
+  const fix = (): void => {
+    try {
+      if (pathMatches()) return;
+      window.history.replaceState(window.history.state ?? null, '', fullUrl);
+    } catch {
+      /* ignore */
+    }
+  };
+  fix();
+  queueMicrotask(fix);
+  setTimeout(fix, 0);
+  setTimeout(fix, 50);
+  setTimeout(fix, 200);
+}

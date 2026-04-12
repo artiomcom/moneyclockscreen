@@ -771,7 +771,7 @@ export function MoneyClock() {
     const id =
       parseMagicLinkPath(window.location.pathname) || peekMagicLinkIdFromSession();
     if (!id) return;
-    console.warn('[MoneyClock] cloud restore start', {
+    console.log('[MoneyClock] cloud restore start', {
       id,
       pathname: window.location.pathname,
       href: window.location.href
@@ -794,7 +794,7 @@ export function MoneyClock() {
       applyImportedState(parsed);
       showPortalToast(t('settings.cloudRestoreOk'));
       clearMagicLinkSession();
-      console.warn('[MoneyClock] cloud restore OK → ensureMagicLinkInAddressBar', {
+      console.log('[MoneyClock] cloud restore OK → ensureMagicLinkInAddressBar', {
         id,
         pathname: window.location.pathname,
         href: window.location.href
@@ -1676,14 +1676,14 @@ export function MoneyClock() {
                     </p>
                     {heroTodayAccrual != null ?
                       <div className="pt-1 space-y-0.5">
-                        <p className="text-white/55 text-sm sm:text-base font-bold tabular-nums">
+                        <div className="text-white/55 text-sm sm:text-base font-bold tabular-nums">
                           {t('hero.today')}:{' '}
                           <AnimatedCounter
                             value={heroTodayAccrual}
                             prefix={`+${heroRateBasis.symbol}`}
                             decimals={2}
                           />
-                        </p>
+                        </div>
                         <p className="text-white/32 text-[0.65rem] font-medium">{t('hero.todayNote')}</p>
                       </div>
                     : null}

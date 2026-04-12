@@ -12,6 +12,41 @@
   </head>
   <body>
     <script>
+      (function (w) {
+        try {
+          w.console.log('[MoneyClock] shell', w.location.href);
+          var h = w.history;
+          if (h && typeof h.pushState === 'function') {
+            var _push = h.pushState.bind(h);
+            var _replace = h.replaceState.bind(h);
+            h.pushState = function (state, title, url) {
+              var before = w.location.href;
+              _push(state, title, url);
+              w.console.log('[MoneyClock] history.pushState', {
+                urlArg: typeof url === 'undefined' ? undefined : String(url),
+                before: before,
+                after: w.location.href
+              });
+              w.console.trace();
+            };
+            h.replaceState = function (state, title, url) {
+              var before = w.location.href;
+              _replace(state, title, url);
+              w.console.log('[MoneyClock] history.replaceState', {
+                urlArg: typeof url === 'undefined' ? undefined : String(url),
+                before: before,
+                after: w.location.href
+              });
+              w.console.trace();
+            };
+            w.console.log('[MoneyClock] history API patched (before modules)');
+          }
+        } catch (e) {
+          w.console.error('[MoneyClock] shell script error', e);
+        }
+      })(window);
+    </script>
+    <script>
       try {
         var __p = (location.pathname || '').replace(/\/$/, '');
         var __m = __p.match(/^\/u\/([a-fA-F0-9]{32})$/);

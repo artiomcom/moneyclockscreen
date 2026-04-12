@@ -8,7 +8,7 @@ export function captureMagicLinkIdFromUrlToSession(): void {
     const id = parseMagicLinkPath(window.location.pathname);
     if (id) {
       sessionStorage.setItem(KEY, id);
-      console.warn('[MoneyClock] magic link → sessionStorage', {
+      console.log('[MoneyClock] magic link → sessionStorage', {
         id,
         pathname: window.location.pathname
       });
@@ -57,7 +57,7 @@ export function ensureMagicLinkInAddressBar(id: string): void {
   };
   const fix = (): void => {
     try {
-      console.warn('[MoneyClock] ensureMagicLinkInAddressBar', {
+      console.log('[MoneyClock] ensureMagicLinkInAddressBar', {
         id,
         pathname: window.location.pathname,
         href: window.location.href,

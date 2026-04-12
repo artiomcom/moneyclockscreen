@@ -9,6 +9,13 @@
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Money Clock Screen</title>
+    <script>
+      try {
+        var __p = (location.pathname || '').replace(/\/$/, '');
+        var __m = __p.match(/^\/u\/([a-fA-F0-9]{32})$/);
+        if (__m) sessionStorage.setItem('mc_magic_link_id', __m[1].toLowerCase());
+      } catch (_) {}
+    </script>
   </head>
   <body>
     <script>

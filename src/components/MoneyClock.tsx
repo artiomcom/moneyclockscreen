@@ -1,4 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  useRef
+} from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CalendarIcon,
@@ -91,6 +98,11 @@ import {
   parseMagicLinkPath,
   buildMagicLinkUrl
 } from '../cloudBackupApi';
+import {
+  captureMagicLinkIdFromUrlToSession,
+  peekMagicLinkIdFromSession,
+  clearMagicLinkSession
+} from '../magicLinkSession';
 function InputField({
   label,
   value,
@@ -750,24 +762,37 @@ export function MoneyClock() {
     setLastExportMs(Date.now());
   }, []);
 
+  useLayoutEffect(() => {
+    captureMagicLinkIdFromUrlToSession();
+  }, []);
+
   useEffect(() => {
-    const id = parseMagicLinkPath(window.location.pathname);
+    const id =
+      parseMagicLinkPath(window.location.pathname) || peekMagicLinkIdFromSession();
     if (!id) return;
     let cancelled = false;
     void (async () => {
       const raw = await fetchCloudBackupJson(id);
       if (cancelled) return;
       if (raw == null) {
+        clearMagicLinkSession();
         showPortalToast(t('settings.cloudRestoreFail'));
         return;
       }
       const parsed = parseMoneyClockJson(raw);
       if (!parsed) {
+        clearMagicLinkSession();
         showPortalToast(t('settings.cloudRestoreFail'));
         return;
       }
       applyImportedState(parsed);
       showPortalToast(t('settings.cloudRestoreOk'));
+      clearMagicLinkSession();
+      const norm = (window.location.pathname || '').replace(/\/$/, '') || '/';
+      const want = `/u/${id}`;
+      if (norm.toLowerCase() !== want.toLowerCase()) {
+        window.history.replaceState({}, '', want);
+      }
     })();
     return () => {
       cancelled = true;

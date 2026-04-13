@@ -1,32 +1,35 @@
-/* @import url() FONT IMPORTS MUST ALWAYS BE AT THE VERY TOP OF THIS FILE, ABOVE THE TAILWIND IMPORTS — DO NOT DELETE THIS COMMENT */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+/* @import url() FONT IMPORTS MUST ALWAYS BE AT THE VERY TOP OF THIS FILE, ABOVE THE TAILWIND IMPORTS, DO NOT DELETE THIS COMMENT */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
-/* CRITICAL: THE FOLLOWING TAILWIND IMPORTS MUST NEVER BE DELETED OR REORDERED — DO NOT DELETE THIS COMMENT */
+/* CRITICAL: THE FOLLOWING TAILWIND IMPORTS MUST NEVER BE DELETED OR REORDERED, DO NOT DELETE THIS COMMENT */
 @import 'tailwindcss/base';
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 
-/* END TAILWIND IMPORTS — ALL OTHER CSS MUST GO BELOW THIS LINE */
+/* END TAILWIND IMPORTS, ALL OTHER CSS MUST GO BELOW THIS LINE */
 
 :root {
   --green-primary: #22c55e;
   --green-dark: #15803d;
   --cyan-border: #38bdf8;
   --navy: #1e1b4b;
-  /* Нейтральный тёмный холст; зелень — только акцентами в UI */
+  /* Нейтральный тёмный холст; зелень, только акцентами в UI */
   --app-bg: radial-gradient(120% 80% at 50% -20%, rgba(0, 255, 136, 0.06), transparent 50%),
     linear-gradient(180deg, #0b0f14 0%, #080a0e 100%);
   --accent-money: #00ff88;
   --app-glow: rgba(0, 255, 136, 0.08);
+  /* Magic Patterns tokens (dark dashboard) */
+  --mp-deep: #060a13;
+  --mp-card: #0d1320;
+  --neon-green-ref: #00ff88;
 }
 
-/* Аркада / домашний компьютер ~80-х: глубокий фиолетово-синий, неон как у CGA */
+/* Тёмная тема: фон как в исходниках Magic Patterns (solid + grid-bg на контейнере) */
 .dark {
-  /* Stripe-like depth: near-black canvas, cyan accent only on hero / CTAs */
-  --app-bg: linear-gradient(165deg, #070a0f 0%, #0b0f14 42%, #080c11 100%);
-  --app-glow: rgba(0, 255, 200, 0.1);
-  --card-surface: rgba(18, 24, 34, 0.72);
-  --card-border: rgba(120, 200, 255, 0.14);
+  --app-bg: #060a13;
+  --app-glow: rgba(0, 255, 135, 0.08);
+  --card-surface: transparent;
+  --card-border: rgba(0, 255, 135, 0.08);
 }
 
 html, body, #root {
@@ -52,7 +55,7 @@ html.dark body,
 html.dark #root {
   font-family: 'VT323', 'Courier New', monospace;
   font-size: 112%;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
 }
 
 .app-root {
@@ -60,16 +63,49 @@ html.dark #root {
   width: 100%;
   background: var(--app-bg);
   background-attachment: fixed;
+  position: relative;
 }
 
-/* Hero rate — soft neon, readable (premium contrast vs flat green) */
+/* Magic Patterns, subtle grid (как в их index.css) */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(0, 255, 135, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 135, 0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* Magic Patterns, scanline overlay */
+.scanline-overlay {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+}
+
+/* Hero rate, мягкое «бархатное» свечение: холодный изумруд, без янтарного ореола */
 .hero-rate-glow {
   text-shadow:
-    0 0 0.08em rgba(0, 255, 160, 0.45),
-    0 0 0.35em rgba(0, 255, 200, 0.28),
-    0 0 0.9em rgba(0, 220, 180, 0.18),
-    0 2px 12px rgba(0, 0, 0, 0.55);
-  filter: drop-shadow(0 0 1px rgba(0, 255, 180, 0.35));
+    0 0 0.12em rgba(0, 255, 170, 0.45),
+    0 0 0.55em rgba(0, 255, 200, 0.2),
+    0 0 0.9em rgba(0, 80, 90, 0.25),
+    0 1px 8px rgba(0, 0, 0, 0.35);
+  /* Без filter: иначе каждая колонка счётчика с overflow даёт серый «квадрат» на GPU */
+}
+
+/* Magic Patterns, сильнее неон на тёмном холсте */
+html.dark .hero-rate-glow {
+  text-shadow:
+    0 0 10px rgba(0, 255, 136, 0.5),
+    0 0 28px rgba(0, 255, 136, 0.28),
+    0 0 0.12em rgba(0, 255, 170, 0.45),
+    0 1px 8px rgba(0, 0, 0, 0.3);
 }
 
 html:not(.dark) .hero-rate-glow {
@@ -79,7 +115,7 @@ html:not(.dark) .hero-rate-glow {
   filter: none;
 }
 
-/* Progressive disclosure — native details, minimal chrome */
+/* Progressive disclosure, native details, minimal chrome */
 .hero-more-numbers summary {
   list-style: none;
   cursor: pointer;
@@ -95,7 +131,7 @@ html:not(.dark) .hero-rate-glow {
   position: fixed;
   inset: 0;
   z-index: 5;
-  opacity: 0.065;
+  opacity: 0.04;
   background: repeating-linear-gradient(
     180deg,
     transparent,
@@ -105,78 +141,126 @@ html:not(.dark) .hero-rate-glow {
   );
 }
 
-/* Money odometer — «money coma» billboard
-   Без filter/drop-shadow на колонках — иначе GPU рисует каждую цифру отдельным слоем и
-   за ними виден прямоугольник фона, отличный от страничного градиента. */
+/* Money odometer, лёгкая глубина; тяжёлые многослойные тени дают «плитки» на GPU */
 .money-coma-counter {
   text-shadow:
-    0 0.04em 0 rgba(0, 0, 0, 0.22),
-    0 0 0.05em rgba(255, 255, 255, 0.35),
-    0 0 0.25em rgba(250, 204, 21, 0.28);
+    0 0.04em 0 rgba(0, 0, 0, 0.38),
+    0 0 0.35em rgba(0, 255, 160, 0.07);
+}
+
+html:not(.dark) .money-coma-counter {
+  text-shadow:
+    0 0.04em 0 rgba(0, 0, 0, 0.18),
+    0 0 0.28em rgba(22, 163, 74, 0.14);
+}
+
+@keyframes money-digit-snap {
+  from {
+    opacity: 0.28;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+html.dark .money-digit-static {
+  animation: money-digit-snap 0.16s ease-out;
 }
 
 .money-coma-prefix {
   display: inline-block;
   animation: money-prefix-shimmer 2.8s ease-in-out infinite;
   text-shadow:
-    0 0 0.12em rgba(254, 240, 138, 0.9),
-    0 0 0.35em rgba(250, 204, 21, 0.55);
+    0 0 0.18em rgba(0, 255, 165, 0.28),
+    0 0 0.55em rgba(0, 200, 175, 0.1);
+}
+
+html:not(.dark) .money-coma-prefix {
+  text-shadow:
+    0 0 0.12em rgba(22, 163, 74, 0.35),
+    0 0 0.3em rgba(34, 197, 94, 0.2);
 }
 
 @keyframes money-prefix-shimmer {
   0%, 100% {
     transform: translateY(0) scale(1);
-    filter: brightness(1);
   }
   40% {
-    transform: translateY(-0.03em) scale(1.04);
-    filter: brightness(1.15);
+    transform: translateY(-0.02em) scale(1.02);
   }
   55% {
     transform: translateY(0) scale(1);
-    filter: brightness(1.08);
-  }
-}
-
-.money-reel-inner[data-rolling] {
-  animation: money-reel-chroma 0.12s ease-in-out infinite alternate;
-}
-
-.money-reel-inner[data-rolling] .money-reel-cell {
-  animation: money-reel-gold-rush 0.45s ease-in-out infinite;
-}
-
-@keyframes money-reel-chroma {
-  0% {
-    text-shadow:
-      -0.03em 0 0 rgba(34, 197, 94, 0.55),
-      0.03em 0 0 rgba(253, 224, 71, 0.5);
-  }
-  100% {
-    text-shadow:
-      0.025em 0 0 rgba(34, 197, 94, 0.45),
-      -0.025em 0 0 rgba(253, 224, 71, 0.55);
-  }
-}
-
-@keyframes money-reel-gold-rush {
-  0%, 100% {
-    color: #fff;
-    filter: brightness(1) saturate(1);
-  }
-  50% {
-    color: #fef9c3;
-    filter: brightness(1.22) saturate(1.2);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .money-coma-prefix,
-  .money-reel-inner[data-rolling],
-  .money-reel-inner[data-rolling] .money-reel-cell {
+  html.dark .money-digit-static {
     animation: none !important;
   }
+
+  .money-atmosphere-leaf,
+  .money-atmosphere--burst .money-atmosphere-digits {
+    animation: none !important;
+  }
+
+  .scanline-overlay {
+    opacity: 0.4;
+  }
 }
+
+/* Падающие «денежные листья» за hero-счётчиком */
+@keyframes money-leaf-fall {
+  0% {
+    transform:
+      translate3d(0, -12%, 0)
+      rotate(var(--ml-rotate-start, 0deg))
+      scale(0.88);
+  }
+  22% {
+    transform:
+      translate3d(calc(var(--ml-drift, 0px) * 0.22), 18px, 0)
+      rotate(calc(var(--ml-rotate-start, 0deg) + 18deg))
+      scale(1);
+  }
+  55% {
+    transform:
+      translate3d(calc(var(--ml-drift, 0px) * 0.58), 120px, 0)
+      rotate(calc((var(--ml-rotate-start, 0deg) + var(--ml-rotate-end, 0deg)) * 0.5))
+      scale(1.02);
+  }
+  100% {
+    transform:
+      translate3d(var(--ml-drift, 0px), 240px, 0)
+      rotate(var(--ml-rotate-end, 0deg))
+      scale(0.9);
+  }
+}
+
+@keyframes money-digit-atmosphere-pop {
+  0% {
+    transform: translateY(0.22em) scale(0.92);
+    opacity: 0.25;
+    filter: blur(2px);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+html.dark .money-atmosphere .money-digit-static,
+.money-atmosphere .money-digit-static {
+  animation: money-digit-atmosphere-pop 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.money-atmosphere--burst .money-atmosphere-digits {
+  transition: filter 0.25s ease;
+  filter: drop-shadow(0 0 14px rgba(52, 211, 153, 0.35))
+    drop-shadow(0 0 28px rgba(16, 185, 129, 0.2));
+}
+
 /* Remove number input spinners */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {

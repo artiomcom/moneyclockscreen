@@ -1,6 +1,6 @@
 /**
- * «Money Awareness Engine» — иллюстративные метрики для мотивации и шэринга.
- * Процентиль — не опрос населения, а позиция на упрощённой лог-шкале EUR-якорей.
+ * «Money Awareness Engine», иллюстративные метрики для мотивации и шэринга.
+ * Процентиль, не опрос населения, а позиция на упрощённой лог-шкале EUR-якорей.
  */
 
 import type { AppLocale } from './i18n/localeStorage';
@@ -102,14 +102,14 @@ export function buildMoneyAwarenessShareLines(
       };
 
   const footer: Record<AppLocale, string> = {
-    en: `#MoneyClock #moneyawareness — awareness only, not advice.`,
+    en: `#MoneyClock #moneyawareness, awareness only, not advice.`,
     ru: `Оценка для осознанности, не финсовет.`,
-    es: `#MoneyClock #moneyawareness — solo contexto, no asesoramiento.`,
-    fr: `#MoneyClock #moneyawareness — prise de conscience seulement, pas un conseil.`,
-    de: `#MoneyClock #moneyawareness — nur zur Einordnung, keine Beratung.`,
-    zh: `#MoneyClock #moneyawareness — 仅供认知参考，非理财建议。`,
-    ja: `#MoneyClock #moneyawareness — 認識用であり助言ではありません。`,
-    pt: `#MoneyClock #moneyawareness — só para reflexão, não é aconselhamento.`
+    es: `#MoneyClock #moneyawareness, solo contexto, no asesoramiento.`,
+    fr: `#MoneyClock #moneyawareness, prise de conscience seulement, pas un conseil.`,
+    de: `#MoneyClock #moneyawareness, nur zur Einordnung, keine Beratung.`,
+    zh: `#MoneyClock #moneyawareness, 仅供认知参考，非理财建议。`,
+    ja: `#MoneyClock #moneyawareness, 認識用であり助言ではありません。`,
+    pt: `#MoneyClock #moneyawareness, só para reflexão, não é aconselhamento.`
   };
 
   const locales: AppLocale[] = ['en', 'ru', 'es', 'fr', 'de', 'zh', 'ja', 'pt'];

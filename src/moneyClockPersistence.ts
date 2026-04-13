@@ -58,9 +58,9 @@ export type ProjectEntry = {
   name: string;
   /**
    * Сумма в зависимости от `projectBilling`:
-   * - contract — вся сумма контракта (ставка = сумма / календарный срок до даты окончания);
-   * - monthly — фиксированный месячный платёж (как зарплата: 22×8 ч в «месяце»);
-   * - hourly — ставка за один рабочий час.
+   * - contract, вся сумма контракта (ставка = сумма / календарный срок до даты окончания);
+   * - monthly, фиксированный месячный платёж (как зарплата: 22×8 ч в «месяце»);
+   * - hourly, ставка за один рабочий час.
    */
   projectAmount: string;
   projectBilling: ProjectBillingMode;
@@ -74,7 +74,7 @@ export type ProjectEntry = {
   workedMinutes: string;
   /** Local calendar date `YYYY-MM-DD`; empty = not used */
   workStartDate: string;
-  /** Inclusive last day of the project; empty = still ongoing — caps time used for totals */
+  /** Inclusive last day of the project; empty = still ongoing, caps time used for totals */
   projectEndDate: string;
   /** Past and planned vacations; time inside these ranges is not billed from work start */
   vacations: VacationEntry[];
@@ -112,8 +112,8 @@ export type MoneyClockSavedState = {
   /** Валюта стартового баланса и режимов зарплата/час */
   currentBalanceCurrency: string;
   /**
-   * День последней зарплаты (локальный календарь). Поле «на счёте» — на момент после этой
-   * выплаты; начисление к остатку — с 00:00 следующего дня до текущего момента.
+   * День последней зарплаты (локальный календарь). Поле «на счёте», на момент после этой
+   * выплаты; начисление к остатку, с 00:00 следующего дня до текущего момента.
    */
   lastPayrollYmd: string;
   /**
@@ -319,7 +319,7 @@ export function balanceOnAccountAt(
   const pay = parseLocalDateYmd(lastPayrollYmd.trim());
   if (pay == null) return currentBalanceAfterPayroll;
   const accrualStartMs = pay + 86400000;
-  // До полуночи дня после зарплаты дельта не считаем (иначе на ранних t на графике — минус).
+  // До полуночи дня после зарплаты дельта не считаем (иначе на ранних t на графике, минус).
   if (nowMs <= accrualStartMs) {
     return currentBalanceAfterPayroll;
   }
@@ -327,8 +327,12 @@ export function balanceOnAccountAt(
   let delta = 0;
   for (const p of projects) {
     if (normalizeCurrencyCode(p.currencyCode) !== target) continue;
+    const ws =
+      p.workStartDate.trim() ? parseLocalDateYmd(p.workStartDate.trim()) : null;
+    const sliceStartMs =
+      ws != null ? Math.max(accrualStartMs, ws) : accrualStartMs;
     delta +=
-      projectEarningsAt(p, nowMs) - projectEarningsAt(p, accrualStartMs);
+      projectEarningsAt(p, nowMs) - projectEarningsAt(p, sliceStartMs);
   }
   return currentBalanceAfterPayroll + delta;
 }
@@ -421,7 +425,7 @@ export function vacationOverlapSecondsMerged(
 /**
  * Earnings from work start to effective "now", minus vacation overlaps.
  * If `projectEndYmd` is set, time is capped at end of that calendar day (inclusive).
- * Секунды — обычный календарный интервал (мс/1000), без «переполнения» за несколько лет.
+ * Секунды, обычный календарный интервал (мс/1000), без «переполнения» за несколько лет.
  */
 export function earningsFromWorkStartMinusVacations(
   workStartYmd: string,
@@ -476,7 +480,7 @@ function projectLegacyDurationSeconds(p: ProjectEntry): number {
 /**
  * Средняя длина календарного месяца (365.25/12 суток), в секундах.
  * Для `monthly` начисление идёт по календарному интервалу от `workStartDate`, поэтому знаменатель
- * должен быть календарным — иначе ставка от «рабочего месяца» (22×8 ч) даёт ~4× завышение.
+ * должен быть календарным, иначе ставка от «рабочего месяца» (22×8 ч) даёт ~4× завышение.
  */
 export const AVERAGE_CALENDAR_MONTH_SECONDS = (365.25 / 12) * 24 * 3600;
 
@@ -537,7 +541,7 @@ export function projectIsEndedByDeadline(p: ProjectEntry, nowMs: number): boolea
   return nowMs >= pe + 86400000;
 }
 
-/** Сегодня по локальному календарю, `YYYY-MM-DD` — для даты начала по умолчанию (живой таймер). */
+/** Сегодня по локальному календарю, `YYYY-MM-DD`, для даты начала по умолчанию (живой таймер). */
 export function localTodayYmd(): string {
   const d = new Date();
   const y = d.getFullYear();

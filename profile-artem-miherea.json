@@ -7,7 +7,7 @@
     "projects": [
       {
         "id": "p-napier-aml",
-        "name": "Napier Technologies — Software Engineering Lead",
+        "name": "Napier Technologies, Software Engineering Lead",
         "projectAmount": "420000",
         "projMonths": "46",
         "projDays": "0",
@@ -23,7 +23,7 @@
       },
       {
         "id": "p-skilltools",
-        "name": "SkillTools — Founder",
+        "name": "SkillTools, Founder",
         "projectAmount": "180000",
         "projMonths": "46",
         "projDays": "0",
@@ -39,7 +39,7 @@
       },
       {
         "id": "p-x5-group",
-        "name": "X5 Group — Software Engineering Manager",
+        "name": "X5 Group, Software Engineering Manager",
         "projectAmount": "190000",
         "projMonths": "25",
         "projDays": "0",
@@ -55,7 +55,7 @@
       },
       {
         "id": "p-sberbank",
-        "name": "Sberbank — Lead Software Engineer",
+        "name": "Sberbank, Lead Software Engineer",
         "projectAmount": "150000",
         "projMonths": "16",
         "projDays": "0",
@@ -71,7 +71,7 @@
       },
       {
         "id": "p-x5-retail",
-        "name": "X5 Retail Group — Software Technical Lead",
+        "name": "X5 Retail Group, Software Technical Lead",
         "projectAmount": "240000",
         "projMonths": "34",
         "projDays": "0",
@@ -87,7 +87,7 @@
       },
       {
         "id": "p-afrpplus",
-        "name": "Afrpplus — Lead Software Engineer",
+        "name": "Afrpplus, Lead Software Engineer",
         "projectAmount": "95000",
         "projMonths": "17",
         "projDays": "0",
@@ -103,7 +103,7 @@
       },
       {
         "id": "p-kjw-aerocon",
-        "name": "KJW AEROCON LIMITED — Senior Software Engineer",
+        "name": "KJW AEROCON LIMITED, Senior Software Engineer",
         "projectAmount": "175000",
         "projMonths": "51",
         "projDays": "0",
@@ -119,7 +119,7 @@
       },
       {
         "id": "p-mniti",
-        "name": "MNITI, JSC — Senior Software Engineer",
+        "name": "MNITI, JSC, Senior Software Engineer",
         "projectAmount": "78000",
         "projMonths": "16",
         "projDays": "0",
@@ -135,7 +135,7 @@
       },
       {
         "id": "p-pays-de-retz",
-        "name": "PAYS DE RETZ ENERGIES — System Network Administrator",
+        "name": "PAYS DE RETZ ENERGIES, System Network Administrator",
         "projectAmount": "52000",
         "projMonths": "49",
         "projDays": "0",
@@ -151,7 +151,7 @@
       },
       {
         "id": "p-auto-mall",
-        "name": "AUTO MALL SRL — Logistics Analyst",
+        "name": "AUTO MALL SRL, Logistics Analyst",
         "projectAmount": "22000",
         "projMonths": "18",
         "projDays": "0",
@@ -173,7 +173,7 @@
   "workedHours": "0",
   "workedMinutes": "0",
   "profile": {
-    "_comment": "Один файл: настройки MoneyClock (v:1) + вложенный profile. Импорт: Настройки → Загрузить JSON. Ставки и проекты правьте в форме ниже; резюме — в JSON или внешнем редакторе.",
+    "_comment": "Один файл: настройки MoneyClock (v:1) + вложенный profile. Импорт: Настройки → Загрузить JSON. Ставки и проекты правьте в форме ниже; резюме, в JSON или внешнем редакторе.",
     "schemaVersion": "1.0",
     "profileType": "professional",
     "personal": {
@@ -247,7 +247,7 @@
           "Spearheading the design and implementation of anti-money laundering (AML) compliance solutions for global financial institutions.",
           "Designed distributed architectures with synchronous (API REST) and asynchronous (Kafka, MQ) integrations.",
           "Worked on Scala Play Framework, Kotlin Ktor, and Spring Boot-based microservices and secured APIs with OAuth2 and SSL certificates.",
-          "AI Systems Expertise (2024–2025): AI-powered assistants and LLM-integrated backend services — OpenAI (GPT-4, function calling, embeddings), Gemini (google-genai client), LangChain, FastAPI streaming (WebSockets, SSE), prompt engineering with Jinja2, embeddings (FAISS, Redis vector search), LLM profiling and context memory, A/B testing and explainability."
+          "AI Systems Expertise (2024–2025): AI-powered assistants and LLM-integrated backend services, OpenAI (GPT-4, function calling, embeddings), Gemini (google-genai client), LangChain, FastAPI streaming (WebSockets, SSE), prompt engineering with Jinja2, embeddings (FAISS, Redis vector search), LLM profiling and context memory, A/B testing and explainability."
         ],
         "skills": [
           "Scala",
@@ -357,7 +357,7 @@
         "durationText": "August 2016 - December 2017",
         "location": "Orlando, Florida, United States",
         "description": [
-          "High-load SaaS “The Smart Beer Keg Monitor” for restaurants — hardware/software integration for keg tracking.",
+          "High-load SaaS “The Smart Beer Keg Monitor” for restaurants, hardware/software integration for keg tracking.",
           "Scalable APIs and Android clients; Python Django backend on Kubernetes/Docker Compose."
         ],
         "skills": [
@@ -504,7 +504,7 @@
     },
     "moneyClockMeta": {
       "profileVersion": "1.2",
-      "hints": "В projectsBundle 10 проектов по местам работы из CV (новые сверху). Суммы projectAmount и поля срока — ориентиры: подставьте реальные договорные цифры. Текущие Napier и SkillTools без даты окончания; завершённые роли с projectEndDate. Режим Project + дата начала даёт автонакопление; Hourly остаётся для ставки вне проектов."
+      "hints": "В projectsBundle 10 проектов по местам работы из CV (новые сверху). Суммы projectAmount и поля срока, ориентиры: подставьте реальные договорные цифры. Текущие Napier и SkillTools без даты окончания; завершённые роли с projectEndDate. Режим Project + дата начала даёт автонакопление; Hourly остаётся для ставки вне проектов."
     }
   }
 }

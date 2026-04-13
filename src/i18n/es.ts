@@ -26,13 +26,10 @@ export const es: Record<string, string> = {
   'hero.realHint': '· real',
   'hero.today': 'Hoy',
   'hero.todayNote': 'desde medianoche · hora local',
-  'hero.moreNumbers': 'Más cifras',
   'hero.moreNominal': 'Nominal (antes de ajustes)',
   'hero.insightTitle': 'Tras impuestos e inflación',
   'hero.insightAria': 'Poder adquisitivo real',
-  'hero.futureTitle': 'Próximos 12 meses (estimación)',
   'hero.futureAria': 'Estimación a un año',
-  'hero.futureIfPlus20': 'si la tarifa sube un 20%',
   'hero.btnHideDetails': 'Ocultar detalles',
   'hero.btnShowDetails': 'Divisas, saldo, tipos',
   'hero.btnEditProjects': 'Editar proyectos',
@@ -45,7 +42,7 @@ export const es: Record<string, string> = {
   'hero.btnBackTrajectory': 'Volver a la trayectoria',
   'hero.btnHideChart': 'Ocultar gráfico',
   'hero.emptyPrompt':
-    'Añade un proyecto e importes en ajustes — aquí verás tu ritmo en vivo.',
+    'Añade un proyecto e importes en ajustes, aquí verás tu ritmo en vivo.',
   'hero.emptyCta': 'Abrir ajustes',
   'hero.noFxHint':
     'Para una sola cifra de ritmo, activa los tipos de cambio API o usa proyectos en una sola divisa.',
@@ -80,15 +77,17 @@ export const es: Record<string, string> = {
     'Cada divisa por separado. Primero contratos activos; sin FX, dentro de cada grupo el orden es por código de divisa.',
   'breakdown.endedBadge': 'Finalizados',
   'breakdown.inAccount': 'En la cuenta ahora',
+  'breakdown.balancePayrollCaption':
+    'Saldo en ajustes tras la nómina del {payroll}; acumulación desde proyectos en la divisa de la cuenta desde el {accrualFrom} (medianoche del día siguiente).',
   'breakdown.noContractsInCcy': 'Sin contratos en',
   'breakdown.allEndedInCcy': 'Todos finalizados',
   'breakdown.noAccrualHint':
-    'Nada devenga al saldo — no hay proyectos seleccionados en la divisa de la cuenta, solo saldo tras nómina.',
+    'Nada devenga al saldo, no hay proyectos seleccionados en la divisa de la cuenta, solo saldo tras nómina.',
   'breakdown.allEndedHint':
-    'Todos los proyectos en esta divisa han terminado — no hay devengo al saldo.',
+    'Todos los proyectos en esta divisa han terminado, no hay devengo al saldo.',
   'breakdown.equivTitle': 'Total en divisa de la cuenta',
   'breakdown.equivHint':
-    'Una columna en la divisa de la cuenta — todos los proyectos seleccionados convertidos al tipo de abajo.',
+    'Una columna en la divisa de la cuenta, todos los proyectos seleccionados convertidos al tipo de abajo.',
   'breakdown.fxBlurb':
     'Cada importe en su divisa se convierte con el tipo API actual a',
   'breakdown.sumBlurb': 'Se suman los importes ya convertidos para comparar en un solo número.',
@@ -105,32 +104,31 @@ export const es: Record<string, string> = {
 
   'fx.title': 'Tipo',
   'fx.noForeign':
-    'La base API es {balance}; no hay otras divisas entre los proyectos seleccionados — sin cotizaciones aparte.',
+    'La base API es {balance}; no hay otras divisas entre los proyectos seleccionados, sin cotizaciones aparte.',
   'fx.missing':
-    'Sin tipo API desde las divisas del proyecto ({codes}) a la base {base} — la línea combinada del gráfico puede no estar disponible.',
+    'Sin tipo API desde las divisas del proyecto ({codes}) a la base {base}, la línea combinada del gráfico puede no estar disponible.',
   'fx.footer':
     'Se usa para el total en divisa de cuenta, el Σ/s combinado y la línea rosa del gráfico.',
   'fx.failed':
-    'No se cargaron los tipos — fusión a divisa de cuenta y línea del gráfico no disponibles. Saldos sin cambio.',
+    'No se cargaron los tipos, fusión a divisa de cuenta y línea del gráfico no disponibles. Saldos sin cambio.',
 
   'chart.panelTitle': 'Acumulación en el tiempo',
-  'chart.expand': 'Ampliar gráfico',
-  'chart.collapse': 'Gráfico compacto',
-  'chart.expandAria': 'Ampliar gráfico — leyenda y ejes completos',
-  'chart.collapseAria': 'Gráfico compacto — menos altura y etiquetas',
-  'chart.panelHint': 'Clic en un proyecto para una línea; otro clic para todas.',
-  'chart.panelHintCompact': 'Toca el gráfico para valores · ampliar para leyenda completa',
-  'chart.projects': 'Proyectos',
   'chart.graphBadge': 'Gráfico',
-  'chart.all': 'Todo',
   'chart.range1y': '1A',
   'chart.rangeAll': 'Todo el periodo',
+  'chart.toolbarAria': 'Rango y vista del gráfico',
+  'chart.allCompanies': 'Todas',
+  'chart.markerStartAbbr': 'I',
+  'chart.markerEndAbbr': 'F',
+  'chart.contractStart': 'Inicio del contrato',
+  'chart.contractEnd': 'Fin del contrato',
+  'chart.markersToggleAria': 'Mostrar u ocultar inicio y fin de contrato en el gráfico',
   'chart.advancedShow': 'Detalles del gráfico',
   'chart.advancedHide': 'Vista simple',
   'chart.productAria': 'Crecimiento del ingreso y tendencia',
   'chart.productKicker': 'Cómo vas',
   'chart.productAboveTrend':
-    'Vas por delante de una tendencia recta en esta ventana — el impulso te favorece.',
+    'Vas por delante de una tendencia recta en esta ventana, el impulso te favorece.',
   'chart.productBelowTrend':
     'Frente a una línea recta desde el inicio de la ventana, estás unos {pct}% por debajo.',
   'chart.productNeutralTrend': 'Cerca de una tendencia lineal estable en esta ventana.',
@@ -158,7 +156,7 @@ export const es: Record<string, string> = {
   'awareness.sub': 'Mi ritmo (compartir)',
   'awareness.ladder': 'Por encima del ~{pct}% en una escala demo en EUR',
   'awareness.ladderNote':
-    'Estilo viral: “gano más que ~{pct}%” en esta escala demo — no es una encuesta real.',
+    'Estilo viral: “gano más que ~{pct}%” en esta escala demo, no es una encuesta real.',
   'awareness.ladderModel':
     'Modelo: anclas ~20–150k €/año → €/s. No es asesoramiento financiero.',
   'awareness.needFx':
@@ -171,7 +169,7 @@ export const es: Record<string, string> = {
 
   'dates.start': 'Inicio:',
   'dates.end': 'Fin:',
-  'dates.projectClosed': 'Proyecto terminado — el total del periodo es definitivo',
+  'dates.projectClosed': 'Proyecto terminado, el total del periodo es definitivo',
 
   'profile.phone': 'Tel.:',
 
@@ -194,7 +192,7 @@ export const es: Record<string, string> = {
   'settings.showOnDashboard': 'Mostrar en la pantalla principal',
   'settings.editProject': 'Editar este proyecto',
   'settings.contractEnded': 'Finalizado',
-  'settings.endedBadgeTitle': 'La fecha de fin ya pasó — el devengo de este contrato se detuvo.',
+  'settings.endedBadgeTitle': 'La fecha de fin ya pasó, el devengo de este contrato se detuvo.',
   'settings.projectName': 'Nombre del proyecto',
   'settings.projectCcy': 'Divisa del proyecto',
   'settings.workStart': 'Fecha de inicio del trabajo',
@@ -231,10 +229,10 @@ export const es: Record<string, string> = {
     'Guardado automático en este navegador (localStorage). Un JSON es copia de seguridad o traslado a otro dispositivo.',
   'settings.storageRiskTitle': 'Solo en este navegador',
   'settings.storageRiskBody':
-    'Borrar datos del sitio, otro perfil u otro dispositivo puede borrarlo. Descarga o copia JSON de vez en cuando — sin cuenta.',
+    'Borrar datos del sitio, otro perfil u otro dispositivo puede borrarlo. Descarga o copia JSON de vez en cuando, sin cuenta.',
   'settings.downloadJson': 'Descargar JSON',
   'settings.copyJson': 'Copiar JSON',
-  'settings.copyJsonOk': 'JSON copiado — guárdalo en un sitio seguro',
+  'settings.copyJsonOk': 'JSON copiado, guárdalo en un sitio seguro',
   'settings.copyJsonFail': 'No se pudo copiar',
   'settings.uploadJson': 'Subir JSON',
 
@@ -257,11 +255,10 @@ export const es: Record<string, string> = {
     'Archivo no válido. Se necesita JSON de exportación MoneyClock: v: 1 y bloques mode, projectsBundle, etc.',
 
   'chart.empty':
-    'Indica una fecha de inicio del proyecto — aparecerá el gráfico de ingreso acumulado.',
+    'Indica una fecha de inicio del proyecto, aparecerá el gráfico de ingreso acumulado.',
   'chart.ariaMain': 'Ingreso acumulado, saldo de cuenta y divisas',
   'chart.heading': 'Proyectos y cuenta',
   'chart.yHover': 'Y: línea bajo el cursor',
-  'chart.yCompany': 'Y: empresa',
   'chart.yFirst': 'Y: primero en la lista',
   'chart.fromStart': 'desde el inicio más temprano',
   'chart.now': 'ahora',
@@ -271,7 +268,7 @@ export const es: Record<string, string> = {
     '. Índice relativo medio (100% = tipo al inicio del gráfico).',
   'chart.legend.inf': 'Inflación (IPC, % anual):',
   'chart.legend.infBlurb':
-    ', FP.CPI.TOTL.ZG. Línea = índice medio del nivel de precios para economías de las divisas elegidas (100 = 1 ene del año de inicio del gráfico); divisa ≠ país — mapeo estático.',
+    ', FP.CPI.TOTL.ZG. Línea = índice medio del nivel de precios para economías de las divisas elegidas (100 = 1 ene del año de inicio del gráfico); divisa ≠ país, mapeo estático.',
 
   'chart.series.others': 'otros',
   'chart.series.projects': 'proyectos',

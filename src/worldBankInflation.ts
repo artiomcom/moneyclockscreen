@@ -7,7 +7,7 @@ import { normalizeCurrencyCode } from './moneyClockPersistence';
  */
 export const CURRENCY_TO_WB_COUNTRY: Readonly<Record<string, string>> = {
   USD: 'USA',
-  /** WB aggregate EMU (XC) часто без значений по FP.CPI.TOTL.ZG — берём DEU как прокси еврозоны. */
+  /** WB aggregate EMU (XC) часто без значений по FP.CPI.TOTL.ZG, берём DEU как прокси еврозоны. */
   EUR: 'DEU',
   GBP: 'GBR',
   JPY: 'JPN',

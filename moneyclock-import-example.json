@@ -29,7 +29,7 @@
   "workedHours": "0",
   "workedMinutes": "0",
   "profile": {
-    "_comment": "Необязательно: резюме и заметки. См. profile-artem-miherea.json — полный пример.",
+    "_comment": "Необязательно: резюме и заметки. См. profile-artem-miherea.json, полный пример.",
     "personal": {
       "fullName": "Имя Фамилия",
       "headline": "Должность",

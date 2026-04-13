@@ -26,13 +26,10 @@ export const ja: Record<string, string> = {
   'hero.realHint': '· 実質',
   'hero.today': '今日',
   'hero.todayNote': '深夜0時から · ローカル時間',
-  'hero.moreNumbers': 'さらに数字',
   'hero.moreNominal': '名目（調整前）',
   'hero.insightTitle': '税・インフレ後',
   'hero.insightAria': '実質購買力',
-  'hero.futureTitle': '今後12ヶ月（目安）',
   'hero.futureAria': '1年先の目安',
-  'hero.futureIfPlus20': 'レート+20%の場合',
   'hero.btnHideDetails': '詳細を隠す',
   'hero.btnShowDetails': '通貨・残高・レート',
   'hero.btnEditProjects': 'プロジェクトを編集',
@@ -45,7 +42,7 @@ export const ja: Record<string, string> = {
   'hero.btnBackTrajectory': '軌道に戻る',
   'hero.btnHideChart': 'チャートを隠す',
   'hero.emptyPrompt':
-    '設定でプロジェクトと金額を追加 — ここにライブレートが表示されます。',
+    '設定でプロジェクトと金額を追加, ここにライブレートが表示されます。',
   'hero.emptyCta': '設定を開く',
   'hero.noFxHint':
     '1本のヘッドラインにするには API 為替を有効にするか、同一通貨のプロジェクトにしてください。',
@@ -80,15 +77,17 @@ export const ja: Record<string, string> = {
     '通貨ごと。有効契約を先に；FX なしは通貨コード順。',
   'breakdown.endedBadge': '終了',
   'breakdown.inAccount': '現在の口座残高',
+  'breakdown.balancePayrollCaption':
+    '設定の残高（{payroll} の給与後）· 口座通貨プロジェクトの積み上げは {accrualFrom}（翌日0時）から。',
   'breakdown.noContractsInCcy': '契約なし',
   'breakdown.allEndedInCcy': 'すべて終了',
   'breakdown.noAccrualHint':
-    '残高に積み上がらない — 口座通貨の選択プロジェクトがなく、給与後残高のみ。',
+    '残高に積み上がらない, 口座通貨の選択プロジェクトがなく、給与後残高のみ。',
   'breakdown.allEndedHint':
-    'この通貨のプロジェクトはすべて終了 — 残高への積み上げなし。',
+    'この通貨のプロジェクトはすべて終了, 残高への積み上げなし。',
   'breakdown.equivTitle': '口座通貨での合計',
   'breakdown.equivHint':
-    '口座通貨の1列 — 下のレートですべての選択プロジェクトを換算。',
+    '口座通貨の1列, 下のレートですべての選択プロジェクトを換算。',
   'breakdown.fxBlurb': '各金額をその通貨から現在の API レートで換算し',
   'breakdown.sumBlurb': '換算後に合算し、1つの数字で比較。',
   'breakdown.howTitle': '仕組み。',
@@ -104,31 +103,30 @@ export const ja: Record<string, string> = {
 
   'fx.title': 'レート',
   'fx.noForeign':
-    'API ベースは {balance}；選択プロジェクトに他通貨なし — 個別の見積なし。',
+    'API ベースは {balance}；選択プロジェクトに他通貨なし, 個別の見積なし。',
   'fx.missing':
-    'プロジェクト通貨（{codes}）からベース {base} への API レートなし — 統合ラインが使えない場合あり。',
+    'プロジェクト通貨（{codes}）からベース {base} への API レートなし, 統合ラインが使えない場合あり。',
   'fx.footer': '口座通貨合計・統合 Σ/秒・ピンクのチャートラインに使用。',
   'fx.failed':
-    'レート読み込み失敗 — 口座通貨マージとチャートラインは利用不可。残高はそのまま。',
+    'レート読み込み失敗, 口座通貨マージとチャートラインは利用不可。残高はそのまま。',
 
   'chart.panelTitle': '時間経過の積み上げ',
-  'chart.expand': 'チャートを広げる',
-  'chart.collapse': 'コンパクト表示',
-  'chart.expandAria': '広げる — 凡例と軸ラベルすべて',
-  'chart.collapseAria': 'コンパクト — 高さとラベルを削減',
-  'chart.panelHint': 'プロジェクトをクリックで1本線、もう一度で全系列。',
-  'chart.panelHintCompact': 'タップで値を表示 · 広げて凡例すべて',
-  'chart.projects': 'プロジェクト',
   'chart.graphBadge': 'チャート',
-  'chart.all': 'すべて',
   'chart.range1y': '1年',
   'chart.rangeAll': '全期間',
+  'chart.toolbarAria': 'チャートの期間と表示',
+  'chart.allCompanies': 'すべて',
+  'chart.markerStartAbbr': '始',
+  'chart.markerEndAbbr': '終',
+  'chart.contractStart': '契約開始',
+  'chart.contractEnd': '契約終了',
+  'chart.markersToggleAria': '契約の開始・終了マーカーの表示を切り替え',
   'chart.advancedShow': 'チャート詳細',
   'chart.advancedHide': 'シンプル表示',
   'chart.productAria': '収入成長とトレンド',
   'chart.productKicker': '調子はどうか',
   'chart.productAboveTrend':
-    'この期間の直線トレンドを上回っています — 勢いあり。',
+    'この期間の直線トレンドを上回っています, 勢いあり。',
   'chart.productBelowTrend':
     '期間開始からの直線トレンドより約 {pct}% 下です。',
   'chart.productNeutralTrend': 'この期間では安定した線形トレンドに近い。',
@@ -169,7 +167,7 @@ export const ja: Record<string, string> = {
 
   'dates.start': '開始：',
   'dates.end': '終了：',
-  'dates.projectClosed': 'プロジェクト終了 — 期間合計は確定',
+  'dates.projectClosed': 'プロジェクト終了, 期間合計は確定',
 
   'profile.phone': '電話：',
 
@@ -192,7 +190,7 @@ export const ja: Record<string, string> = {
   'settings.showOnDashboard': 'メイン画面に表示',
   'settings.editProject': 'このプロジェクトを編集',
   'settings.contractEnded': '終了',
-  'settings.endedBadgeTitle': '終了日を過ぎました — この契約の積み上げは停止。',
+  'settings.endedBadgeTitle': '終了日を過ぎました, この契約の積み上げは停止。',
   'settings.projectName': 'プロジェクト名',
   'settings.projectCcy': 'プロジェクト通貨',
   'settings.workStart': '稼働開始日',
@@ -228,10 +226,10 @@ export const ja: Record<string, string> = {
     'このブラウザに自動保存（localStorage）。JSON はバックアップや別端末移行用。',
   'settings.storageRiskTitle': 'このブラウザのみ',
   'settings.storageRiskBody':
-    'サイトデータ削除・別プロファイル・別端末で消えることがあります。時々 JSON を保存 — アカウント不要。',
+    'サイトデータ削除・別プロファイル・別端末で消えることがあります。時々 JSON を保存, アカウント不要。',
   'settings.downloadJson': 'JSON をダウンロード',
   'settings.copyJson': 'JSON をコピー',
-  'settings.copyJsonOk': 'JSON をコピーしました — 安全に保管してください',
+  'settings.copyJsonOk': 'JSON をコピーしました, 安全に保管してください',
   'settings.copyJsonFail': 'コピーできませんでした',
   'settings.uploadJson': 'JSON をアップロード',
 
@@ -257,7 +255,6 @@ export const ja: Record<string, string> = {
   'chart.ariaMain': '累積収入・口座残高・為替',
   'chart.heading': 'プロジェクトと口座',
   'chart.yHover': 'Y：カーソル下の線',
-  'chart.yCompany': 'Y：会社',
   'chart.yFirst': 'Y：リスト先頭',
   'chart.fromStart': '最も早い開始から',
   'chart.now': '今',
@@ -266,7 +263,7 @@ export const ja: Record<string, string> = {
   'chart.legend.fxBlurb': '。平均相対指数（100% = チャート開始時のレート）。',
   'chart.legend.inf': 'インフレ（CPI、年率%）：',
   'chart.legend.infBlurb':
-    '、FP.CPI.TOTL.ZG。線 = 選択通貨の経済圏の平均物価水準指数（100 = チャート開始年1月1日）；通貨≠国 — 静的マッピング。',
+    '、FP.CPI.TOTL.ZG。線 = 選択通貨の経済圏の平均物価水準指数（100 = チャート開始年1月1日）；通貨≠国, 静的マッピング。',
 
   'chart.series.others': 'その他',
   'chart.series.projects': 'プロジェクト',

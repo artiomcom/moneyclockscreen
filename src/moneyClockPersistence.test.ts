@@ -70,7 +70,7 @@ describe('earningsTotalsByCurrency (Всего заработано по вал�
   });
 });
 
-describe('projectEarningsAt — monthly и contract', () => {
+describe('projectEarningsAt, monthly и contract', () => {
   it('monthly: за один средний календарный месяц начисляется ≈ месячная сумма', () => {
     const p = newProject({
       workStartDate: '2020-06-01',
@@ -102,7 +102,7 @@ describe('projectEarningsAt — monthly и contract', () => {
     expect(Math.abs(earned - inflated)).toBeGreaterThan(1000);
   });
 
-  it('contract: к концу срока — полная сумма контракта', () => {
+  it('contract: к концу срока, полная сумма контракта', () => {
     const p = newProject({
       workStartDate: '2025-01-01',
       projectEndDate: '2025-01-31',

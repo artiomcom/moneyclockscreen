@@ -13,19 +13,23 @@ interface Particle {
 type ParticleBackgroundProps = {
   /** Неоновые «пиксели» вместо мягких бликов */
   arcade?: boolean;
+  /** Меньше частиц, чище «капля», неон остаётся */
+  sparse?: boolean;
 };
 
-export function ParticleBackground({ arcade = false }: ParticleBackgroundProps) {
+export function ParticleBackground({ arcade = false, sparse = false }: ParticleBackgroundProps) {
   const particles = useMemo<Particle[]>(() => {
-    return Array.from({ length: arcade ? 28 : 20 }, (_, i) => ({
+    const n = arcade ? (sparse ? 14 : 28) : sparse ? 12 : 20;
+    const opMul = sparse ? 0.55 : 1;
+    return Array.from({ length: n }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
       size: arcade ? Math.floor(Math.random() * 2) + 2 : Math.random() * 4 + 2,
       duration: Math.random() * 10 + 8,
       delay: Math.random() * 6,
-      opacity: arcade ? Math.random() * 0.35 + 0.12 : Math.random() * 0.25 + 0.05
+      opacity: (arcade ? Math.random() * 0.35 + 0.12 : Math.random() * 0.25 + 0.05) * opMul
     }));
-  }, [arcade]);
+  }, [arcade, sparse]);
 
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">

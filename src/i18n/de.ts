@@ -26,13 +26,10 @@ export const de: Record<string, string> = {
   'hero.realHint': '· real',
   'hero.today': 'Heute',
   'hero.todayNote': 'seit Mitternacht · Ortszeit',
-  'hero.moreNumbers': 'Mehr Zahlen',
   'hero.moreNominal': 'Nominal (vor Anpassung)',
   'hero.insightTitle': 'Nach Steuern & Inflation',
   'hero.insightAria': 'Reale Kaufkraft',
-  'hero.futureTitle': 'Nächste 12 Monate (Schätzung)',
   'hero.futureAria': 'Schätzung für ein Jahr',
-  'hero.futureIfPlus20': 'bei +20% zum Satz',
   'hero.btnHideDetails': 'Details ausblenden',
   'hero.btnShowDetails': 'Währungen, Saldo, Kurse',
   'hero.btnEditProjects': 'Projekte bearbeiten',
@@ -45,7 +42,7 @@ export const de: Record<string, string> = {
   'hero.btnBackTrajectory': 'Zurück zur Trajektorie',
   'hero.btnHideChart': 'Diagramm ausblenden',
   'hero.emptyPrompt':
-    'Projekt und Beträge in den Einstellungen hinzufügen — hier erscheint Ihre Live-Rate.',
+    'Projekt und Beträge in den Einstellungen hinzufügen, hier erscheint Ihre Live-Rate.',
   'hero.emptyCta': 'Einstellungen öffnen',
   'hero.noFxHint':
     'Für eine einzige Kopfzeilen-Rate: Wechselkurse API aktivieren oder Projekte in einer Währung.',
@@ -80,15 +77,17 @@ export const de: Record<string, string> = {
     'Jede Währung getrennt. Zuerst aktive Verträge; ohne FX in der Gruppe nach Währungscode.',
   'breakdown.endedBadge': 'Beendet',
   'breakdown.inAccount': 'Auf dem Konto jetzt',
+  'breakdown.balancePayrollCaption':
+    'Kontostand in den Einstellungen nach Gehalt am {payroll}; Aufstockung aus Projekten in Kontowährung ab {accrualFrom} (Mitternacht des Folgetags).',
   'breakdown.noContractsInCcy': 'Keine Verträge in',
   'breakdown.allEndedInCcy': 'Alle beendet',
   'breakdown.noAccrualHint':
-    'Nichts läuft aufs Saldo — keine ausgewählten Projekte in Kontowährung, nur Saldo nach Lohn.',
+    'Nichts läuft aufs Saldo, keine ausgewählten Projekte in Kontowährung, nur Saldo nach Lohn.',
   'breakdown.allEndedHint':
-    'Alle Projekte in dieser Währung sind beendet — kein Zufluss zum Saldo.',
+    'Alle Projekte in dieser Währung sind beendet, kein Zufluss zum Saldo.',
   'breakdown.equivTitle': 'Gesamt in Kontowährung',
   'breakdown.equivHint':
-    'Eine Spalte in Kontowährung — alle ausgewählten Projekte zum Kurs unten umgerechnet.',
+    'Eine Spalte in Kontowährung, alle ausgewählten Projekte zum Kurs unten umgerechnet.',
   'breakdown.fxBlurb':
     'Jeder Betrag in seiner Währung wird mit dem aktuellen API-Kurs umgerechnet in',
   'breakdown.sumBlurb': 'Umgerechnete Beträge werden summiert, um in einer Zahl zu vergleichen.',
@@ -105,32 +104,31 @@ export const de: Record<string, string> = {
 
   'fx.title': 'Kurs',
   'fx.noForeign':
-    'API-Basis ist {balance}; keine anderen Währungen unter den gewählten Projekten — keine separaten Kurse.',
+    'API-Basis ist {balance}; keine anderen Währungen unter den gewählten Projekten, keine separaten Kurse.',
   'fx.missing':
-    'Kein API-Kurs von Projekt-Währungen ({codes}) zur Basis {base} — kombinierte Diagrammlinie ggf. nicht verfügbar.',
+    'Kein API-Kurs von Projekt-Währungen ({codes}) zur Basis {base}, kombinierte Diagrammlinie ggf. nicht verfügbar.',
   'fx.footer':
     'Für Kontowährungs-Gesamt, kombiniertes Σ/s und die rosa Diagrammlinie.',
   'fx.failed':
-    'Kurse konnten nicht geladen werden — Umrechnung und Diagrammlinie nicht verfügbar. Salden unverändert.',
+    'Kurse konnten nicht geladen werden, Umrechnung und Diagrammlinie nicht verfügbar. Salden unverändert.',
 
   'chart.panelTitle': 'Auflauf über die Zeit',
-  'chart.expand': 'Diagramm vergrößern',
-  'chart.collapse': 'Kompaktes Diagramm',
-  'chart.expandAria': 'Vergrößern — volle Legende und Achsen',
-  'chart.collapseAria': 'Kompakt — weniger Höhe und Beschriftung',
-  'chart.panelHint': 'Klick auf ein Projekt für eine Linie; erneut für alle Serien.',
-  'chart.panelHintCompact': 'Diagramm tippen für Werte · vergrößern für volle Legende',
-  'chart.projects': 'Projekte',
   'chart.graphBadge': 'Diagramm',
-  'chart.all': 'Alle',
   'chart.range1y': '1J',
   'chart.rangeAll': 'Gesamte Zeit',
+  'chart.toolbarAria': 'Diagrammbereich und Ansicht',
+  'chart.allCompanies': 'Alle',
+  'chart.markerStartAbbr': 'S',
+  'chart.markerEndAbbr': 'E',
+  'chart.contractStart': 'Vertragsbeginn',
+  'chart.contractEnd': 'Vertragsende',
+  'chart.markersToggleAria': 'Vertrags-Start- und Endmarkierungen ein- oder ausblenden',
   'chart.advancedShow': 'Diagramm-Details',
   'chart.advancedHide': 'Einfache Ansicht',
   'chart.productAria': 'Einkommenswachstum und Trend',
   'chart.productKicker': 'Wie es läuft',
   'chart.productAboveTrend':
-    'Sie liegen über einem geraden Trend in diesem Fenster — Schwung auf Ihrer Seite.',
+    'Sie liegen über einem geraden Trend in diesem Fenster, Schwung auf Ihrer Seite.',
   'chart.productBelowTrend':
     'Gegen einen Geraden-Trend vom Fensteranfang sind Sie etwa {pct}% darunter.',
   'chart.productNeutralTrend': 'Nahe einem stabilen linearen Trend in diesem Fenster.',
@@ -158,7 +156,7 @@ export const de: Record<string, string> = {
   'awareness.sub': 'Mein Tempo (Teilen)',
   'awareness.ladder': 'Über ~{pct}% auf einer Demo-EUR-Leiter',
   'awareness.ladderNote':
-    'Viral-Formulierung: „Ich verdiene mehr als ~{pct}%“ auf dieser Demo-Leiter — keine echte Umfrage.',
+    'Viral-Formulierung: „Ich verdiene mehr als ~{pct}%“ auf dieser Demo-Leiter, keine echte Umfrage.',
   'awareness.ladderModel':
     'Modell: grobe Anker ~20–150k €/Jahr → €/s. Keine Finanzberatung.',
   'awareness.needFx':
@@ -171,7 +169,7 @@ export const de: Record<string, string> = {
 
   'dates.start': 'Start:',
   'dates.end': 'Ende:',
-  'dates.projectClosed': 'Projekt beendet — Periodensumme ist final',
+  'dates.projectClosed': 'Projekt beendet, Periodensumme ist final',
 
   'profile.phone': 'Tel.:',
 
@@ -194,7 +192,7 @@ export const de: Record<string, string> = {
   'settings.showOnDashboard': 'Auf Hauptbildschirm anzeigen',
   'settings.editProject': 'Dieses Projekt bearbeiten',
   'settings.contractEnded': 'Beendet',
-  'settings.endedBadgeTitle': 'Enddatum überschritten — Aufstockung für diesen Vertrag gestoppt.',
+  'settings.endedBadgeTitle': 'Enddatum überschritten, Aufstockung für diesen Vertrag gestoppt.',
   'settings.projectName': 'Projektname',
   'settings.projectCcy': 'Projektwährung',
   'settings.workStart': 'Arbeitsbeginn',
@@ -231,10 +229,10 @@ export const de: Record<string, string> = {
     'Automatisch in diesem Browser (localStorage). JSON-Datei ist Backup oder Gerätewechsel.',
   'settings.storageRiskTitle': 'Nur in diesem Browser',
   'settings.storageRiskBody':
-    'Daten löschen, anderes Profil oder Gerät kann alles entfernen. JSON gelegentlich laden oder kopieren — ohne Konto.',
+    'Daten löschen, anderes Profil oder Gerät kann alles entfernen. JSON gelegentlich laden oder kopieren, ohne Konto.',
   'settings.downloadJson': 'JSON herunterladen',
   'settings.copyJson': 'JSON kopieren',
-  'settings.copyJsonOk': 'JSON kopiert — sicher aufbewahren',
+  'settings.copyJsonOk': 'JSON kopiert, sicher aufbewahren',
   'settings.copyJsonFail': 'Kopieren fehlgeschlagen',
   'settings.uploadJson': 'JSON hochladen',
 
@@ -257,11 +255,10 @@ export const de: Record<string, string> = {
     'Ungültige Datei. MoneyClock-Export-JSON nötig: v: 1 und Blöcke mode, projectsBundle usw.',
 
   'chart.empty':
-    'Projektstartdatum setzen — das kumulierte Einkommensdiagramm erscheint.',
+    'Projektstartdatum setzen, das kumulierte Einkommensdiagramm erscheint.',
   'chart.ariaMain': 'Kumuliertes Einkommen, Kontosaldo und FX',
   'chart.heading': 'Projekte & Konto',
   'chart.yHover': 'Y: Linie unter Cursor',
-  'chart.yCompany': 'Y: Firma',
   'chart.yFirst': 'Y: Erster in Liste',
   'chart.fromStart': 'vom frühesten Start',
   'chart.now': 'jetzt',
@@ -271,7 +268,7 @@ export const de: Record<string, string> = {
     '. Mittlerer relativer Index (100% = Kurs am Diagrammstart).',
   'chart.legend.inf': 'Inflation (VPI, jährlich %):',
   'chart.legend.infBlurb':
-    ', FP.CPI.TOTL.ZG. Linie = mittlerer Preisniveau-Index für Volkswirtschaften der gewählten Währungen (100 = 1. Jan. des Startjahrs); Währung ≠ Land — statisches Mapping.',
+    ', FP.CPI.TOTL.ZG. Linie = mittlerer Preisniveau-Index für Volkswirtschaften der gewählten Währungen (100 = 1. Jan. des Startjahrs); Währung ≠ Land, statisches Mapping.',
 
   'chart.series.others': 'andere',
   'chart.series.projects': 'Projekte',

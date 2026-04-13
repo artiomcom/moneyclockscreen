@@ -1,6 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { Maximize2, Minimize2, XIcon } from 'lucide-react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode
+} from 'react';
+import { motion } from 'framer-motion';
+import { CalendarRange } from 'lucide-react';
 import { useI18n } from '../i18n';
 import {
   type ProjectEntry,
@@ -8,8 +15,7 @@ import {
   parseLocalDateYmd,
   normalizeCurrencyCode,
   getCurrencySymbol,
-  balanceOnAccountAt,
-  projectIsEndedByDeadline
+  balanceOnAccountAt
 } from '../moneyClockPersistence';
 import {
   convertAmountThroughSnapshot,
@@ -17,7 +23,9 @@ import {
 } from '../fxRates';
 import {
   buildRelativeFxIndexSeries,
+  formatLocalYmdFromMs,
   frankfurterQuoteCurrencies,
+  historicalFxSnapshotForYmd,
   type FrankfurterRow
 } from '../frankfurterHistorical';
 import {
@@ -26,16 +34,19 @@ import {
   type BlendedInflationYear
 } from '../worldBankInflation';
 import { intlLocaleTag } from '../i18n/localeMeta';
+import { DASHBOARD_HINT_CLASS } from '../dashboardHintClass';
+import { ARCADE_SETTINGS_BTN_CLASS, PixelSettingsCog } from './RetroGnomesFrame';
 
 export const INCOME_CHART_STEPS = 64;
 const STEPS = INCOME_CHART_STEPS;
 const HOVER_HIT_PX = 24;
 const VB_W = 520;
-const VB_H = 248;
+/** Taller viewBox → more vertical plot area at the same CSS width (data-ink). */
+const VB_H = 268;
 const PAD_L = 58;
 const PAD_R = 16;
-const PAD_T = 20;
-const PAD_B = 52;
+const PAD_T = 18;
+const PAD_B = 46;
 const DAY_MS = 86400000;
 
 type Series = {
@@ -65,6 +76,34 @@ const FOCUS_PROJECT_LINE = '#fef08a';
 const MUTED_PROJECT_LINE = 'rgba(203, 213, 225, 0.42)';
 const PRODUCT_YOU_LINE = '#34d399';
 const PRODUCT_TREND_LINE = 'rgba(255, 255, 255, 0.38)';
+
+const CHART_GLASS_PILL =
+  'flex flex-wrap items-center justify-center gap-0.5 rounded-[0.65rem] border border-white/[0.12] bg-gradient-to-b from-white/[0.1] to-white/[0.03] dark:from-[#0c1525]/85 dark:to-[#060a13]/78 backdrop-blur-[16px] backdrop-saturate-150 px-1 py-0.5 shadow-[0_6px_32px_rgba(0,0,0,0.42)] ring-1 ring-inset ring-white/[0.06]';
+
+/** Панель над графиком в потоке документа: чипы сверху, кнопки снизу — без наложения на SVG. */
+function ChartControlStrip({
+  toolbarAriaLabel,
+  chips,
+  controls
+}: {
+  toolbarAriaLabel: string;
+  chips: ReactNode;
+  controls: ReactNode;
+}) {
+  const showChips = chips != null && chips !== false;
+  return (
+    <div
+      className={`flex w-full min-w-0 shrink-0 flex-col border-b border-white/[0.08] px-2 py-2 dark:border-white/[0.06]${showChips ? ' gap-2' : ''}`}>
+      {chips}
+      <div
+        className="flex w-full min-w-0 flex-wrap items-center justify-center gap-2 sm:justify-end"
+        role="toolbar"
+        aria-label={toolbarAriaLabel}>
+        <div className={CHART_GLASS_PILL}>{controls}</div>
+      </div>
+    </div>
+  );
+}
 
 export function getIncomeChartTimeRange(
   projects: ProjectEntry[],
@@ -109,6 +148,7 @@ function buildIncomeSeries(
     lastPayrollYmd: string;
   },
   fxMerge?: { snapshot: FxSnapshot; targetCode: string } | null,
+  fxHistoryRows?: FrankfurterRow[] | null,
   focusProjectId?: string | null,
   chartLabels?: ChartSeriesLabels,
   /** Optional view window (e.g. last 1Y). Clamped to data range. */
@@ -243,38 +283,62 @@ function buildIncomeSeries(
     });
   }
 
-  if (fxMerge && projects.length > 0 && !focus) {
+  if (fxMerge && projects.length > 0) {
+    const projectsFx = focus ? [focus] : projects;
     const target = normalizeCurrencyCode(fxMerge.targetCode);
-    const fxPoints: [number, number][] = [];
-    let ok = true;
-    for (let i = 0; i <= STEPS; i++) {
-      const t = tMin + (i / STEPS) * (tMax - tMin);
-      let sum = 0;
-      for (const p of projects) {
-        const raw = projectEarningsAt(p, t);
-        const c = convertAmountThroughSnapshot(
-          raw,
-          p.currencyCode,
-          target,
-          fxMerge.snapshot
-        );
-        if (c == null) {
+    const foreignCcys = [
+      ...new Set(
+        projectsFx.map((p) => normalizeCurrencyCode(p.currencyCode)).filter((c) => c !== target)
+      )
+    ];
+    if (foreignCcys.length > 0) {
+      const fxPoints: [number, number][] = [];
+      let ok = true;
+      for (let i = 0; i <= STEPS; i++) {
+        const t = tMin + (i / STEPS) * (tMax - tMin);
+        const ymd = formatLocalYmdFromMs(t);
+        const histS =
+          foreignCcys.length > 0 && fxHistoryRows?.length ?
+            historicalFxSnapshotForYmd(fxHistoryRows, target, ymd, foreignCcys)
+          : null;
+        let snap: FxSnapshot = histS ?? fxMerge.snapshot;
+        let sum = 0;
+        let stepOk = true;
+        for (const p of projectsFx) {
+          const raw = projectEarningsAt(p, t);
+          let c = convertAmountThroughSnapshot(raw, p.currencyCode, target, snap);
+          if (c == null && histS && snap !== fxMerge.snapshot) {
+            c = convertAmountThroughSnapshot(
+              raw,
+              p.currencyCode,
+              target,
+              fxMerge.snapshot
+            );
+          }
+          if (c == null) {
+            stepOk = false;
+            break;
+          }
+          sum += c;
+        }
+        if (!stepOk) {
           ok = false;
           break;
         }
-        sum += c;
+        fxPoints.push([t, sum]);
       }
-      if (!ok) break;
-      fxPoints.push([t, sum]);
-    }
-    if (ok && fxPoints.length === STEPS + 1) {
-      series.push({
-        id: `fx-${target}`,
-        code: target,
-        label: `${target} · ${L.allFx}`,
-        points: fxPoints,
-        kind: 'fx'
-      });
+      if (ok && fxPoints.length === STEPS + 1) {
+        series.push({
+          id: `fx-${target}`,
+          code: target,
+          label:
+            focus ?
+              `${target} · ${chartLabelFromProjectName(focus.name, L.defaultProject)}`
+            : `${target} · ${L.allFx}`,
+          points: fxPoints,
+          kind: 'fx'
+        });
+      }
     }
   }
 
@@ -288,24 +352,51 @@ function buildMergedEarningsPoints(
   tMax: number,
   steps: number,
   fxSnapshot: FxSnapshot | null,
-  balanceCurrency: string
+  balanceCurrency: string,
+  fxHistoryRows: FrankfurterRow[] | null = null,
+  focusProjectId?: string | null
 ): { points: [number, number][]; code: string } | null {
   if (tMax <= tMin || projects.length === 0) return null;
+  const plist =
+    focusProjectId ?
+      projects.filter((p) => p.id === focusProjectId)
+    : projects;
+  if (plist.length === 0) return null;
   const target = normalizeCurrencyCode(balanceCurrency);
+  const foreignCcys = [
+    ...new Set(
+      plist.map((p) => normalizeCurrencyCode(p.currencyCode)).filter((c) => c !== target)
+    )
+  ];
   const points: [number, number][] = [];
   for (let i = 0; i <= steps; i++) {
     const t = tMin + (i / steps) * (tMax - tMin);
     let sum = 0;
-    if (fxSnapshot) {
+    const ymd = formatLocalYmdFromMs(t);
+    const histS =
+      foreignCcys.length > 0 && fxHistoryRows?.length ?
+        historicalFxSnapshotForYmd(fxHistoryRows, target, ymd, foreignCcys)
+      : null;
+    const snapForStep = histS ?? fxSnapshot;
+
+    if (snapForStep) {
       let ok = true;
-      for (const p of projects) {
+      for (const p of plist) {
         const raw = projectEarningsAt(p, t);
-        const c = convertAmountThroughSnapshot(
+        let c = convertAmountThroughSnapshot(
           raw,
           p.currencyCode,
           target,
-          fxSnapshot
+          snapForStep
         );
+        if (c == null && histS && fxSnapshot) {
+          c = convertAmountThroughSnapshot(
+            raw,
+            p.currencyCode,
+            target,
+            fxSnapshot
+          );
+        }
         if (c == null) {
           ok = false;
           break;
@@ -314,7 +405,7 @@ function buildMergedEarningsPoints(
       }
       if (!ok) return null;
     } else {
-      const filtered = projects.filter(
+      const filtered = plist.filter(
         (p) => normalizeCurrencyCode(p.currencyCode) === target
       );
       if (filtered.length === 0) return null;
@@ -325,6 +416,157 @@ function buildMergedEarningsPoints(
     points.push([t, sum]);
   }
   return { points, code: target };
+}
+
+type ContractMarker = {
+  t: number;
+  kind: 'start' | 'end';
+  projectId: string;
+  label: string;
+};
+
+function ContractMarkerLayer({
+  markers,
+  tMin,
+  tMax,
+  plotBottomY,
+  startAbbr,
+  endAbbr,
+  startTitle,
+  endTitle
+}: {
+  markers: ContractMarker[];
+  tMin: number;
+  tMax: number;
+  plotBottomY: number;
+  startAbbr: string;
+  endAbbr: string;
+  startTitle: string;
+  endTitle: string;
+}) {
+  if (markers.length === 0) return null;
+  return (
+    <g aria-hidden>
+      {markers.map((m, idx) => {
+        const xb = xScale(m.t, tMin, tMax);
+        const x = xb + ((idx % 5) - 2) * 1.6;
+        const stroke =
+          m.kind === 'start' ? 'rgba(52, 211, 153, 0.72)' : 'rgba(251, 191, 36, 0.78)';
+        const fill =
+          m.kind === 'start' ? 'rgba(167, 243, 208, 0.98)' : 'rgba(253, 230, 138, 0.98)';
+        const ab = m.kind === 'start' ? startAbbr : endAbbr;
+        const kindTitle = m.kind === 'start' ? startTitle : endTitle;
+        return (
+          <g key={`${m.projectId}-${m.kind}-${m.t}`} pointerEvents="none">
+            <title>{`${m.label} — ${kindTitle}`}</title>
+            <line
+              x1={x}
+              y1={PAD_T + 10}
+              x2={x}
+              y2={plotBottomY}
+              stroke={stroke}
+              strokeWidth="1.25"
+              strokeDasharray="4 3"
+              opacity={0.92}
+            />
+            <text
+              x={x}
+              y={PAD_T + 7}
+              fill={fill}
+              fontSize="6.75"
+              fontWeight="800"
+              textAnchor="middle"
+              fontFamily="inherit">
+              {ab}
+            </text>
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+function CompanyChipBar({
+  projects,
+  focusResolved,
+  onSelect,
+  defaultName,
+  allLabel,
+  activeClass,
+  idleClass,
+  labelMaxLen = 15
+}: {
+  projects: ProjectEntry[];
+  focusResolved: string | null;
+  onSelect: (id: string | null) => void;
+  defaultName: string;
+  allLabel: string;
+  activeClass: string;
+  idleClass: string;
+  labelMaxLen?: number;
+}) {
+  if (projects.length === 0) return null;
+  const base =
+    'max-w-[9.5rem] sm:max-w-[10.5rem] truncate rounded-md px-2 py-0.5 text-[0.55rem] sm:text-[0.58rem] font-extrabold uppercase tracking-wide transition-all border';
+  return (
+    <div className="flex w-full min-w-0 flex-wrap content-start items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => onSelect(null)}
+        className={`${base} shrink-0 ${focusResolved == null ? activeClass : idleClass}`}>
+        {allLabel}
+      </button>
+      {projects.map((p) => (
+        <button
+          key={p.id}
+          type="button"
+          onClick={() => onSelect(p.id)}
+          className={`${base} ${focusResolved === p.id ? activeClass : idleClass}`}
+          title={p.name.trim() || defaultName}>
+          {chartLabelFromProjectName(p.name, defaultName, labelMaxLen)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function buildContractMarkers(
+  projects: ProjectEntry[],
+  tMin: number,
+  tMax: number,
+  focusProjectId: string | null,
+  defaultProjectLabel: string
+): ContractMarker[] {
+  const list =
+    focusProjectId ?
+      projects.filter((p) => p.id === focusProjectId)
+    : projects;
+  const out: ContractMarker[] = [];
+  for (const p of list) {
+    const startMs = parseLocalDateYmd(p.workStartDate);
+    if (startMs != null && startMs >= tMin && startMs <= tMax) {
+      out.push({
+        t: startMs,
+        kind: 'start',
+        projectId: p.id,
+        label: chartLabelFromProjectName(p.name, defaultProjectLabel)
+      });
+    }
+    const endTrim = p.projectEndDate.trim();
+    if (endTrim) {
+      const endMs = parseLocalDateYmd(endTrim);
+      if (endMs != null && endMs >= tMin && endMs <= tMax) {
+        out.push({
+          t: endMs,
+          kind: 'end',
+          projectId: p.id,
+          label: chartLabelFromProjectName(p.name, defaultProjectLabel)
+        });
+      }
+    }
+  }
+  out.sort((a, b) => a.t - b.t || a.projectId.localeCompare(b.projectId));
+  return out;
 }
 
 function linearTrendFromPoints(
@@ -589,7 +831,6 @@ export function IncomeChart({
   fxHistoryRows = null,
   inflationYearly = null,
   inflationCurrencyCodes = [],
-  variant: _variant = 'expanded',
   trajectoryHint = null,
   onOpenGrow
 }: {
@@ -598,7 +839,6 @@ export function IncomeChart({
   balanceAfterPayroll: number;
   balanceCurrency: string;
   lastPayrollYmd: string;
-  variant?: 'compact' | 'expanded';
   embedded?: boolean;
   fxSnapshot?: FxSnapshot | null;
   fxHistoryRows?: FrankfurterRow[] | null;
@@ -611,10 +851,19 @@ export function IncomeChart({
   const localeTag = intlLocaleTag[locale];
   const [chartRange, setChartRange] = useState<'1y' | 'all'>('all');
   const [advancedDetails, setAdvancedDetails] = useState(false);
-  const [internalFocusId, setInternalFocusId] = useState<string | null>(null);
-  const [advChartTall, setAdvChartTall] = useState(false);
+  const [chartFocusProjectId, setChartFocusProjectId] = useState<string | null>(null);
+  const [showContractMarkers, setShowContractMarkers] = useState(true);
 
-  const compact = advancedDetails ? !advChartTall : true;
+  const chartFocusResolved =
+    chartFocusProjectId && projects.some((p) => p.id === chartFocusProjectId) ?
+      chartFocusProjectId
+    : null;
+
+  useEffect(() => {
+    if (chartFocusProjectId && !projects.some((p) => p.id === chartFocusProjectId)) {
+      setChartFocusProjectId(null);
+    }
+  }, [projects, chartFocusProjectId]);
 
   const chartLabels = useMemo<ChartSeriesLabels>(
     () => ({
@@ -651,9 +900,18 @@ export function IncomeChart({
       viewWindow.tMax,
       STEPS,
       fxSnapshot,
-      balanceCurrency
+      balanceCurrency,
+      fxHistoryRows,
+      chartFocusResolved
     );
-  }, [viewWindow, projects, fxSnapshot, balanceCurrency]);
+  }, [
+    viewWindow,
+    projects,
+    fxSnapshot,
+    balanceCurrency,
+    fxHistoryRows,
+    chartFocusResolved
+  ]);
 
   const productInsight = useMemo(() => {
     if (!productMerged) return null;
@@ -674,12 +932,6 @@ export function IncomeChart({
     return sharedValueBounds(productMerged.points, productInsight.trend);
   }, [productMerged, productInsight]);
 
-  useEffect(() => {
-    if (internalFocusId && !projects.some((p) => p.id === internalFocusId)) {
-      setInternalFocusId(null);
-    }
-  }, [projects, internalFocusId]);
-
   const { series, tMin, tMax } = useMemo(() => {
     if (!embedded || !advancedDetails) {
       return { series: [] as Series[], tMin: 0, tMax: 0 };
@@ -695,7 +947,8 @@ export function IncomeChart({
       fxSnapshot ?
         { snapshot: fxSnapshot, targetCode: balanceCurrency }
       : null,
-      internalFocusId ?? null,
+      fxHistoryRows,
+      chartFocusResolved,
       chartLabels,
       viewWindow
     );
@@ -751,13 +1004,53 @@ export function IncomeChart({
     lastPayrollYmd,
     fxSnapshot,
     fxHistoryRows,
-    internalFocusId,
     inflationYearly,
     inflationCurrencyCodes,
     chartLabels,
     locale,
-    viewWindow
+    viewWindow,
+    chartFocusResolved
   ]);
+
+  const contractMarkersMain = useMemo(() => {
+    if (
+      !showContractMarkers ||
+      !embedded ||
+      !advancedDetails ||
+      tMax <= tMin
+    ) {
+      return [] as ContractMarker[];
+    }
+    return buildContractMarkers(
+      projects,
+      tMin,
+      tMax,
+      chartFocusResolved,
+      t('chart.defaultProject')
+    );
+  }, [
+    showContractMarkers,
+    embedded,
+    advancedDetails,
+    projects,
+    tMin,
+    tMax,
+    chartFocusResolved,
+    t
+  ]);
+
+  const productContractMarkers = useMemo(() => {
+    if (!showContractMarkers || !viewWindow || viewWindow.tMax <= viewWindow.tMin) {
+      return [] as ContractMarker[];
+    }
+    return buildContractMarkers(
+      projects,
+      viewWindow.tMin,
+      viewWindow.tMax,
+      chartFocusResolved,
+      t('chart.defaultProject')
+    );
+  }, [showContractMarkers, viewWindow, projects, chartFocusResolved, t]);
 
   const plotW = VB_W - PAD_L - PAD_R;
   const plotH = VB_H - PAD_T - PAD_B;
@@ -873,47 +1166,42 @@ export function IncomeChart({
           className="w-full min-w-0 relative rounded-r80-sm border border-white/10 bg-white/[0.04] px-3 py-4 sm:px-4 sm:py-5 space-y-4"
           role="img"
           aria-label={t('chart.ariaPanel')}>
-          <p className="text-white/75 text-sm font-semibold text-center leading-snug">
+          <p className="text-center text-[0.52rem] font-extrabold uppercase tracking-[0.18em] text-white/38">
+            {t('chart.panelTitle')}
+          </p>
+          <p className="text-center text-sm font-semibold leading-snug text-white/75">
             {t('chart.productNeedRates')}
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => setChartRange('1y')}
-              className={`rounded-r80-sm px-3 py-1.5 text-[0.65rem] font-extrabold uppercase tracking-wide border transition-colors ${
-                chartRange === '1y' ?
-                  'border-emerald-400/50 bg-emerald-500/20 text-emerald-100'
-                : 'border-white/18 bg-white/[0.06] text-white/65 hover:bg-white/10'
-              }`}>
-              {t('chart.range1y')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setChartRange('all')}
-              className={`rounded-r80-sm px-3 py-1.5 text-[0.65rem] font-extrabold uppercase tracking-wide border transition-colors ${
-                chartRange === 'all' ?
-                  'border-emerald-400/50 bg-emerald-500/20 text-emerald-100'
-                : 'border-white/18 bg-white/[0.06] text-white/65 hover:bg-white/10'
-              }`}>
-              {t('chart.rangeAll')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setAdvancedDetails(true)}
-              className="rounded-r80-sm px-3 py-1.5 text-[0.65rem] font-bold uppercase tracking-wide border border-violet-400/35 bg-violet-500/15 text-violet-100 hover:bg-violet-500/25">
-              {t('chart.advancedShow')}
-            </button>
-          </div>
-          {onOpenGrow ?
-            <div className="flex justify-center pt-1">
+          <div className="flex justify-center px-1">
+            <div className={CHART_GLASS_PILL}>
               <button
                 type="button"
-                onClick={onOpenGrow}
-                className="text-[0.72rem] font-extrabold uppercase tracking-wide text-[#061018] bg-[var(--accent-money)] px-5 py-2.5 rounded-r80-sm hover:brightness-110">
-                {t('hero.ctaGrow')}
+                onClick={() => setChartRange('1y')}
+                className={`rounded-md px-2.5 py-1 text-[0.6rem] font-extrabold uppercase tracking-[0.05em] transition-all ${
+                  chartRange === '1y' ?
+                    'border border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_14px_rgba(52,211,153,0.18)]'
+                  : 'border border-transparent text-white/55 hover:bg-white/[0.07] hover:text-white/85'
+                }`}>
+                {t('chart.range1y')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartRange('all')}
+                className={`rounded-md px-2.5 py-1 text-[0.6rem] font-extrabold uppercase tracking-[0.05em] transition-all ${
+                  chartRange === 'all' ?
+                    'border border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_14px_rgba(52,211,153,0.18)]'
+                  : 'border border-transparent text-white/55 hover:bg-white/[0.07] hover:text-white/85'
+                }`}>
+                {t('chart.rangeAll')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdvancedDetails(true)}
+                className="rounded-md px-2.5 py-1 text-[0.6rem] font-bold uppercase tracking-[0.05em] border border-violet-400/25 bg-violet-500/10 text-violet-100/95 hover:bg-violet-500/18 hover:border-violet-400/35 transition-all">
+                {t('chart.advancedShow')}
               </button>
             </div>
-          : null}
+          </div>
         </div>
       );
     }
@@ -955,119 +1243,76 @@ export function IncomeChart({
     return (
       <div
         ref={productWrapRef}
-        className="w-full min-w-0 relative rounded-r80-sm border border-cyan-400/15 bg-gradient-to-b from-white/[0.07] to-transparent px-3 py-4 sm:px-5 sm:py-5 space-y-4"
+        className="w-full min-w-0 relative space-y-4 sm:space-y-5"
         role="img"
         aria-label={t('chart.productAria')}>
-        <div className="text-center space-y-2 max-w-lg mx-auto">
-          <p className="text-emerald-200/90 text-[0.62rem] font-extrabold uppercase tracking-[0.14em]">
-            {t('chart.productKicker')}
-          </p>
-          <p className="text-white text-base sm:text-lg font-bold leading-snug px-1">
-            {verdictText}
-          </p>
-          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm tabular-nums pt-1">
-            <div className="text-left min-w-[7rem]">
-              <p className="text-white/40 text-[0.55rem] font-bold uppercase tracking-wider">
-                {t('chart.productNow')}
-              </p>
-              <p className="text-white font-black text-lg">
-                {sym}
-                {formatCompactAnnualChart(productInsight.yEndActual)}
-              </p>
-            </div>
-            <div className="text-left min-w-[7rem]">
-              <p className="text-white/40 text-[0.55rem] font-bold uppercase tracking-wider">
-                {t('chart.productTrendEnd')}
-              </p>
-              <p className="text-white/70 font-bold text-lg">
-                {sym}
-                {formatCompactAnnualChart(productInsight.yEndPred)}
-              </p>
-            </div>
-            <div className="text-left min-w-[7rem]">
-              <p className="text-white/40 text-[0.55rem] font-bold uppercase tracking-wider">
-                {t('chart.productGapTrend')}
-              </p>
-              <p
-                className={`font-black text-lg ${
-                  gapTrend >= 0 ? 'text-[var(--accent-money)]' : 'text-amber-200/90'
-                }`}>
-                {gapTrend >= 0 ? '+' : '−'}
-                {sym}
-                {formatCompactAnnualChart(Math.abs(gapTrend))}
-              </p>
-            </div>
-          </div>
-          {trajectoryHint ?
-            <div className="rounded-r80-sm border border-fuchsia-400/20 bg-fuchsia-500/[0.08] px-3 py-3 text-left max-w-md mx-auto">
-              <p className="text-fuchsia-200/80 text-[0.55rem] font-extrabold uppercase tracking-wider mb-2 text-center">
-                {t('chart.productTrajectoryLead')}
-              </p>
-              <div className="flex flex-wrap justify-between gap-2 text-xs tabular-nums text-white/85">
-                <span>
-                  {t('chart.productSteady12')}:{' '}
-                  <strong>
-                    {trajectoryHint.symbol}
-                    {formatCompactAnnualChart(trajectoryHint.y12)}
-                  </strong>
-                </span>
-                <span>
-                  {t('chart.productPlus20')}:{' '}
-                  <strong>
-                    {trajectoryHint.symbol}
-                    {formatCompactAnnualChart(trajectoryHint.y12plus)}
-                  </strong>
-                </span>
-              </div>
-              <p className="text-[var(--accent-money)] font-bold text-sm mt-2 text-center tabular-nums">
-                {trajectoryHint.deltaYear >= 0 ? '+' : '−'}
-                {trajectoryHint.symbol}
-                {formatCompactAnnualChart(Math.abs(trajectoryHint.deltaYear))}
-                <span className="text-white/45 font-medium text-[0.65rem] ml-1">
-                  {t('chart.productPerYearHint')}
-                </span>
-              </p>
-            </div>
-          : null}
-          <p className="text-white/32 text-[0.55rem] leading-snug px-2">
-            {t('chart.productDisclaimer')}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          <button
-            type="button"
-            onClick={() => setChartRange('1y')}
-            className={`rounded-r80-sm px-3 py-1.5 text-[0.65rem] font-extrabold uppercase tracking-wide border transition-colors ${
-              chartRange === '1y' ?
-                'border-emerald-400/50 bg-emerald-500/20 text-emerald-100'
-              : 'border-white/18 bg-white/[0.06] text-white/65 hover:bg-white/10'
-            }`}>
-            {t('chart.range1y')}
-          </button>
-          <button
-            type="button"
-            onClick={() => setChartRange('all')}
-            className={`rounded-r80-sm px-3 py-1.5 text-[0.65rem] font-extrabold uppercase tracking-wide border transition-colors ${
-              chartRange === 'all' ?
-                'border-emerald-400/50 bg-emerald-500/20 text-emerald-100'
-              : 'border-white/18 bg-white/[0.06] text-white/65 hover:bg-white/10'
-            }`}>
-            {t('chart.rangeAll')}
-          </button>
-          <button
-            type="button"
-            onClick={() => setAdvancedDetails(true)}
-            className="rounded-r80-sm px-3 py-1.5 text-[0.65rem] font-bold uppercase tracking-wide border border-violet-400/35 bg-violet-500/15 text-violet-100 hover:bg-violet-500/25">
-            {t('chart.advancedShow')}
-          </button>
-        </div>
-
-        <svg
+        <div className="relative flex min-h-[min(42vh,420px)] w-full min-w-0 flex-col overflow-hidden rounded-xl border border-white/[0.07] bg-black/[0.12] ring-1 ring-inset ring-white/[0.04] dark:bg-[#050a12]/40">
+          <ChartControlStrip
+            toolbarAriaLabel={t('chart.toolbarAria')}
+            chips={
+              projects.length > 0 ?
+                <CompanyChipBar
+                  projects={projects}
+                  focusResolved={chartFocusResolved}
+                  onSelect={setChartFocusProjectId}
+                  defaultName={t('chart.defaultProject')}
+                  allLabel={t('chart.allCompanies')}
+                  activeClass="border-emerald-400/45 bg-emerald-400/12 text-emerald-100 shadow-[0_0_10px_rgba(52,211,153,0.12)]"
+                  idleClass="border-white/12 bg-white/[0.04] text-white/55 hover:bg-white/[0.09] hover:text-white/88"
+                />
+              : null
+            }
+            controls={
+              <>
+                <button
+                  type="button"
+                  onClick={() => setChartRange('1y')}
+                  className={`rounded-md px-2.5 py-1 text-[0.58rem] sm:text-[0.6rem] font-extrabold uppercase tracking-[0.06em] transition-all ${
+                    chartRange === '1y' ?
+                      'border border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_16px_rgba(52,211,153,0.2)]'
+                    : 'border border-transparent text-white/55 hover:bg-white/[0.08] hover:text-white/90'
+                  }`}>
+                  {t('chart.range1y')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChartRange('all')}
+                  className={`rounded-md px-2.5 py-1 text-[0.58rem] sm:text-[0.6rem] font-extrabold uppercase tracking-[0.06em] transition-all ${
+                    chartRange === 'all' ?
+                      'border border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_16px_rgba(52,211,153,0.2)]'
+                    : 'border border-transparent text-white/55 hover:bg-white/[0.08] hover:text-white/90'
+                  }`}>
+                  {t('chart.rangeAll')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAdvancedDetails(true)}
+                  className="rounded-md px-2.5 py-1 text-[0.58rem] sm:text-[0.6rem] font-bold uppercase tracking-[0.05em] border border-violet-400/22 bg-violet-500/10 text-violet-100/95 hover:bg-violet-500/16 hover:border-violet-400/32 transition-all">
+                  {t('chart.advancedShow')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowContractMarkers((v) => !v)}
+                  aria-pressed={showContractMarkers}
+                  aria-label={t('chart.markersToggleAria')}
+                  className={`rounded-md p-1.5 transition-all border ${
+                    showContractMarkers ?
+                      'border-amber-400/40 bg-amber-500/14 text-amber-100 shadow-[0_0_12px_rgba(251,191,36,0.15)]'
+                    : 'border-transparent text-white/42 hover:bg-white/[0.07] hover:text-white/75'
+                  }`}>
+                  <CalendarRange size={14} strokeWidth={2.2} aria-hidden />
+                </button>
+              </>
+            }
+          />
+          <svg
           ref={productSvgRef}
           viewBox={`0 0 ${VB_W} ${VB_H}`}
-          className="w-full h-auto block mx-auto touch-none select-none"
-          style={{ maxHeight: 'clamp(12rem, min(36vh, 340px), 22rem)' }}
+          className="mx-auto block h-auto w-full min-h-0 flex-1 touch-none select-none"
+          style={{
+            minHeight: 'clamp(15rem, min(46vh, 440px), 36rem)',
+            maxHeight: 'clamp(22rem, min(68vh, 680px), 52rem)'
+          }}
           aria-hidden>
           <defs>
             <linearGradient id="product-fill-you" x1="0" y1="0" x2="0" y2="1">
@@ -1102,6 +1347,16 @@ export function IncomeChart({
               strokeWidth="1"
             />
           ))}
+          <ContractMarkerLayer
+            markers={productContractMarkers}
+            tMin={ptMin}
+            tMax={ptMax}
+            plotBottomY={y0}
+            startAbbr={t('chart.markerStartAbbr')}
+            endAbbr={t('chart.markerEndAbbr')}
+            startTitle={t('chart.contractStart')}
+            endTitle={t('chart.contractEnd')}
+          />
           {(() => {
             const areaD =
               `M ${xScale(realPts[0][0], ptMin, ptMax).toFixed(1)} ${y0.toFixed(1)} ` +
@@ -1192,7 +1447,7 @@ export function IncomeChart({
 
         {productHover ?
           <div
-            className="pointer-events-none absolute z-20 rounded-r80-sm border border-white/25 bg-black/85 px-2.5 py-2 text-[0.7rem] text-white shadow-xl backdrop-blur-md max-w-[min(16rem,calc(100%-1rem))]"
+            className="pointer-events-none absolute z-30 rounded-r80-sm border border-white/25 bg-black/85 px-2.5 py-2 text-[0.7rem] text-white shadow-xl backdrop-blur-md max-w-[min(16rem,calc(100%-1rem))]"
             style={{
               left: productHover.tipX,
               top: productHover.tipY,
@@ -1211,17 +1466,90 @@ export function IncomeChart({
             </p>
           </div>
         : null}
+        </div>
 
-        {onOpenGrow ?
-          <div className="flex justify-center pt-1">
-            <button
-              type="button"
-              onClick={onOpenGrow}
-              className="text-[0.72rem] font-extrabold uppercase tracking-wide text-[#061018] bg-[var(--accent-money)] px-6 py-3 rounded-r80-sm hover:brightness-110 shadow-[0_0_20px_rgba(0,255,160,0.2)]">
-              {t('chart.ctaGrow')}
-            </button>
+        <div className="mx-auto w-full max-w-2xl space-y-2 px-1 text-center sm:px-2">
+          <p className="text-white/38 text-[0.52rem] font-extrabold uppercase tracking-[0.18em] sm:text-[0.54rem]">
+            {t('chart.panelTitle')}
+          </p>
+          <p className="text-emerald-200/90 text-[0.62rem] font-extrabold uppercase tracking-[0.14em]">
+            {t('chart.productKicker')}
+          </p>
+          <p className="text-white text-base sm:text-lg font-bold leading-snug">
+            {verdictText}
+          </p>
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-3 pt-1 text-sm tabular-nums sm:gap-x-8">
+            <div className="min-w-[7rem] text-left">
+              <p className="text-white/40 text-[0.55rem] font-bold uppercase tracking-wider">
+                {t('chart.productNow')}
+              </p>
+              <p className="text-lg font-black text-white">
+                {sym}
+                {formatCompactAnnualChart(productInsight.yEndActual)}
+              </p>
+            </div>
+            <div className="min-w-[7rem] text-left">
+              <p className="text-white/40 text-[0.55rem] font-bold uppercase tracking-wider">
+                {t('chart.productTrendEnd')}
+              </p>
+              <p className="text-lg font-bold text-white/70">
+                {sym}
+                {formatCompactAnnualChart(productInsight.yEndPred)}
+              </p>
+            </div>
+            <div className="min-w-[7rem] text-left">
+              <p className="text-white/40 text-[0.55rem] font-bold uppercase tracking-wider">
+                {t('chart.productGapTrend')}
+              </p>
+              <p
+                className={`text-lg font-black ${
+                  gapTrend >= 0 ? 'text-[var(--accent-money)]' : 'text-amber-200/90'
+                }`}>
+                {gapTrend >= 0 ? '+' : '−'}
+                {sym}
+                {formatCompactAnnualChart(Math.abs(gapTrend))}
+              </p>
+            </div>
           </div>
-        : null}
+          {trajectoryHint ?
+            <div className="mt-2 w-full space-y-2 border-t border-white/[0.08] pt-3">
+              <p className="text-center text-[0.55rem] font-bold uppercase tracking-wider text-white/40">
+                {t('chart.productTrajectoryLead')}
+              </p>
+              <div className="flex flex-wrap justify-center gap-x-6 gap-y-3 text-sm tabular-nums sm:gap-x-8">
+                <div className="min-w-[7rem] text-left">
+                  <p className="text-white/40 text-[0.55rem] font-bold uppercase tracking-wider">
+                    {t('chart.productSteady12')}
+                  </p>
+                  <p className="text-lg font-black text-white">
+                    {trajectoryHint.symbol}
+                    {formatCompactAnnualChart(trajectoryHint.y12)}
+                  </p>
+                </div>
+                <div className="min-w-[7rem] text-left">
+                  <p className="text-white/40 text-[0.55rem] font-bold uppercase tracking-wider">
+                    {t('chart.productPlus20')}
+                  </p>
+                  <p className="text-lg font-bold text-white/70">
+                    {trajectoryHint.symbol}
+                    {formatCompactAnnualChart(trajectoryHint.y12plus)}
+                  </p>
+                </div>
+              </div>
+              <p className="pt-0.5 text-center text-sm font-bold tabular-nums text-[var(--accent-money)]">
+                {trajectoryHint.deltaYear >= 0 ? '+' : '−'}
+                {trajectoryHint.symbol}
+                {formatCompactAnnualChart(Math.abs(trajectoryHint.deltaYear))}
+                <span className="ml-1 text-[0.65rem] font-medium text-white/45">
+                  {t('chart.productPerYearHint')}
+                </span>
+              </p>
+            </div>
+          : null}
+          <p className={`${DASHBOARD_HINT_CLASS} px-1 text-center`}>
+            {t('chart.productDisclaimer')}
+          </p>
+        </div>
       </div>
     );
   }
@@ -1242,16 +1570,15 @@ export function IncomeChart({
   }
 
   const rangeMs = tMax - tMin;
-  const showMidDate = !compact && rangeMs > 45 * DAY_MS;
-  const gridFracs = compact ? ([0, 1] as const) : ([0, 0.5, 1] as const);
+  const showMidDate = rangeMs > 45 * DAY_MS;
+  const gridFracs = [0, 0.5, 1] as const;
   const midMs = tMin + rangeMs / 2;
   const midX = (PAD_L + (VB_W - PAD_R)) / 2;
 
   const focusSeries =
     hover ?
       series.find((s) => s.id === hover.seriesId) ?? series[0]
-    : series.find((s) => s.id.startsWith('proj-focus-')) ??
-      series.find((s) => s.kind === 'projects' && !s.muted) ??
+    : series.find((s) => s.kind === 'projects' && !s.muted) ??
       series.find((s) => s.kind === 'fx') ??
       series.find((s) => s.kind === 'fxHist') ??
       series.find((s) => s.kind === 'infHist') ??
@@ -1259,12 +1586,6 @@ export function IncomeChart({
   const yAxisRaw = seriesRawBounds(focusSeries.points);
   const yAxisFxPct = focusSeries.kind === 'fxHist';
   const yAxisInfIdx = focusSeries.kind === 'infHist';
-  const hasProjectFocus = series.some((s) => s.id.startsWith('proj-focus-'));
-  const chartFocusProject =
-    internalFocusId ?
-      projects.find((p) => p.id === internalFocusId) ?? null
-    : null;
-
   const shellClass = embedded ?
     'w-full min-w-0 relative rounded-r80-sm border border-transparent dark:border-cyan-400/18'
   : 'rounded-r80 bg-white/10 border border-white/20 px-3 sm:px-5 pt-4 pb-3 backdrop-blur-sm shadow-lg w-full max-w-[min(100%,42rem)] relative dark:border-cyan-400/25 dark:bg-cyan-950/10';
@@ -1280,134 +1601,88 @@ export function IncomeChart({
         {t('chart.heading')}
       </p>
       }
-      {embedded && advancedDetails ?
-        <div className="space-y-2 mb-2 sm:mb-3">
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => setChartRange('1y')}
-              className={`rounded-r80-sm px-2.5 py-1.5 text-[0.6rem] font-extrabold uppercase tracking-wide border transition-colors ${
-                chartRange === '1y' ?
-                  'border-cyan-400/45 bg-cyan-500/20 text-cyan-50'
-                : 'border-white/16 bg-white/[0.06] text-white/60 hover:bg-white/10'
-              }`}>
-              {t('chart.range1y')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setChartRange('all')}
-              className={`rounded-r80-sm px-2.5 py-1.5 text-[0.6rem] font-extrabold uppercase tracking-wide border transition-colors ${
-                chartRange === 'all' ?
-                  'border-cyan-400/45 bg-cyan-500/20 text-cyan-50'
-                : 'border-white/16 bg-white/[0.06] text-white/60 hover:bg-white/10'
-              }`}>
-              {t('chart.rangeAll')}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAdvancedDetails(false);
-                setInternalFocusId(null);
-              }}
-              className="rounded-r80-sm px-2.5 py-1.5 text-[0.6rem] font-bold uppercase tracking-wide border border-white/20 bg-white/10 text-white/80 hover:bg-white/15">
-              {t('chart.advancedHide')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setAdvChartTall((v) => !v)}
-              aria-expanded={advChartTall}
-              className="inline-flex items-center gap-1 rounded-r80-sm border border-white/18 bg-white/[0.06] px-2 py-1.5 text-[0.58rem] font-bold uppercase tracking-wide text-white/75 hover:bg-white/10">
-              {advChartTall ?
-                <Minimize2 size={13} strokeWidth={2.4} aria-hidden />
-              : <Maximize2 size={13} strokeWidth={2.4} aria-hidden />}
-              {advChartTall ? t('chart.collapse') : t('chart.expand')}
-            </button>
-          </div>
-          <p className="text-white/38 text-[0.55rem] text-center px-1">
-            {compact ? t('chart.panelHintCompact') : t('chart.panelHint')}
-          </p>
-          <AnimatePresence mode="wait">
-            {chartFocusProject ?
-              <motion.div
-                key={chartFocusProject.id}
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                className="flex flex-wrap items-center justify-center gap-2">
-                <span className="inline-flex items-center gap-2 rounded-r80-sm border border-amber-200/30 bg-amber-400/10 pl-2.5 pr-1 py-1">
-                  <span
-                    className="h-2 w-2 rounded-none bg-amber-300"
-                    aria-hidden
-                  />
-                  <span className="text-[0.6rem] font-bold text-white/90 max-w-[min(11rem,45vw)] truncate">
-                    {chartFocusProject.name || t('chart.defaultProject')}
-                  </span>
-                  {projectIsEndedByDeadline(chartFocusProject, nowMs) ?
-                    <span className="text-[0.48rem] font-extrabold uppercase text-slate-200/95 px-1.5 py-0.5 rounded-r80-sm bg-slate-700/55 border border-white/12 shrink-0">
-                      {t('settings.contractEnded')}
-                    </span>
-                  : null}
-                </span>
-                <motion.button
-                  type="button"
-                  whileTap={{ scale: 0.94 }}
-                  onClick={() => setInternalFocusId(null)}
-                  className="inline-flex items-center gap-1 rounded-r80-sm border border-white/20 bg-white/10 px-2 py-1 text-[0.58rem] font-bold uppercase text-white/75 hover:text-white">
-                  <XIcon size={12} strokeWidth={2.5} aria-hidden />
-                  {t('chart.all')}
-                </motion.button>
-              </motion.div>
-            : null}
-          </AnimatePresence>
-          <div className="rounded-r80-sm border border-white/[0.09] bg-gradient-to-b from-white/[0.06] to-white/[0.02] px-2 py-2">
-            <p className="text-white/35 text-[0.52rem] font-bold uppercase tracking-[0.1em] px-1 mb-1">
-              {t('chart.projects')}
-            </p>
-            <div className="flex gap-2 overflow-x-auto pb-0.5 snap-x [scrollbar-width:thin]">
-              {projects.map((p) => {
-                const selected = internalFocusId === p.id;
-                const ended = projectIsEndedByDeadline(p, nowMs);
-                return (
-                  <motion.button
-                    key={p.id}
-                    type="button"
-                    whileTap={{ scale: 0.97 }}
-                    aria-pressed={selected}
-                    onClick={() =>
-                      setInternalFocusId((prev) => (prev === p.id ? null : p.id))
-                    }
-                    className={`snap-start shrink-0 min-w-[5.5rem] max-w-[9rem] rounded-r80-sm border px-2 py-1.5 text-left transition-colors ${
-                      selected ?
-                        'border-amber-300/50 bg-amber-400/15 shadow-[inset_0_0_0_1px_rgba(253,224,71,0.2)]'
-                      : 'border-white/12 bg-black/20 hover:border-white/22 hover:bg-white/[0.06]'
-                    }`}>
-                    <span className="block text-[0.58rem] font-bold text-white/88 truncate">
-                      {p.name || t('chart.defaultProject')}
-                    </span>
-                    {ended ?
-                      <span className="text-[0.48rem] text-amber-200/80 font-semibold">
-                        {t('settings.contractEnded')}
-                      </span>
-                    : null}
-                  </motion.button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+      {embedded ?
+        <p className="mb-2 text-center text-[0.52rem] font-extrabold uppercase tracking-[0.18em] text-white/38 sm:text-[0.54rem]">
+          {t('chart.panelTitle')}
+        </p>
       : null}
-      <svg
+      <div
+        className={
+          embedded ?
+            'relative flex w-full min-w-0 flex-col overflow-hidden rounded-xl border border-white/[0.08] bg-black/[0.1] ring-1 ring-inset ring-cyan-500/[0.07] dark:bg-[#050a12]/45'
+          : 'relative w-full min-w-0'
+        }>
+        {embedded ?
+          <ChartControlStrip
+            toolbarAriaLabel={t('chart.toolbarAria')}
+            chips={
+              advancedDetails && projects.length > 0 ?
+                <CompanyChipBar
+                  projects={projects}
+                  focusResolved={chartFocusResolved}
+                  onSelect={setChartFocusProjectId}
+                  defaultName={t('chart.defaultProject')}
+                  allLabel={t('chart.allCompanies')}
+                  activeClass="border-cyan-400/45 bg-cyan-400/14 text-cyan-50 shadow-[0_0_10px_rgba(34,211,238,0.14)]"
+                  idleClass="border-white/12 bg-white/[0.05] text-white/55 hover:bg-white/10 hover:text-white/88"
+                />
+              : null
+            }
+            controls={
+              <>
+                <button
+                  type="button"
+                  onClick={() => setChartRange('1y')}
+                  className={`rounded-md px-2 py-1 text-[0.55rem] sm:text-[0.58rem] font-extrabold uppercase tracking-[0.05em] transition-all ${
+                    chartRange === '1y' ?
+                      'border border-cyan-400/45 bg-cyan-400/16 text-cyan-50 shadow-[0_0_14px_rgba(34,211,238,0.18)]'
+                    : 'border border-transparent text-white/55 hover:bg-white/[0.07] hover:text-white/88'
+                  }`}>
+                  {t('chart.range1y')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChartRange('all')}
+                  className={`rounded-md px-2 py-1 text-[0.55rem] sm:text-[0.58rem] font-extrabold uppercase tracking-[0.05em] transition-all ${
+                    chartRange === 'all' ?
+                      'border border-cyan-400/45 bg-cyan-400/16 text-cyan-50 shadow-[0_0_14px_rgba(34,211,238,0.18)]'
+                    : 'border border-transparent text-white/55 hover:bg-white/[0.07] hover:text-white/88'
+                  }`}>
+                  {t('chart.rangeAll')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAdvancedDetails(false)}
+                  className="rounded-md border border-white/15 bg-white/[0.06] px-2 py-1 text-[0.55rem] font-bold uppercase tracking-[0.05em] text-white/82 transition-all hover:border-white/22 hover:bg-white/12 sm:text-[0.58rem]">
+                  {t('chart.advancedHide')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowContractMarkers((v) => !v)}
+                  aria-pressed={showContractMarkers}
+                  aria-label={t('chart.markersToggleAria')}
+                  className={`rounded-md p-1.5 transition-all border ${
+                    showContractMarkers ?
+                      'border-amber-400/40 bg-amber-500/14 text-amber-100 shadow-[0_0_12px_rgba(251,191,36,0.14)]'
+                    : 'border-transparent text-white/42 hover:bg-white/[0.07] hover:text-white/78'
+                  }`}>
+                  <CalendarRange size={14} strokeWidth={2.2} aria-hidden />
+                </button>
+              </>
+            }
+          />
+        : null}
+        <svg
         ref={svgRef}
         viewBox={`0 0 ${VB_W} ${VB_H}`}
-        className="w-full h-auto block mx-auto touch-none select-none"
+        className={`touch-none select-none ${embedded ? 'mx-auto block h-auto w-full min-h-0 flex-1' : 'mx-auto block h-auto w-full'}`}
         style={{
+          minHeight: embedded ?
+            'clamp(18rem, min(48vh, 520px), 38rem)'
+          : 'clamp(14rem, 50vmin, 26rem)',
           maxHeight: embedded ?
-            compact ?
-              'clamp(11rem, min(28vh, 320px), 22rem)'
-            : 'clamp(18rem, min(42vh, 520px), 36rem)'
-          : compact ?
-            'clamp(12rem, 36vmin, 20rem)'
-          : 'clamp(14rem, 48vmin, 24rem)'
+            'clamp(24rem, min(62vh, 680px), 48rem)'
+          : 'clamp(18rem, 58vmin, 30rem)'
         }}
         aria-hidden>
         <defs>
@@ -1470,6 +1745,17 @@ export function IncomeChart({
             />
           );
         })}
+
+        <ContractMarkerLayer
+          markers={contractMarkersMain}
+          tMin={tMin}
+          tMax={tMax}
+          plotBottomY={y0}
+          startAbbr={t('chart.markerStartAbbr')}
+          endAbbr={t('chart.markerEndAbbr')}
+          startTitle={t('chart.contractStart')}
+          endTitle={t('chart.contractEnd')}
+        />
 
         {series.map((s, idx) => {
           const color = strokeColorForSeries(series, s, idx);
@@ -1572,7 +1858,6 @@ export function IncomeChart({
             formatCompact(yAxisRaw.minV)
           : `${formatCompact(yAxisRaw.minV)} ${getCurrencySymbol(focusSeries.code)}`}
         </text>
-        {!compact &&
         <text
           x={PAD_L - 6}
           y={PAD_T + 22}
@@ -1580,9 +1865,8 @@ export function IncomeChart({
           fontSize="8"
           fontFamily="inherit"
           textAnchor="end">
-          {hover ? t('chart.yHover') : hasProjectFocus ? t('chart.yCompany') : t('chart.yFirst')}
+          {hover ? t('chart.yHover') : t('chart.yFirst')}
         </text>
-        }
 
         <rect
           x={PAD_L}
@@ -1645,7 +1929,6 @@ export function IncomeChart({
         </>
         }
 
-        {!compact &&
         <text
           x={PAD_L}
           y={VB_H - 36}
@@ -1654,7 +1937,6 @@ export function IncomeChart({
           fontFamily="inherit">
           {t('chart.fromStart')}
         </text>
-        }
         <text
           x={PAD_L}
           y={VB_H - 18}
@@ -1675,7 +1957,6 @@ export function IncomeChart({
           {formatChartAxisDate(midMs, localeTag)}
         </text>
         }
-        {!compact &&
         <text
           x={VB_W - PAD_R}
           y={VB_H - 36}
@@ -1685,7 +1966,6 @@ export function IncomeChart({
           textAnchor="end">
           {t('chart.now')}
         </text>
-        }
         <text
           x={VB_W - PAD_R}
           y={VB_H - 20}
@@ -1696,7 +1976,6 @@ export function IncomeChart({
           textAnchor="end">
           {formatChartAxisNowDate(nowMs, localeTag)}
         </text>
-        {!compact &&
         <text
           x={VB_W - PAD_R}
           y={VB_H - 4}
@@ -1707,12 +1986,11 @@ export function IncomeChart({
           style={{ fontVariantNumeric: 'tabular-nums' }}>
           {formatChartAxisTime(nowMs, localeTag)}
         </text>
-        }
       </svg>
 
-      {hover &&
+      {hover ?
       <div
-        className="pointer-events-none absolute z-20 rounded-r80-sm border border-white/25 bg-black/80 px-2.5 py-2 text-[0.7rem] sm:text-xs text-white shadow-xl backdrop-blur-md max-w-[min(18rem,calc(100%-1rem))]"
+        className="pointer-events-none absolute z-30 rounded-r80-sm border border-white/25 bg-black/80 px-2.5 py-2 text-[0.7rem] sm:text-xs text-white shadow-xl backdrop-blur-md max-w-[min(18rem,calc(100%-1rem))]"
         style={{
           left: hover.tipX,
           top: hover.tipY,
@@ -1722,7 +2000,7 @@ export function IncomeChart({
           {formatChartAxisDate(hover.t, localeTag)}
         </p>
         <ul className="space-y-1 font-medium">
-          {(compact ? series.filter((s) => s.id === hover.seriesId) : series).map((s) => {
+          {series.map((s) => {
             const seriesIdx = series.indexOf(s);
             const color = strokeColorForSeries(series, s, seriesIdx);
             const val = interpolateValueAtT(s.points, hover.t);
@@ -1775,9 +2053,10 @@ export function IncomeChart({
           })}
         </ul>
       </div>
-      }
+      : null}
 
-      {!compact &&
+      </div>
+
       <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 px-1 pt-2 pb-0.5">
         {series.map((s, idx) => {
           const color = strokeColorForSeries(series, s, idx);
@@ -1820,10 +2099,8 @@ export function IncomeChart({
           );
         })}
       </div>
-      }
-      {!compact &&
-      (series.some((s) => s.kind === 'fxHist') || series.some((s) => s.kind === 'infHist')) &&
-      <div className="text-center text-white/38 text-[0.55rem] sm:text-[0.58rem] mt-1.5 px-2 leading-snug space-y-1">
+      {(series.some((s) => s.kind === 'fxHist') || series.some((s) => s.kind === 'infHist')) &&
+      <div className={`${DASHBOARD_HINT_CLASS} text-center mt-1.5 px-2 space-y-1`}>
         {series.some((s) => s.kind === 'fxHist') &&
         <p>
           {t('chart.legend.fxHistory')}{' '}

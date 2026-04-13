@@ -26,13 +26,10 @@ export const fr: Record<string, string> = {
   'hero.realHint': '· réel',
   'hero.today': 'Aujourd’hui',
   'hero.todayNote': 'depuis minuit · heure locale',
-  'hero.moreNumbers': 'Plus de chiffres',
   'hero.moreNominal': 'Nominal (avant ajustements)',
   'hero.insightTitle': 'Après impôts et inflation',
   'hero.insightAria': 'Pouvoir d’achat réel',
-  'hero.futureTitle': '12 prochains mois (estimation)',
   'hero.futureAria': 'Estimation à un an',
-  'hero.futureIfPlus20': 'si le taux +20%',
   'hero.btnHideDetails': 'Masquer les détails',
   'hero.btnShowDetails': 'Devises, solde, taux',
   'hero.btnEditProjects': 'Modifier les projets',
@@ -45,7 +42,7 @@ export const fr: Record<string, string> = {
   'hero.btnBackTrajectory': 'Retour à la trajectoire',
   'hero.btnHideChart': 'Masquer le graphique',
   'hero.emptyPrompt':
-    'Ajoutez un projet et des montants dans les réglages — votre rythme en direct apparaît ici.',
+    'Ajoutez un projet et des montants dans les réglages, votre rythme en direct apparaît ici.',
   'hero.emptyCta': 'Ouvrir les réglages',
   'hero.noFxHint':
     'Pour un seul taux d’en-tête, activez les taux API ou des projets dans une seule devise.',
@@ -80,15 +77,17 @@ export const fr: Record<string, string> = {
     'Chaque devise séparément. Contrats actifs d’abord ; sans FX, tri par code devise.',
   'breakdown.endedBadge': 'Terminés',
   'breakdown.inAccount': 'Sur le compte maintenant',
+  'breakdown.balancePayrollCaption':
+    'Solde réglé après la paie du {payroll}; ajout depuis les projets en devise du compte à partir du {accrualFrom} (minuit du lendemain).',
   'breakdown.noContractsInCcy': 'Aucun contrat en',
   'breakdown.allEndedInCcy': 'Tous terminés',
   'breakdown.noAccrualHint':
-    'Rien ne s’accumule au solde — pas de projets sélectionnés dans la devise du compte, seulement solde post-paie.',
+    'Rien ne s’accumule au solde, pas de projets sélectionnés dans la devise du compte, seulement solde post-paie.',
   'breakdown.allEndedHint':
-    'Tous les projets dans cette devise sont terminés — pas d’accumulation au solde.',
+    'Tous les projets dans cette devise sont terminés, pas d’accumulation au solde.',
   'breakdown.equivTitle': 'Total en devise du compte',
   'breakdown.equivHint':
-    'Une colonne dans la devise du compte — tous les projets convertis au taux ci-dessous.',
+    'Une colonne dans la devise du compte, tous les projets convertis au taux ci-dessous.',
   'breakdown.fxBlurb':
     'Chaque montant dans sa devise est converti au taux API actuel vers',
   'breakdown.sumBlurb': 'Les montants convertis sont additionnés pour comparer en un seul chiffre.',
@@ -105,32 +104,31 @@ export const fr: Record<string, string> = {
 
   'fx.title': 'Taux',
   'fx.noForeign':
-    'Base API {balance} ; pas d’autres devises parmi les projets sélectionnés — pas de cotations séparées.',
+    'Base API {balance} ; pas d’autres devises parmi les projets sélectionnés, pas de cotations séparées.',
   'fx.missing':
-    'Pas de taux API des devises projet ({codes}) vers la base {base} — ligne fusionnée du graphique peut manquer.',
+    'Pas de taux API des devises projet ({codes}) vers la base {base}, ligne fusionnée du graphique peut manquer.',
   'fx.footer':
     'Utilisé pour le total en devise du compte, le Σ/s combiné et la ligne rose du graphique.',
   'fx.failed':
-    'Échec du chargement des taux — fusion et ligne du graphique indisponibles. Soldes inchangés.',
+    'Échec du chargement des taux, fusion et ligne du graphique indisponibles. Soldes inchangés.',
 
   'chart.panelTitle': 'Accumulation dans le temps',
-  'chart.expand': 'Agrandir le graphique',
-  'chart.collapse': 'Graphique compact',
-  'chart.expandAria': 'Agrandir — légende et axes complets',
-  'chart.collapseAria': 'Graphique compact — moins de hauteur et d’étiquettes',
-  'chart.panelHint': 'Clic sur un projet pour une ligne ; reclic pour toutes les séries.',
-  'chart.panelHintCompact': 'Touchez le graphique pour les valeurs · agrandir pour la légende',
-  'chart.projects': 'Projets',
   'chart.graphBadge': 'Graphique',
-  'chart.all': 'Tout',
   'chart.range1y': '1A',
   'chart.rangeAll': 'Toute la période',
+  'chart.toolbarAria': 'Plage et affichage du graphique',
+  'chart.allCompanies': 'Toutes',
+  'chart.markerStartAbbr': 'D',
+  'chart.markerEndAbbr': 'F',
+  'chart.contractStart': 'Début du contrat',
+  'chart.contractEnd': 'Fin du contrat',
+  'chart.markersToggleAria': 'Afficher ou masquer début et fin de contrat sur le graphique',
   'chart.advancedShow': 'Détails du graphique',
   'chart.advancedHide': 'Vue simple',
   'chart.productAria': 'Croissance du revenu et tendance',
   'chart.productKicker': 'Comment ça se passe',
   'chart.productAboveTrend':
-    'Vous dépassez une tendance linéaire sur cette fenêtre — l’élan est avec vous.',
+    'Vous dépassez une tendance linéaire sur cette fenêtre, l’élan est avec vous.',
   'chart.productBelowTrend':
     'Par rapport à une ligne droite depuis le début de la fenêtre, vous êtes environ {pct}% en dessous.',
   'chart.productNeutralTrend': 'Proche d’une tendance linéaire stable sur cette fenêtre.',
@@ -158,7 +156,7 @@ export const fr: Record<string, string> = {
   'awareness.sub': 'Mon rythme (partage)',
   'awareness.ladder': 'Au-dessus de ~{pct}% sur une échelle demo EUR',
   'awareness.ladderNote':
-    'Formulation virale : « je gagne plus que ~{pct}% » sur cette échelle — pas un vrai sondage.',
+    'Formulation virale : « je gagne plus que ~{pct}% » sur cette échelle, pas un vrai sondage.',
   'awareness.ladderModel':
     'Modèle : ancres ~20–150k €/an → €/s. Pas un conseil financier.',
   'awareness.needFx':
@@ -171,7 +169,7 @@ export const fr: Record<string, string> = {
 
   'dates.start': 'Début :',
   'dates.end': 'Fin :',
-  'dates.projectClosed': 'Projet terminé — le total de la période est définitif',
+  'dates.projectClosed': 'Projet terminé, le total de la période est définitif',
 
   'profile.phone': 'Tél. :',
 
@@ -194,7 +192,7 @@ export const fr: Record<string, string> = {
   'settings.showOnDashboard': 'Afficher sur l’écran principal',
   'settings.editProject': 'Modifier ce projet',
   'settings.contractEnded': 'Terminé',
-  'settings.endedBadgeTitle': 'Date de fin dépassée — l’accumulation pour ce contrat est arrêtée.',
+  'settings.endedBadgeTitle': 'Date de fin dépassée, l’accumulation pour ce contrat est arrêtée.',
   'settings.projectName': 'Nom du projet',
   'settings.projectCcy': 'Devise du projet',
   'settings.workStart': 'Date de début du travail',
@@ -231,10 +229,10 @@ export const fr: Record<string, string> = {
     'Enregistré automatiquement dans ce navigateur (localStorage). Un fichier JSON sert de sauvegarde ou de transfert.',
   'settings.storageRiskTitle': 'Uniquement dans ce navigateur',
   'settings.storageRiskBody':
-    'Effacer les données, autre profil ou autre appareil peut tout supprimer. Téléchargez ou copiez le JSON parfois — sans compte.',
+    'Effacer les données, autre profil ou autre appareil peut tout supprimer. Téléchargez ou copiez le JSON parfois, sans compte.',
   'settings.downloadJson': 'Télécharger JSON',
   'settings.copyJson': 'Copier JSON',
-  'settings.copyJsonOk': 'JSON copié — gardez-le en lieu sûr',
+  'settings.copyJsonOk': 'JSON copié, gardez-le en lieu sûr',
   'settings.copyJsonFail': 'Impossible de copier',
   'settings.uploadJson': 'Importer JSON',
 
@@ -257,11 +255,10 @@ export const fr: Record<string, string> = {
     'Fichier invalide. Il faut un JSON d’export MoneyClock : v: 1 et blocs mode, projectsBundle, etc.',
 
   'chart.empty':
-    'Indiquez une date de début de projet — le graphique de revenu cumulé apparaîtra.',
+    'Indiquez une date de début de projet, le graphique de revenu cumulé apparaîtra.',
   'chart.ariaMain': 'Revenu cumulé, solde du compte et devises',
   'chart.heading': 'Projets et compte',
   'chart.yHover': 'Y : ligne sous le curseur',
-  'chart.yCompany': 'Y : entreprise',
   'chart.yFirst': 'Y : premier de la liste',
   'chart.fromStart': 'depuis le plus ancien début',
   'chart.now': 'maintenant',
@@ -271,7 +268,7 @@ export const fr: Record<string, string> = {
     '. Indice relatif moyen (100% = taux au début du graphique).',
   'chart.legend.inf': 'Inflation (IPC, % annuel) :',
   'chart.legend.infBlurb':
-    ', FP.CPI.TOTL.ZG. Ligne = indice moyen du niveau des prix pour les économies des devises choisies (100 = 1er janv. de l’année de début) ; devise ≠ pays — mapping statique.',
+    ', FP.CPI.TOTL.ZG. Ligne = indice moyen du niveau des prix pour les économies des devises choisies (100 = 1er janv. de l’année de début) ; devise ≠ pays, mapping statique.',
 
   'chart.series.others': 'autres',
   'chart.series.projects': 'projets',

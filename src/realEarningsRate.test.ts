@@ -22,7 +22,7 @@ describe('computeRealEarningsRateBreakdown', () => {
     expect(r.inflationEndYear).toBe(2024);
   });
 
-  it('меньше двух годов — без поправки на инфляцию', () => {
+  it('меньше двух годов, без поправки на инфляцию', () => {
     const r = computeRealEarningsRateBreakdown(1, 1, [{ year: 2024, index: 105 }]);
     expect(r.purchasingPowerPerHour).toBeNull();
     expect(r.inflationYoYFraction).toBeNull();

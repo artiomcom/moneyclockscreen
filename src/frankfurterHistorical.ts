@@ -1,4 +1,5 @@
 import type { AppLocale } from './i18n/localeStorage';
+import type { FxSnapshot } from './fxRates';
 import { normalizeCurrencyCode, type ProjectEntry } from './moneyClockPersistence';
 
 export type FrankfurterRow = {
@@ -137,6 +138,19 @@ export async function fetchFrankfurterHistoricalRates(
   return rows;
 }
 
+/** Курс на календарный день: последняя точка ≤ ymd, иначе ближайшая ≥ ymd, иначе последняя в ряду. */
+export function fxRateForCalendarDay(
+  sorted: { date: string; rate: number }[],
+  ymd: string
+): number | null {
+  const onOrBefore = rateOnOrBefore(sorted, ymd);
+  if (onOrBefore != null && onOrBefore > 0) return onOrBefore;
+  const after = sorted.find((x) => x.date >= ymd);
+  if (after && after.rate > 0) return after.rate;
+  const last = sorted[sorted.length - 1];
+  return last && last.rate > 0 ? last.rate : null;
+}
+
 function rateOnOrBefore(
   sorted: { date: string; rate: number }[],
   ymd: string
@@ -161,12 +175,75 @@ function denominatorForQuote(
   sorted: { date: string; rate: number }[],
   ymdMin: string
 ): number | null {
-  const onOrBefore = rateOnOrBefore(sorted, ymdMin);
-  if (onOrBefore != null && onOrBefore > 0) return onOrBefore;
-  const after = sorted.find((x) => x.date >= ymdMin);
-  if (after && after.rate > 0) return after.rate;
-  const last = sorted[sorted.length - 1];
-  return last && last.rate > 0 ? last.rate : null;
+  return fxRateForCalendarDay(sorted, ymdMin);
+}
+
+/**
+ * Снимок курсов на календарную дату (как у open.er-api: 1 base = rates[X] единиц X),
+ * только для валют из `requiredQuotes`. Нужен для пересчёта накоплений в валюту счёта
+ * по курсу на дату точки графика, а не по сегодняшнему споту.
+ */
+export function historicalFxSnapshotForYmd(
+  rows: FrankfurterRow[],
+  balanceBaseRaw: string,
+  ymd: string,
+  requiredQuotes: readonly string[]
+): FxSnapshot | null {
+  const base = normalizeCurrencyCode(balanceBaseRaw);
+  const quotes = [
+    ...new Set(requiredQuotes.map((c) => normalizeCurrencyCode(c)).filter((c) => c !== base))
+  ];
+  if (quotes.length === 0) return null;
+
+  const byQuote = new Map<string, { date: string; rate: number }[]>();
+  for (const q of quotes) byQuote.set(q, []);
+
+  for (const r of rows) {
+    if (normalizeCurrencyCode(r.base) !== base) continue;
+    const q = normalizeCurrencyCode(r.quote);
+    const arr = byQuote.get(q);
+    if (!arr) continue;
+    if (Number.isFinite(r.rate) && r.rate > 0) arr.push({ date: r.date, rate: r.rate });
+  }
+
+  const rates: Record<string, number> = {};
+  for (const q of quotes) {
+    const arr = byQuote.get(q)!;
+    if (arr.length === 0) return null;
+    arr.sort((a, b) => a.date.localeCompare(b.date));
+    const rt = fxRateForCalendarDay(arr, ymd);
+    if (rt == null || rt <= 0) return null;
+    rates[q] = rt;
+  }
+
+  return { base, rates, updatedUtc: '' };
+}
+
+/**
+ * Снимок для пересчёта накоплений в валюту счёта: курс на `anchorYmd` (например дата последней зарплаты),
+ * если в истории есть все нужные котировки; иначе текущий spot из `fxSnapshot`.
+ */
+export function fxSnapshotOrHistoricalForAnchorYmd(
+  balanceBaseRaw: string,
+  foreignCurrencyCodes: readonly string[],
+  anchorYmd: string,
+  fxSnapshot: FxSnapshot | null,
+  fxHistoryRows: FrankfurterRow[] | null
+): FxSnapshot | null {
+  if (!fxSnapshot) return null;
+  const base = normalizeCurrencyCode(balanceBaseRaw);
+  const quotes = [
+    ...new Set(foreignCurrencyCodes.map((c) => normalizeCurrencyCode(c)))
+  ].filter((c) => c !== base);
+  if (quotes.length === 0) return fxSnapshot;
+  if (!fxHistoryRows?.length) return fxSnapshot;
+  const hist = historicalFxSnapshotForYmd(
+    fxHistoryRows,
+    balanceBaseRaw,
+    anchorYmd,
+    quotes
+  );
+  return hist ?? fxSnapshot;
 }
 
 /**

@@ -15,19 +15,21 @@ import {
   DownloadIcon,
   UploadIcon,
   Wallet,
-  Clock3,
-  Globe,
   Layers,
   Share2,
   Copy,
   CloudUpload,
   Moon,
   Sun,
-  TrendingUp,
-  ArrowRight
+  ArrowRight,
+  CircleDollarSign
 } from 'lucide-react';
 import { ParticleBackground } from './ParticleBackground';
-import { RetroGnomesFrame } from './RetroGnomesFrame';
+import {
+  ARCADE_SETTINGS_BTN_CLASS,
+  PixelSettingsCog,
+  RetroGnomesFrame
+} from './RetroGnomesFrame';
 import { AnimatedCounter } from './AnimatedCounter';
 import { IncomeChart } from './IncomeChart';
 import {
@@ -49,6 +51,7 @@ import {
   projectRatePerSecond,
   projectIsEndedByDeadline,
   parseLocalDateYmd,
+  localYmdPlusDays,
   balanceOnAccountAt,
   MONEYCLOCK_CURRENCIES,
   getCurrencySymbol,
@@ -70,6 +73,7 @@ import {
 import {
   fetchFrankfurterHistoricalRates,
   formatLocalYmdFromMs,
+  fxSnapshotOrHistoricalForAnchorYmd,
   minWorkStartYmdFromProjects,
   frankfurterQuoteCurrencies,
   type FrankfurterRow
@@ -92,6 +96,7 @@ import {
 } from '../themeStorage';
 import { useI18n } from '../i18n';
 import { intlLocaleTag } from '../i18n/localeMeta';
+import { DASHBOARD_HINT_CLASS } from '../dashboardHintClass';
 import { APP_LOCALES, type AppLocale } from '../i18n/localeStorage';
 import {
   postCloudBackup,
@@ -538,6 +543,17 @@ export function MoneyClock() {
     ]
   );
 
+  const balancePayrollCaption = useMemo(() => {
+    const pay = lastPayrollYmd.trim();
+    if (!pay || parseLocalDateYmd(pay) == null) return null;
+    const next = localYmdPlusDays(pay, 1);
+    if (!next) return null;
+    return {
+      payroll: formatYmdLong(pay, locale),
+      accrualFrom: formatYmdLong(next, locale)
+    };
+  }, [lastPayrollYmd, locale]);
+
   const balanceCurrencySymbol = getCurrencySymbol(currentBalanceCurrency);
 
   /** Валюты, в которых есть хотя бы один выбранный проект с неистёкшим сроком (ещё «копит»). */
@@ -560,21 +576,49 @@ export function MoneyClock() {
     return { anyInCcy, hasActiveInCcy };
   }, [selectedProjectsOrdered, currentBalanceCurrency, currenciesWithActiveContract]);
 
-  /** Порядок строк «Всего заработано»: активные контракты выше; внутри группы — по убыванию суммы в валюте счёта (курс API). */
+  /** Курс для итога «все валюты → одна сумма» и сортировки: на дату последней выплаты из истории, иначе spot. */
+  const earningsConversionSnapshot = useMemo(() => {
+    if (!fxSnapshot) return null;
+    const target = normalizeCurrencyCode(currentBalanceCurrency);
+    const foreign = [
+      ...new Set(
+        selectedProjectsOrdered.map((p) => normalizeCurrencyCode(p.currencyCode))
+      )
+    ].filter((c) => c !== target);
+    const pay = lastPayrollYmd.trim();
+    const anchorYmd =
+      pay && parseLocalDateYmd(pay) != null ? pay : formatLocalYmdFromMs(nowTick);
+    return fxSnapshotOrHistoricalForAnchorYmd(
+      currentBalanceCurrency,
+      foreign,
+      anchorYmd,
+      fxSnapshot,
+      fxHistoryRows
+    );
+  }, [
+    fxSnapshot,
+    fxHistoryRows,
+    selectedProjectsOrdered,
+    currentBalanceCurrency,
+    lastPayrollYmd,
+    nowTick
+  ]);
+
+  /** Порядок строк «Всего заработано»: активные контракты выше; внутри группы, по убыванию суммы в валюте счёта (тот же курс, что для итога). */
   const earningsByCurrencySortedForDisplay = useMemo(() => {
     const target = normalizeCurrencyCode(currentBalanceCurrency);
     const rows = [...earningsByCurrency.entries()].map(([ccy, val]) => {
       const active = currenciesWithActiveContract.has(ccy);
       let equivForSort = 0;
-      if (fxSnapshot) {
-        const c = convertAmountThroughSnapshot(val, ccy, target, fxSnapshot);
+      if (earningsConversionSnapshot) {
+        const c = convertAmountThroughSnapshot(val, ccy, target, earningsConversionSnapshot);
         equivForSort = c != null ? c : Number.NEGATIVE_INFINITY;
       }
       return { ccy, val, active, equivForSort };
     });
     rows.sort((a, b) => {
       if (a.active !== b.active) return a.active ? -1 : 1;
-      if (fxSnapshot && b.equivForSort !== a.equivForSort) {
+      if (earningsConversionSnapshot && b.equivForSort !== a.equivForSort) {
         return b.equivForSort - a.equivForSort;
       }
       return a.ccy.localeCompare(b.ccy);
@@ -583,7 +627,7 @@ export function MoneyClock() {
   }, [
     earningsByCurrency,
     currenciesWithActiveContract,
-    fxSnapshot,
+    earningsConversionSnapshot,
     currentBalanceCurrency
   ]);
 
@@ -596,19 +640,44 @@ export function MoneyClock() {
     return m;
   }, [selectedProjectsOrdered]);
 
-  /** Сумма накоплений по всем выбранным проектам, пересчитанная в валюту счёта по курсу API. */
+  /** Сумма накоплений по всем выбранным проектам в валюте счёта (курс на дату последней выплаты из истории, иначе API). */
   const equivalentEarningsInBalanceCcy = useMemo(() => {
-    if (!fxSnapshot || selectedProjectsOrdered.length === 0) return null;
+    if (!earningsConversionSnapshot || selectedProjectsOrdered.length === 0) return null;
     const target = normalizeCurrencyCode(currentBalanceCurrency);
     let sum = 0;
     for (const p of selectedProjectsOrdered) {
       const raw = projectEarningsAt(p, nowTick);
-      const c = convertAmountThroughSnapshot(raw, p.currencyCode, target, fxSnapshot);
+      const c = convertAmountThroughSnapshot(
+        raw,
+        p.currencyCode,
+        target,
+        earningsConversionSnapshot
+      );
       if (c == null) return null;
       sum += c;
     }
     return sum;
-  }, [fxSnapshot, selectedProjectsOrdered, currentBalanceCurrency, nowTick]);
+  }, [earningsConversionSnapshot, selectedProjectsOrdered, currentBalanceCurrency, nowTick]);
+
+  /** Правая карточка «в валюте счёта» повторяет число слева, одна валюта = счёт или свёрнутый Σ. */
+  const hideEquivBreakdownTile = useMemo(() => {
+    if (equivalentEarningsInBalanceCcy == null || selectedProjectsOrdered.length === 0) {
+      return false;
+    }
+    const entries = earningsByCurrencySortedForDisplay;
+    if (entries.length === 0) return false;
+    const bal = normalizeCurrencyCode(currentBalanceCurrency);
+    if (entries.length === 1 && normalizeCurrencyCode(entries[0][0]) === bal) return true;
+    if (entries.length > 1 && fxSnapshot && !showAllCurrencies) return true;
+    return false;
+  }, [
+    equivalentEarningsInBalanceCcy,
+    selectedProjectsOrdered.length,
+    earningsByCurrencySortedForDisplay,
+    currentBalanceCurrency,
+    fxSnapshot,
+    showAllCurrencies
+  ]);
 
   /** Сумма ставок (валюта/сек) всех проектов в пересчёте на валюту счёта. */
   const equivalentRatePerSecondInBalanceCcy = useMemo(() => {
@@ -1621,48 +1690,63 @@ export function MoneyClock() {
   }, [fxSnapshot, currentBalanceCurrency, selectedProjectsOrdered]);
 
   return (
-    <div className="relative w-full min-h-screen flex flex-col overflow-x-hidden">
+    <div className="relative w-full min-h-screen flex flex-col overflow-x-hidden dark:bg-deep dark:grid-bg">
       {theme === 'dark' ?
-        <div className="arcade-scanlines" aria-hidden />
+        <div className="scanline-overlay" aria-hidden />
       : null}
-      <ParticleBackground arcade={theme === 'dark'} />
+      {theme === 'light' ?
+        <ParticleBackground sparse />
+      : null}
 
-      <div className="relative z-10 flex-1 w-full max-w-[min(100%,96rem)] mx-auto px-5 pt-6 pb-10 flex flex-col min-h-0">
-        <div className="flex-1 flex flex-col justify-center py-6 sm:py-8 w-full min-h-0">
-          <div className="relative w-full max-w-4xl xl:max-w-5xl mx-auto px-1 sm:px-2 pt-6 sm:pt-9 pb-11 sm:pb-14">
+      <div className="relative z-10 flex-1 w-full max-w-[min(100%,96rem)] mx-auto px-5 pt-6 pb-10 flex flex-col min-h-0 dark:max-w-4xl dark:mx-auto dark:px-4 dark:sm:px-6 dark:lg:px-8 dark:pt-8 dark:pb-12">
+        <div className="flex-1 flex flex-col justify-center py-6 sm:py-8 w-full min-h-0 dark:py-6">
+          <div className="relative w-full max-w-4xl xl:max-w-6xl 2xl:max-w-7xl mx-auto px-1 sm:px-2 pt-6 sm:pt-9 pb-11 sm:pb-14 dark:max-w-4xl dark:px-0 dark:pt-4 dark:pb-8 xl:dark:max-w-5xl">
             <motion.div
-              layout
-              className="relative z-10 w-full rounded-r80 border border-white/20 bg-gradient-to-b from-white/[0.13] to-white/[0.05] backdrop-blur-2xl shadow-[0_16px_64px_rgba(0,0,0,0.28)] ring-1 ring-inset ring-white/10 overflow-hidden px-1 sm:px-2 dark:border-[var(--card-border)] dark:from-[rgba(24,32,44,0.94)] dark:to-[rgba(14,18,26,0.9)] dark:shadow-[0_0_60px_rgba(0,40,60,0.2),0_20px_50px_rgba(0,0,0,0.55)] dark:ring-white/[0.06]">
+              layout={theme === 'light'}
+              className={
+                theme === 'light' ?
+                  'relative z-10 w-full overflow-hidden px-1 sm:px-2 rounded-r80 border border-white/10 bg-white/[0.05] backdrop-blur-2xl shadow-[0_8px_40px_rgba(0,0,0,0.12)]'
+                : 'contents'
+              }>
+              {theme === 'light' ?
+                <>
+                  <div
+                    className="pointer-events-none absolute inset-0 z-0 opacity-50"
+                    style={{
+                      background:
+                        'radial-gradient(ellipse 75% 45% at 50% -15%, rgba(255,255,255,0.14), transparent 52%)'
+                    }}
+                  />
+                  <div
+                    className="pointer-events-none absolute inset-0 z-0 opacity-0"
+                    style={{
+                      background:
+                        'radial-gradient(ellipse 80% 50% at 50% 0%, rgba(0,255,136,0.05), transparent 55%)'
+                    }}
+                  />
+                </>
+              : null}
               <div
-                className="pointer-events-none absolute inset-0 z-0 opacity-[0.45] dark:opacity-[0.28]"
-                style={{
-                  background:
-                    'radial-gradient(ellipse 85% 55% at 50% -25%, rgba(255,255,255,0.2), transparent 50%)'
-                }}
-              />
-              <div
-                className="pointer-events-none absolute inset-0 z-[4] opacity-[0.04] dark:opacity-[0.07] rounded-r80"
-                style={{
-                  backgroundImage:
-                    'repeating-linear-gradient(180deg, transparent, transparent 2px, rgba(0,0,0,0.22) 2px, rgba(0,0,0,0.22) 3px)',
-                  mixBlendMode: 'overlay'
-                }}
-                aria-hidden
-              />
-              <div className="relative z-10 flex flex-col gap-5 sm:gap-6 px-4 sm:px-6 lg:px-8 pt-4 sm:pt-5 pb-5 sm:pb-7">
-              <div
-                className="sticky top-0 z-30 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-2.5 mb-1 flex flex-wrap items-center justify-end gap-2 border-b border-white/[0.08] bg-gradient-to-b from-black/[0.18] via-black/[0.1] to-transparent dark:from-[rgba(6,10,18,0.92)] dark:via-[rgba(6,10,18,0.78)] dark:to-transparent backdrop-blur-md supports-[backdrop-filter]:bg-black/[0.06] dark:supports-[backdrop-filter]:bg-[rgba(6,10,18,0.65)]">
+                className={
+                  theme === 'light' ?
+                    'relative z-10 flex flex-col gap-5 sm:gap-6 px-4 sm:px-6 lg:px-8 pt-4 sm:pt-5 pb-5 sm:pb-7'
+                  : 'relative z-10 flex w-full min-w-0 flex-col gap-5 sm:gap-6 px-0 sm:px-0 lg:px-1 pt-4 sm:pt-5 pb-5 sm:pb-7'
+                }>
+              <div className="sticky top-0 z-30 flex flex-wrap items-center justify-end gap-2 pt-0.5 pb-3 -mt-0.5">
                 <motion.button
                   type="button"
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setSettingsOpen(true)}
-                  className="shrink-0 text-[0.65rem] sm:text-[0.7rem] font-extrabold uppercase tracking-wide text-[#061018] bg-[var(--accent-money)] px-4 py-2 sm:px-5 sm:py-2.5 rounded-r80-sm hover:brightness-110 transition-[filter] shadow-[0_0_20px_rgba(0,255,160,0.22)]">
-                  {t('hero.ctaGrow')}
+                  aria-label={t('settings.aria')}
+                  title={t('settings.aria')}
+                  style={{ imageRendering: 'pixelated' }}
+                  className={`shrink-0 ${ARCADE_SETTINGS_BTN_CLASS}`}>
+                  <PixelSettingsCog className="w-[1.05rem] h-[1.05rem] sm:w-[1.15rem] sm:h-[1.15rem]" />
                 </motion.button>
               </div>
               {showBackupReminderBanner ?
                 <div
-                  className="rounded-r80-sm border border-amber-300/35 bg-amber-500/[0.14] px-3 py-3 sm:px-4 sm:py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                  className="rounded-2xl border border-amber-400/20 bg-amber-400/[0.06] px-3 py-3 sm:px-4 sm:py-3.5"
                   role="status">
                   <p className="text-amber-100/95 text-[0.62rem] font-extrabold uppercase tracking-[0.12em] text-center mb-1.5">
                     {t('backupBanner.title')}
@@ -1694,36 +1778,46 @@ export function MoneyClock() {
                     className="text-center max-w-2xl mx-auto space-y-4 sm:space-y-5 pt-2 pb-1"
                     aria-label={t('hero.aria')}
                     id="dash-hero">
-                    <p className="text-white/75 text-sm sm:text-base font-semibold leading-snug max-w-[20rem] mx-auto tracking-tight">
+                    <p className="text-slate-600 dark:text-sky-200/80 text-sm sm:text-base font-semibold leading-snug max-w-[20rem] mx-auto tracking-tight dark:tracking-[0.12em]">
                       {t('hero.tagline')}
                     </p>
                     {heroTodayAccrual != null ?
                       <div className="space-y-1.5 pt-1" id="dash-today">
-                        <p className="text-white/45 text-[0.68rem] sm:text-[0.72rem] font-extrabold uppercase tracking-[0.2em]">
+                        <p className="text-white/60 text-[0.68rem] sm:text-[0.72rem] font-extrabold uppercase tracking-[0.2em]">
                           {t('hero.today')}
                         </p>
                         <div
-                          className="hero-rate-glow font-black tabular-nums leading-none text-[var(--accent-money)] flex flex-wrap items-baseline justify-center gap-x-1"
+                          className="hero-rate-glow font-mono dark:font-arcade font-black tabular-nums leading-none text-[var(--accent-money)] flex flex-wrap items-baseline justify-center gap-x-1"
                           style={{ fontSize: 'clamp(3rem, 14vmin, 6rem)' }}>
                           <AnimatedCounter
                             value={heroTodayAccrual}
                             prefix={`+${heroRateBasis.symbol}`}
                             decimals={2}
+                            atmosphere
+                            leavesCount={16}
                           />
                         </div>
-                        <p className="text-white/30 text-[0.65rem] font-medium max-w-sm mx-auto">
+                        <p className={`${DASHBOARD_HINT_CLASS} text-center`}>
                           {t('hero.todayNote')}
                         </p>
                       </div>
                     : null}
                     <div
-                      className="space-y-1.5 pt-3 border-t border-white/12"
+                      className="space-y-1.5 pt-3 border-t border-white/[0.06]"
                       id="dash-balance">
-                      <p className="text-white/42 text-[0.65rem] sm:text-[0.68rem] font-extrabold uppercase tracking-[0.18em]">
+                      <p className="text-white/60 text-[0.65rem] sm:text-[0.68rem] font-extrabold uppercase tracking-[0.18em]">
                         {t('breakdown.inAccount')}
                       </p>
+                      {balancePayrollCaption ?
+                        <p className={`${DASHBOARD_HINT_CLASS} text-center`}>
+                          {t('breakdown.balancePayrollCaption', {
+                            payroll: balancePayrollCaption.payroll,
+                            accrualFrom: balancePayrollCaption.accrualFrom
+                          })}
+                        </p>
+                      : null}
                       <div
-                        className="font-black tabular-nums leading-none text-white flex flex-wrap items-baseline justify-center gap-x-1"
+                        className="font-mono dark:font-arcade font-black tabular-nums leading-none text-white flex flex-wrap items-baseline justify-center gap-x-1"
                         style={{
                           fontSize: 'clamp(1.9rem, 9vmin, 3.85rem)',
                           textShadow:
@@ -1736,62 +1830,52 @@ export function MoneyClock() {
                         />
                       </div>
                     </div>
-                    <div className="space-y-2 pt-3 border-t border-white/10">
-                      <p className="text-white/38 text-[0.62rem] font-extrabold uppercase tracking-[0.2em]">
+                    <div className="flex flex-col items-center gap-3 pt-3 border-t border-white/[0.06]">
+                      <p className="text-white/60 text-[0.62rem] font-extrabold uppercase tracking-[0.2em]">
                         {t('hero.now')}
                       </p>
                       <div
-                        className="hero-rate-glow font-black tabular-nums leading-none text-[var(--accent-money)]/95 flex flex-wrap items-baseline justify-center gap-x-1"
-                        style={{ fontSize: 'clamp(1.65rem, 6.5vmin, 2.85rem)' }}>
-                        <span>+{heroRateBasis.symbol}</span>
-                        <AnimatedCounter
-                          value={heroRateBasis.perSec}
-                          decimals={heroRateBasis.perSec >= 0.01 ? 4 : 5}
-                          prefix=""
-                        />
-                        <span className="text-white/35 text-[0.4em] font-bold ml-1">{t('hero.perSec')}</span>
-                      </div>
-                      <p className="font-bold text-lg sm:text-xl md:text-2xl text-white tabular-nums tracking-tight">
-                        ≈ {heroRateBasis.symbol}
-                        {(
-                          realRateBreakdown.purchasingPowerPerHour ??
-                          realRateBreakdown.afterTaxPerHour
-                        ).toFixed(2)}
-                        {t('hero.perHour')}
-                        <span className="text-white/45 font-medium text-sm sm:text-base">
-                          {' '}
-                          {t('hero.realHint')}
+                        className="hero-rate-glow flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-0.5 font-mono dark:font-arcade font-black tabular-nums leading-none text-[var(--accent-money)]/95"
+                        style={{ fontSize: 'clamp(1.75rem, 6.2vmin, 3rem)' }}>
+                        <span
+                          className="font-sans font-bold text-white/50 dark:text-mp-muted"
+                          style={{ fontSize: '0.42em' }}>
+                          ≈
                         </span>
-                      </p>
-                    </div>
-                    <details className="hero-more-numbers text-left max-w-md mx-auto pt-2 border-t border-white/10 mt-1">
-                      <summary className="text-center text-[0.68rem] font-bold uppercase tracking-wide text-white/45 py-2 hover:text-white/75">
-                        {t('hero.moreNumbers')}
-                      </summary>
-                      <div className="space-y-3 pb-2 text-center text-sm text-white/55 tabular-nums">
-                        <p>
-                          <span className="text-white/35 text-[0.62rem] font-bold uppercase tracking-[0.14em] block mb-1">
-                            {t('hero.moreNominal')}
-                          </span>
+                        <span className="tracking-tight">
                           {heroRateBasis.symbol}
                           {realRateBreakdown.nominalPerHour.toFixed(2)}
-                          {t('hero.perHour')} · {heroRateBasis.code}
-                        </p>
-                        {futureYearly ?
-                          <p>
-                            <span className="text-white/35 text-[0.62rem] font-bold uppercase tracking-[0.14em] block mb-1">
-                              {t('hero.futureTitle')}
-                            </span>
-                            ≈ {heroRateBasis.symbol}
-                            {formatCompactAnnual(futureYearly.path)} → {heroRateBasis.symbol}
-                            {formatCompactAnnual(futureYearly.plus20)}
-                            <span className="text-white/40 text-xs block sm:inline sm:ml-1">
-                              {t('hero.futureIfPlus20')}
-                            </span>
-                          </p>
-                        : null}
+                        </span>
+                        <span
+                          className="font-sans font-bold text-white/58 dark:text-mp-muted"
+                          style={{ fontSize: '0.52em' }}>
+                          {t('hero.perHour')}
+                        </span>
+                        <span
+                          className="font-sans font-medium text-white/42 dark:text-mp-muted"
+                          style={{ fontSize: '0.44em' }}>
+                          · {heroRateBasis.code}
+                        </span>
                       </div>
-                    </details>
+                      <div className="mx-auto w-20 h-px bg-gradient-to-r from-transparent via-neon-green/22 to-transparent dark:block hidden" />
+                      <div
+                        className="flex min-w-0 flex-nowrap items-baseline justify-center gap-x-2 font-mono dark:font-arcade font-bold tabular-nums leading-none text-[var(--accent-money)]/82"
+                        style={{
+                          fontSize: 'clamp(0.95rem, 3.6vmin, 1.4rem)',
+                          textShadow:
+                            '0 0 12px rgba(0,255,170,0.12), 0 1px 6px rgba(0,0,0,0.25)'
+                        }}>
+                        <AnimatedCounter
+                          className="shrink-0"
+                          value={heroRateBasis.perSec}
+                          decimals={heroRateBasis.perSec >= 0.01 ? 4 : 5}
+                          prefix={`+${heroRateBasis.symbol}`}
+                        />
+                        <span className="shrink-0 font-sans text-[0.68em] font-bold tracking-tight text-white/46 dark:text-mp-muted">
+                          {t('hero.perSec')}
+                        </span>
+                      </div>
+                    </div>
                   </section>
                 </>
               : !hasPositiveAccrualRate ?
@@ -1799,7 +1883,7 @@ export function MoneyClock() {
                   <p className="text-white/70 text-base font-medium leading-relaxed">
                     {t('hero.emptyPrompt')}
                   </p>
-                  <p className="text-white/38 text-[0.65rem] font-medium leading-snug">
+                  <p className={`${DASHBOARD_HINT_CLASS} text-center`}>
                     {t('hero.emptyCta')}
                   </p>
                 </section>
@@ -1811,10 +1895,13 @@ export function MoneyClock() {
 
               {hasPositiveAccrualRate && heroRateBasis && realRateBreakdown ?
               <div
-                className="w-full max-w-3xl mx-auto border-t border-white/10 pt-6 mt-2 space-y-4 px-1"
+                className="w-full max-w-3xl mx-auto border-t border-white/[0.06] pt-6 mt-2 space-y-5 px-1"
                 id="dash-breakdown">
-                <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
-                  <div className="relative rounded-[10px] border border-white/10 bg-white/[0.035] px-3 py-3 sm:px-4 sm:py-4 min-w-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                <div
+                  className={`grid gap-x-4 gap-y-6 sm:gap-x-6 ${
+                    hideEquivBreakdownTile ? 'grid-cols-1' : 'grid-cols-2'
+                  }`}>
+                  <div className="relative rounded-2xl px-2 py-2 sm:px-3 sm:py-3 min-w-0 ring-1 ring-inset ring-white/[0.05] bg-white/[0.015] dark:bg-transparent dark:ring-0 dark:rounded-none">
                     <span
                       className="absolute top-2.5 right-2.5 text-[var(--accent-money)]/85 pointer-events-none"
                       aria-hidden>
@@ -1831,7 +1918,7 @@ export function MoneyClock() {
                       <button
                         type="button"
                         onClick={() => setShowAllCurrencies((v) => !v)}
-                        className="text-[0.55rem] font-bold uppercase tracking-wide text-cyan-200/85 hover:text-cyan-100 border border-cyan-400/25 rounded-lg px-2 py-0.5 transition-colors">
+                        className="text-[0.55rem] font-bold uppercase tracking-wide text-cyan-200/80 hover:text-cyan-100 underline decoration-cyan-400/25 underline-offset-2 transition-colors">
                         {showAllCurrencies ?
                           t('breakdown.hideAllCurrencies')
                         : t('breakdown.showAllCurrencies')}
@@ -1869,7 +1956,7 @@ export function MoneyClock() {
                                     {ccy}
                                   </span>
                                   {!ccyActive ?
-                                    <span className="text-[0.45rem] font-extrabold uppercase tracking-[0.1em] text-slate-200/85 px-1 py-0.5 rounded-md bg-slate-600/40 border border-white/12">
+                                    <span className="text-[0.45rem] font-extrabold uppercase tracking-[0.1em] text-white/55 px-1.5 py-0.5 rounded-md bg-white/[0.06]">
                                       {t('breakdown.endedBadge')}
                                     </span>
                                   : null}
@@ -1912,7 +1999,7 @@ export function MoneyClock() {
                                     {ccy}
                                   </span>
                                   {!ccyActive ?
-                                    <span className="text-[0.45rem] font-extrabold uppercase tracking-[0.1em] text-slate-200/85 px-1 py-0.5 rounded-md bg-slate-600/40 border border-white/12">
+                                    <span className="text-[0.45rem] font-extrabold uppercase tracking-[0.1em] text-white/55 px-1.5 py-0.5 rounded-md bg-white/[0.06]">
                                       {t('breakdown.endedBadge')}
                                     </span>
                                   : null}
@@ -1934,191 +2021,110 @@ export function MoneyClock() {
                     </div>
                   </div>
 
-                  <div className="relative rounded-[10px] border border-white/10 bg-white/[0.035] px-3 py-3 sm:px-4 sm:py-4 min-w-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-                    <span
-                      className="absolute top-2.5 right-2.5 text-sky-300/90 pointer-events-none"
-                      aria-hidden>
-                      <Wallet size={15} strokeWidth={2.2} />
-                    </span>
-                    <div className="flex flex-col gap-1.5 pr-6 mb-2">
-                      <p className="text-white/50 text-[0.55rem] sm:text-[0.6rem] font-extrabold uppercase tracking-[0.12em]">
-                        {t('breakdown.inAccount')}
+                  {!hideEquivBreakdownTile ?
+                  <div className="relative rounded-2xl px-2 py-2 sm:px-3 sm:py-3 min-w-0 ring-1 ring-inset ring-white/[0.05] bg-white/[0.015] dark:bg-transparent dark:ring-0 dark:rounded-none overflow-hidden">
+                    {equivalentEarningsInBalanceCcy != null && selectedProjectsOrdered.length > 0 ?
+                    <>
+                      <span
+                        className="absolute top-2.5 right-2.5 text-[var(--accent-money)]/75 pointer-events-none"
+                        aria-hidden>
+                        <CircleDollarSign size={15} strokeWidth={2.2} />
+                      </span>
+                      <p className="text-white/50 text-[0.55rem] sm:text-[0.6rem] font-extrabold uppercase tracking-[0.12em] pr-6 mb-2">
+                        {t('breakdown.equivTitle')}
+                      </p>
+                      <div
+                        className="relative font-black tracking-tight leading-none text-white tabular-nums w-full min-w-0 max-w-full overflow-x-auto [scrollbar-width:thin]"
+                        style={{
+                          fontSize: 'clamp(0.85rem, 3vmin, 1.65rem)',
+                          textShadow: '0 1px 14px rgba(0,0,0,0.3)'
+                        }}>
+                        <AnimatedCounter
+                          value={equivalentEarningsInBalanceCcy}
+                          prefix={balanceCurrencySymbol}
+                          decimals={2}
+                        />
+                      </div>
+                      <p className={`${DASHBOARD_HINT_CLASS} mt-2 pr-1`}>
+                        {t('breakdown.equivOneLiner', {
+                          ccy: normalizeCurrencyCode(currentBalanceCurrency)
+                        })}
+                      </p>
+                      {selectedProjectsOrdered.length > 0 && !accountBalanceCurrencyStatus.anyInCcy &&
+                      <p className="text-amber-200/75 text-[0.5rem] leading-snug mt-2">
+                        {t('breakdown.noAccrualHint')}
+                      </p>
+                      }
+                      {selectedProjectsOrdered.length > 0 &&
+                      accountBalanceCurrencyStatus.anyInCcy &&
+                      !accountBalanceCurrencyStatus.hasActiveInCcy &&
+                      <p className={`${DASHBOARD_HINT_CLASS} mt-2`}>
+                        {t('breakdown.allEndedHint')}
+                      </p>
+                      }
+                    </>
+                    : <>
+                      <span
+                        className="absolute top-2.5 right-2.5 text-sky-300/90 pointer-events-none"
+                        aria-hidden>
+                        <Wallet size={15} strokeWidth={2.2} />
+                      </span>
+                      <p className="text-white/50 text-[0.55rem] sm:text-[0.6rem] font-extrabold uppercase tracking-[0.12em] pr-6 mb-2">
+                        {t('breakdown.accrualTileTitle')}
                       </p>
                       {selectedProjectsOrdered.length > 0 && !accountBalanceCurrencyStatus.anyInCcy ?
-                        <span className="inline-flex items-center text-[0.45rem] font-extrabold uppercase tracking-[0.1em] text-amber-100/95 px-1.5 py-0.5 rounded-md bg-amber-500/20 border border-amber-200/30 w-fit">
+                        <span className="inline-flex items-center text-[0.45rem] font-extrabold uppercase tracking-[0.1em] text-amber-200/90 px-1.5 py-0.5 rounded-md bg-amber-400/[0.08] w-fit mb-2">
                           {t('breakdown.noContractsInCcy')}{' '}
                           {normalizeCurrencyCode(currentBalanceCurrency)}
                         </span>
                       : selectedProjectsOrdered.length > 0 &&
                         accountBalanceCurrencyStatus.anyInCcy &&
                         !accountBalanceCurrencyStatus.hasActiveInCcy ?
-                        <span className="inline-flex items-center text-[0.45rem] font-extrabold uppercase tracking-[0.1em] text-slate-100/90 px-1.5 py-0.5 rounded-md bg-slate-600/45 border border-white/15 w-fit">
+                        <span className="inline-flex items-center text-[0.45rem] font-extrabold uppercase tracking-[0.1em] text-white/60 px-1.5 py-0.5 rounded-md bg-white/[0.06] w-fit mb-2">
                           {t('breakdown.allEndedWithCcy', {
                             ccy: normalizeCurrencyCode(currentBalanceCurrency)
                           })}
                         </span>
                       : null}
-                    </div>
-                    {selectedProjectsOrdered.length > 0 && !accountBalanceCurrencyStatus.anyInCcy &&
-                    <p className="text-amber-100/75 text-[0.52rem] leading-snug mb-2">
-                      {t('breakdown.noAccrualHint')}
-                    </p>
-                    }
-                    {selectedProjectsOrdered.length > 0 &&
-                    accountBalanceCurrencyStatus.anyInCcy &&
-                    !accountBalanceCurrencyStatus.hasActiveInCcy &&
-                    <p className="text-white/48 text-[0.52rem] leading-snug mb-2">
-                      {t('breakdown.allEndedHint')}
-                    </p>
-                    }
-                    <div
-                      className="relative font-semibold tracking-tight text-white tabular-nums w-full min-w-0"
-                      style={{
-                        fontSize: 'clamp(0.95rem, 2.8vmin, 1.35rem)',
-                        textShadow: '0 1px 12px rgba(0,0,0,0.25)'
-                      }}>
-                      <AnimatedCounter
-                        value={displayBalanceWithAccrual}
-                        prefix={balanceCurrencySymbol}
-                        decimals={2}
-                      />
-                    </div>
-                    <p className="text-white/32 text-[0.52rem] leading-snug mt-2">
-                      {t('breakdown.balanceEchoHint')}
-                    </p>
-                  </div>
-
-                  <div className="relative rounded-[10px] border border-white/10 bg-white/[0.035] px-3 py-3 sm:px-4 sm:py-4 min-w-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-                    <span
-                      className="absolute top-2.5 right-2.5 text-amber-200/85 pointer-events-none"
-                      aria-hidden>
-                      <Clock3 size={15} strokeWidth={2.2} />
-                    </span>
-                    <p className="text-white/50 text-[0.55rem] sm:text-[0.6rem] font-extrabold uppercase tracking-[0.12em] pr-6 mb-2">
-                      {t('hero.moreNominal')}
-                    </p>
-                    <p
-                      className="font-black tabular-nums text-white leading-tight"
-                      style={{ fontSize: 'clamp(0.8rem, 2.4vmin, 1.15rem)' }}>
-                      {heroRateBasis.symbol}
-                      {realRateBreakdown.nominalPerHour.toFixed(2)}
-                      <span className="text-white/40 font-bold text-[0.65em]">{t('hero.perHour')}</span>
-                    </p>
-                    <p className="text-white/30 text-[0.5rem] mt-1.5 font-mono">{heroRateBasis.code}</p>
-                  </div>
-
-                  <div className="relative rounded-[10px] border border-white/10 bg-white/[0.035] px-3 py-3 sm:px-4 sm:py-4 min-w-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-                    <span
-                      className="absolute top-2.5 right-2.5 text-[var(--accent-money)]/80 pointer-events-none"
-                      aria-hidden>
-                      <TrendingUp size={15} strokeWidth={2.2} />
-                    </span>
-                    <p className="text-white/50 text-[0.55rem] sm:text-[0.6rem] font-extrabold uppercase tracking-[0.12em] pr-6 mb-2">
-                      {t('dashboard.estimate12m')}
-                    </p>
-                    {trajectorySnap ?
-                      <p
-                        className="font-black tabular-nums text-white leading-tight"
-                        style={{ fontSize: 'clamp(0.72rem, 2vmin, 1.05rem)' }}>
-                        ≈ {trajectorySnap.symbol}
-                        {formatCompactAnnual(trajectorySnap.y12)}
-                        <span className="text-white/35 mx-0.5">–</span>
-                        {trajectorySnap.symbol}
-                        {formatCompactAnnual(trajectorySnap.y12plus)}
+                      {selectedProjectsOrdered.length > 0 && !accountBalanceCurrencyStatus.anyInCcy &&
+                      <p className="text-amber-100/75 text-[0.52rem] leading-snug mb-2">
+                        {t('breakdown.noAccrualHint')}
                       </p>
-                    : <p className="text-white/35 text-[0.6rem]">—</p>
+                      }
+                      {selectedProjectsOrdered.length > 0 &&
+                      accountBalanceCurrencyStatus.anyInCcy &&
+                      !accountBalanceCurrencyStatus.hasActiveInCcy &&
+                      <p className={`${DASHBOARD_HINT_CLASS} mb-2`}>
+                        {t('breakdown.allEndedHint')}
+                      </p>
+                      }
+                      {(selectedProjectsOrdered.length === 0 ||
+                      (accountBalanceCurrencyStatus.anyInCcy &&
+                        accountBalanceCurrencyStatus.hasActiveInCcy)) &&
+                      <>
+                        <p
+                          className="font-black tabular-nums text-white leading-tight mt-0.5"
+                          style={{ fontSize: 'clamp(1.1rem, 4vmin, 1.65rem)' }}>
+                          {Math.round(takeHomeFraction * 100)}%
+                        </p>
+                        <p className={`${DASHBOARD_HINT_CLASS} mt-1.5`}>
+                          {t('breakdown.takeHomeTileHint')}
+                        </p>
+                      </>
+                      }
+                    </>
                     }
-                    <p className="text-white/30 text-[0.5rem] mt-1.5">{t('hero.futureIfPlus20')}</p>
                   </div>
+                  : null}
                 </div>
 
-                <p className="text-white/38 text-[0.58rem] leading-snug px-0.5">
+                <p className={`${DASHBOARD_HINT_CLASS} text-center px-0.5`}>
                   {fxSnapshot ?
                     t('breakdown.sortParagraphFx', {
                       ccy: normalizeCurrencyCode(currentBalanceCurrency)
                     })
-                  : t('breakdown.sortParagraphNoFx')}{' '}
-                  {t('breakdown.sortEndedNote')}
+                  : t('breakdown.sortParagraphNoFx')}
                 </p>
-
-                {equivalentEarningsInBalanceCcy != null &&
-                selectedProjectsOrdered.length > 0 &&
-                <section
-                  className="rounded-[10px] border border-sky-400/20 bg-sky-500/[0.06] px-3 py-3 sm:px-4 sm:py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
-                  aria-label={t('breakdown.equivTitle')}>
-                  <p className="text-white/50 text-[0.55rem] font-extrabold uppercase tracking-[0.12em] mb-2">
-                    {t('breakdown.equivTitle')}
-                  </p>
-                  <div
-                    className="font-black tracking-tight text-white tabular-nums leading-none"
-                    style={{ fontSize: 'clamp(1rem, 3.8vmin, 1.85rem)' }}>
-                    <AnimatedCounter
-                      value={equivalentEarningsInBalanceCcy}
-                      prefix={balanceCurrencySymbol}
-                      decimals={2}
-                    />
-                  </div>
-                  <p className="text-white/38 text-[0.54rem] font-medium mt-2 leading-snug">
-                    {t('breakdown.equivHint')}
-                  </p>
-                  <div className="mt-3 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2.5 space-y-2">
-                    <div className="flex gap-2">
-                      <span
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-sky-400/18 border border-sky-200/25 text-sky-100/90"
-                        aria-hidden>
-                        <Globe size={14} strokeWidth={2.2} />
-                      </span>
-                      <p className="text-white/48 font-medium leading-relaxed text-[0.55rem] pt-0.5">
-                        <span className="text-white/65 font-semibold">{t('breakdown.rateHeading')}</span>{' '}
-                        {t('breakdown.fxBlurb')} {normalizeCurrencyCode(currentBalanceCurrency)}.
-                      </p>
-                    </div>
-                    <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                    <div className="flex gap-2">
-                      <span
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-violet-400/16 border border-violet-200/22 text-violet-100/88"
-                        aria-hidden>
-                        <Layers size={14} strokeWidth={2.2} />
-                      </span>
-                      <p className="text-white/44 font-medium leading-relaxed text-[0.54rem] pt-0.5">
-                        <span className="text-white/62 font-semibold">{t('breakdown.sumHeading')}</span>{' '}
-                        {t('breakdown.sumBlurb')}
-                      </p>
-                    </div>
-                  </div>
-                </section>
-                }
-
-                <div className="rounded-[10px] border border-white/10 bg-white/[0.03] px-3 py-3 sm:px-4 sm:py-3.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] space-y-2.5">
-                  <div className="flex gap-2.5">
-                    <span
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-400/12 border border-emerald-200/18 text-emerald-100/90"
-                      aria-hidden>
-                      <Wallet size={16} strokeWidth={2.2} />
-                    </span>
-                    <p
-                      className="text-white/50 font-medium leading-relaxed pt-0.5"
-                      style={{ fontSize: 'clamp(0.56rem, 1.45vmin, 0.68rem)' }}>
-                      <span className="text-white/68 font-semibold">{t('breakdown.howTitle')}</span>{' '}
-                      {t('breakdown.howBody')}
-                    </p>
-                  </div>
-                  <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                  <div className="flex gap-2.5">
-                    <span
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-400/12 border border-amber-200/18 text-amber-100/90"
-                      aria-hidden>
-                      <Clock3 size={16} strokeWidth={2.2} />
-                    </span>
-                    <p
-                      className="text-white/46 font-medium leading-relaxed pt-0.5"
-                      style={{ fontSize: 'clamp(0.54rem, 1.4vmin, 0.66rem)' }}>
-                      {t('breakdown.onlyCcy', {
-                        ccy: normalizeCurrencyCode(currentBalanceCurrency)
-                      })}
-                    </p>
-                  </div>
-                </div>
               </div>
               : null}
 
@@ -2128,7 +2134,7 @@ export function MoneyClock() {
               fxSnapshot &&
               fxCaptionBlock?.kind === 'missing-rates' &&
               <div
-                className="max-w-3xl mx-auto rounded-[10px] border border-amber-400/30 bg-amber-500/[0.08] px-3 py-2.5 text-[0.65rem] sm:text-[0.68rem] leading-relaxed text-amber-100/95 text-center md:text-left"
+                className="max-w-3xl mx-auto rounded-2xl border border-amber-400/15 bg-amber-400/[0.04] px-3 py-2.5 text-[0.65rem] sm:text-[0.68rem] leading-relaxed text-amber-100/90 text-center md:text-left"
                 role="status">
                 {t('fx.missing', {
                   codes: fxCaptionBlock.foreignCodes.join(', '),
@@ -2142,7 +2148,7 @@ export function MoneyClock() {
               fxReady &&
               !fxSnapshot &&
               <div
-                className="rounded-r80-sm bg-black/35 border border-white/15 px-3 py-2 text-[0.65rem] sm:text-xs text-white/60 text-center md:text-left [text-shadow:0_1px_2px_rgba(0,0,0,0.4)]"
+                className="rounded-2xl ring-1 ring-inset ring-white/[0.06] px-3 py-2 text-[0.65rem] sm:text-xs text-white/50 text-center md:text-left dark:ring-0 dark:bg-transparent dark:rounded-none"
                 role="status">
                 {t('fx.failed')}
               </div>
@@ -2151,145 +2157,11 @@ export function MoneyClock() {
               {hasPositiveAccrualRate &&
               heroRateBasis &&
               realRateBreakdown &&
-              trajectorySnap ?
-              <section
-                className="max-w-3xl mx-auto border-t border-white/10 pt-6 mt-2 px-1"
-                aria-label={t('trajectory.aria')}
-                id="dash-trajectory">
-                <p className="text-white/42 text-[0.58rem] font-extrabold uppercase tracking-[0.16em] text-center mb-2">
-                  {t('chart.productTrajectoryLead')}
-                </p>
-                <p className="text-center text-white/32 text-[0.58rem] leading-snug mb-4 px-2">
-                  {t('trajectory.disclaimer')}
-                </p>
-                <div className="rounded-[10px] border border-white/10 bg-white/[0.035] px-4 py-5 sm:px-5 sm:py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-                  <div className="grid grid-cols-[1fr_auto_1fr] gap-2 sm:gap-4 items-center">
-                    <div className="text-center min-w-0">
-                      <p className="text-white/45 text-[0.55rem] sm:text-[0.58rem] font-bold uppercase tracking-[0.1em] mb-2">
-                        {t('chart.productSteady12')}
-                      </p>
-                      <p className="text-white font-black tabular-nums leading-tight text-sm sm:text-base">
-                        ≈ {trajectorySnap.symbol}
-                        {formatCompactAnnual(trajectorySnap.y12)}
-                      </p>
-                      <p className="text-white/30 text-[0.5rem] mt-1">{t('trajectory.next12')}</p>
-                    </div>
-                    <ArrowRight
-                      className="w-5 h-5 sm:w-6 sm:h-6 text-white/25 shrink-0"
-                      strokeWidth={2}
-                      aria-hidden
-                    />
-                    <div className="text-center min-w-0">
-                      <p className="text-white/45 text-[0.55rem] sm:text-[0.58rem] font-bold uppercase tracking-[0.1em] mb-2">
-                        {t('chart.productPlus20')}
-                      </p>
-                      <p className="text-white font-black tabular-nums leading-tight text-sm sm:text-base">
-                        ≈ {trajectorySnap.symbol}
-                        {formatCompactAnnual(trajectorySnap.y12plus)}
-                      </p>
-                      <p className="text-white/30 text-[0.5rem] mt-1">{t('trajectory.next12')}</p>
-                    </div>
-                  </div>
-                  <div className="mt-5 pt-4 border-t border-white/10 text-center">
-                    <p className="text-[var(--accent-money)] font-black tabular-nums text-base sm:text-lg">
-                      {trajectorySnap.deltaYear >= 0 ? '+' : '−'}
-                      {trajectorySnap.symbol}
-                      {formatCompactAnnual(Math.abs(trajectorySnap.deltaYear))}
-                      <span className="text-white/40 font-semibold text-xs sm:text-sm ml-1">
-                        {t('chart.productPerYearHint')}
-                      </span>
-                    </p>
-                  </div>
-                  <details className="hero-more-numbers text-left mt-4 pt-3 border-t border-white/10">
-                    <summary className="text-center text-[0.62rem] font-bold uppercase tracking-wide text-white/40 py-2 cursor-pointer hover:text-white/65">
-                      {t('trajectory.morePaths')}
-                    </summary>
-                    <div className="space-y-3 pb-1 text-center text-xs sm:text-sm text-white/65">
-                      <p className="tabular-nums">
-                        {t('trajectory.fiveYearLead')}{' '}
-                        <span className="text-white font-bold">
-                          ≈ {trajectorySnap.symbol}
-                          {formatCompactAnnual(trajectorySnap.y5)}
-                        </span>
-                      </p>
-                      <p className="text-white/45 tabular-nums leading-relaxed">
-                        {t('trajectory.fiveCompare', {
-                          base: `${trajectorySnap.symbol}${formatCompactAnnual(trajectorySnap.y5)}`,
-                          plus: `${trajectorySnap.symbol}${formatCompactAnnual(trajectorySnap.y5plus)}`
-                        })}
-                      </p>
-                    </div>
-                  </details>
-                  <p className="text-white/25 text-[0.52rem] leading-snug text-center mt-3">{t('trajectory.geekFootnote')}</p>
-                </div>
-              </section>
-              : null}
-
-              {hasPositiveAccrualRate &&
-              heroRateBasis &&
-              realRateBreakdown &&
-              trajectorySnap &&
-              <section
-                className="max-w-3xl mx-auto mt-4 px-1"
-                aria-label={t('dashboard.momentumTitle')}
-                id="dash-momentum">
-                <div className="rounded-[10px] border border-white/10 bg-white/[0.03] px-4 py-4 sm:px-5 sm:py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-                  <p className="text-white/40 text-[0.55rem] font-extrabold uppercase tracking-[0.14em] text-center mb-2">
-                    {t('dashboard.momentumTitle')}
-                  </p>
-                  <p className="text-center text-[var(--accent-money)] font-bold text-sm sm:text-base mb-4 leading-snug">
-                    {t('dashboard.momentumTeaser')}
-                  </p>
-                  <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center">
-                    <div className="min-w-0">
-                      <p className="text-white/35 text-[0.5rem] sm:text-[0.52rem] font-bold uppercase tracking-[0.08em] mb-1.5">
-                        {t('chart.productNow')}
-                      </p>
-                      <p className="text-white font-black tabular-nums text-xs sm:text-sm">
-                        +{heroRateBasis.symbol}
-                        {heroRateBasis.perSec >= 0.01 ?
-                          heroRateBasis.perSec.toFixed(4)
-                        : heroRateBasis.perSec.toFixed(5)}
-                      </p>
-                      <p className="text-white/28 text-[0.48rem] mt-0.5">{t('hero.perSec')}</p>
-                    </div>
-                    <div className="min-w-0 border-x border-white/10 px-1">
-                      <p className="text-white/35 text-[0.5rem] sm:text-[0.52rem] font-bold uppercase tracking-[0.08em] mb-1.5">
-                        {t('chart.productTrendEnd')}
-                      </p>
-                      <p className="text-white font-black tabular-nums text-xs sm:text-sm">
-                        ≈ {trajectorySnap.symbol}
-                        {formatCompactAnnual(trajectorySnap.y12)}
-                      </p>
-                      <p className="text-white/28 text-[0.48rem] mt-0.5">{t('trajectory.next12')}</p>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-white/35 text-[0.5rem] sm:text-[0.52rem] font-bold uppercase tracking-[0.08em] mb-1.5">
-                        {t('dashboard.momentumColDelta')}
-                      </p>
-                      <p className="text-[var(--accent-money)] font-black tabular-nums text-xs sm:text-sm">
-                        {trajectorySnap.deltaYear >= 0 ? '+' : '−'}
-                        {trajectorySnap.symbol}
-                        {formatCompactAnnual(Math.abs(trajectorySnap.deltaYear))}
-                      </p>
-                      <p className="text-white/28 text-[0.48rem] mt-0.5">{t('trajectory.perYearVs')}</p>
-                    </div>
-                  </div>
-                </div>
-              </section>
-              }
-
-              {hasPositiveAccrualRate &&
-              heroRateBasis &&
-              realRateBreakdown &&
               selectedProjectsOrdered.length > 0 &&
               <div
-                className="rounded-[10px] bg-white/[0.025] border border-white/10 p-3 sm:p-4 lg:p-5 min-h-0 min-w-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] isolate"
+                className="rounded-2xl ring-1 ring-inset ring-white/[0.05] bg-white/[0.012] dark:bg-transparent dark:ring-0 dark:rounded-none p-2 sm:p-3 lg:p-4 min-h-0 min-w-0 isolate"
                 aria-label={t('chart.ariaPanel')}
                 id="dash-chart">
-                <p className="text-white/42 text-[0.56rem] font-extrabold uppercase tracking-[0.16em] text-center mb-3 sm:mb-4">
-                  {t('chart.panelTitle')}
-                </p>
                 <div className="relative z-[1] min-w-0">
                   <IncomeChart
                     projects={selectedProjectsOrdered}
@@ -2313,10 +2185,146 @@ export function MoneyClock() {
                     }
                     onOpenGrow={() => setSettingsOpen(true)}
                     embedded
-                    variant="expanded"
                   />
                 </div>
               </div>
+              }
+
+              {hasPositiveAccrualRate &&
+              heroRateBasis &&
+              realRateBreakdown &&
+              trajectorySnap ?
+              <section
+                className="max-w-3xl mx-auto border-t border-white/[0.06] pt-6 mt-4 px-1"
+                aria-label={t('trajectory.aria')}
+                id="dash-trajectory">
+                <p className="text-white/42 text-[0.58rem] font-extrabold uppercase tracking-[0.16em] text-center mb-2">
+                  {t('chart.productTrajectoryLead')}
+                </p>
+                <p className={`${DASHBOARD_HINT_CLASS} text-center mb-4 px-2`}>
+                  {t('trajectory.disclaimer')}
+                </p>
+                <div className="rounded-2xl px-3 py-5 sm:px-5 sm:py-6 ring-1 ring-inset ring-white/[0.05] bg-white/[0.015] dark:bg-transparent dark:ring-0 dark:rounded-none">
+                  <div className="grid grid-cols-[1fr_auto_1fr] gap-2 sm:gap-4 items-center">
+                    <div className="text-center min-w-0">
+                      <p className="text-white/45 text-[0.55rem] sm:text-[0.58rem] font-bold uppercase tracking-[0.1em] mb-2">
+                        {t('chart.productSteady12')}
+                      </p>
+                      <p className="text-white font-black tabular-nums leading-tight text-sm sm:text-base">
+                        ≈ {trajectorySnap.symbol}
+                        {formatCompactAnnual(trajectorySnap.y12)}
+                      </p>
+                      <p className={`${DASHBOARD_HINT_CLASS} text-center mt-1`}>
+                        {t('trajectory.next12')}
+                      </p>
+                    </div>
+                    <ArrowRight
+                      className="w-5 h-5 sm:w-6 sm:h-6 text-white/25 shrink-0"
+                      strokeWidth={2}
+                      aria-hidden
+                    />
+                    <div className="text-center min-w-0">
+                      <p className="text-white/45 text-[0.55rem] sm:text-[0.58rem] font-bold uppercase tracking-[0.1em] mb-2">
+                        {t('chart.productPlus20')}
+                      </p>
+                      <p className="text-white font-black tabular-nums leading-tight text-sm sm:text-base">
+                        ≈ {trajectorySnap.symbol}
+                        {formatCompactAnnual(trajectorySnap.y12plus)}
+                      </p>
+                      <p className={`${DASHBOARD_HINT_CLASS} text-center mt-1`}>
+                        {t('trajectory.next12')}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-5 pt-4 border-t border-white/[0.05] text-center">
+                    <p className="text-[var(--accent-money)] font-black tabular-nums text-base sm:text-lg">
+                      {trajectorySnap.deltaYear >= 0 ? '+' : '−'}
+                      {trajectorySnap.symbol}
+                      {formatCompactAnnual(Math.abs(trajectorySnap.deltaYear))}
+                      <span className="text-white/40 font-semibold text-xs sm:text-sm ml-1">
+                        {t('chart.productPerYearHint')}
+                      </span>
+                    </p>
+                  </div>
+                  <details className="hero-more-numbers text-left mt-4 pt-3 border-t border-white/[0.05]">
+                    <summary className="text-center text-[0.62rem] font-bold uppercase tracking-wide text-white/40 py-2 cursor-pointer hover:text-white/65">
+                      {t('trajectory.morePaths')}
+                    </summary>
+                    <div className="space-y-3 pb-1 text-center text-xs sm:text-sm text-white/65">
+                      <p className="tabular-nums">
+                        {t('trajectory.fiveYearLead')}{' '}
+                        <span className="text-white font-bold">
+                          ≈ {trajectorySnap.symbol}
+                          {formatCompactAnnual(trajectorySnap.y5)}
+                        </span>
+                      </p>
+                      <p className="text-white/45 tabular-nums leading-relaxed">
+                        {t('trajectory.fiveCompare', {
+                          base: `${trajectorySnap.symbol}${formatCompactAnnual(trajectorySnap.y5)}`,
+                          plus: `${trajectorySnap.symbol}${formatCompactAnnual(trajectorySnap.y5plus)}`
+                        })}
+                      </p>
+                    </div>
+                  </details>
+                  <p className={`${DASHBOARD_HINT_CLASS} text-center mt-3`}>
+                    {t('trajectory.geekFootnote')}
+                  </p>
+                </div>
+              </section>
+              : null}
+
+              {hasPositiveAccrualRate &&
+              heroRateBasis &&
+              realRateBreakdown &&
+              trajectorySnap &&
+              <section
+                className="max-w-3xl mx-auto mt-4 px-1"
+                aria-label={t('dashboard.momentumTitle')}
+                id="dash-momentum">
+                <div className="rounded-2xl px-3 py-4 sm:px-5 sm:py-5 ring-1 ring-inset ring-white/[0.05] bg-white/[0.012] dark:bg-transparent dark:ring-0 dark:rounded-none">
+                  <p className="text-white/40 text-[0.55rem] font-extrabold uppercase tracking-[0.14em] text-center mb-2">
+                    {t('dashboard.momentumTitle')}
+                  </p>
+                  <p className="text-center text-[var(--accent-money)] font-bold text-sm sm:text-base mb-4 leading-snug">
+                    {t('dashboard.momentumTeaser')}
+                  </p>
+                  <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center">
+                    <div className="min-w-0">
+                      <p className="text-white/35 text-[0.5rem] sm:text-[0.52rem] font-bold uppercase tracking-[0.08em] mb-1.5">
+                        {t('chart.productNow')}
+                      </p>
+                      <p className="text-white font-black tabular-nums text-xs sm:text-sm">
+                        +{heroRateBasis.symbol}
+                        {heroRateBasis.perSec >= 0.01 ?
+                          heroRateBasis.perSec.toFixed(4)
+                        : heroRateBasis.perSec.toFixed(5)}
+                      </p>
+                      <p className={`${DASHBOARD_HINT_CLASS} mt-0.5`}>{t('hero.perSec')}</p>
+                    </div>
+                    <div className="min-w-0 border-x border-white/10 px-1">
+                      <p className="text-white/35 text-[0.5rem] sm:text-[0.52rem] font-bold uppercase tracking-[0.08em] mb-1.5">
+                        {t('chart.productTrendEnd')}
+                      </p>
+                      <p className="text-white font-black tabular-nums text-xs sm:text-sm">
+                        ≈ {trajectorySnap.symbol}
+                        {formatCompactAnnual(trajectorySnap.y12)}
+                      </p>
+                      <p className={`${DASHBOARD_HINT_CLASS} mt-0.5`}>{t('trajectory.next12')}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-white/35 text-[0.5rem] sm:text-[0.52rem] font-bold uppercase tracking-[0.08em] mb-1.5">
+                        {t('dashboard.momentumColDelta')}
+                      </p>
+                      <p className="text-[var(--accent-money)] font-black tabular-nums text-xs sm:text-sm">
+                        {trajectorySnap.deltaYear >= 0 ? '+' : '−'}
+                        {trajectorySnap.symbol}
+                        {formatCompactAnnual(Math.abs(trajectorySnap.deltaYear))}
+                      </p>
+                      <p className={`${DASHBOARD_HINT_CLASS} mt-0.5`}>{t('trajectory.perYearVs')}</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
               }
 
               {hasPositiveAccrualRate && (!heroRateBasis || realRateBreakdown) && (
@@ -2324,7 +2332,7 @@ export function MoneyClock() {
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-center px-0 sm:px-2 space-y-[clamp(0.65rem,3vmin,2.5rem)] border-t border-white/10 pt-4 mt-0.5">
+                className="text-center px-0 sm:px-2 space-y-[clamp(0.65rem,3vmin,2.5rem)] border-t border-white/[0.06] pt-4 mt-0.5">
                 <>
                   {singleSelectedForCopy &&
                   (singleSelectedForCopy.workStartDate.trim() ||
@@ -2356,7 +2364,7 @@ export function MoneyClock() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                    className="mx-auto w-full max-w-3xl rounded-[10px] border border-white/10 bg-white/[0.035] px-4 py-4 sm:px-5 sm:py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                    className="mx-auto w-full max-w-3xl rounded-2xl ring-1 ring-inset ring-white/[0.05] bg-white/[0.015] dark:bg-transparent dark:ring-0 dark:rounded-none px-4 py-4 sm:px-5 sm:py-5"
                     id="dash-awareness">
                     <p className="text-center text-white/40 text-[0.52rem] sm:text-[0.54rem] font-extrabold uppercase tracking-[0.18em] mb-3">
                       {t('awareness.title')}
@@ -2390,14 +2398,14 @@ export function MoneyClock() {
                         <p className="text-center text-[var(--accent-money)]/90 text-[0.58rem] sm:text-[0.6rem] font-semibold mt-1 px-2">
                           ~{moneyAwarenessSnap.demoPct}%
                         </p>
-                        <p className="text-center text-white/38 text-[0.48rem] sm:text-[0.5rem] leading-snug mt-2 px-2">
+                        <p className={`${DASHBOARD_HINT_CLASS} text-center mt-2 px-2`}>
                           {t('awareness.ladderNote', { pct: moneyAwarenessSnap.demoPct })}
                         </p>
-                        <p className="text-center text-white/28 text-[0.46rem] sm:text-[0.48rem] leading-snug mt-1.5 px-2">
+                        <p className={`${DASHBOARD_HINT_CLASS} text-center mt-1.5 px-2`}>
                           {t('awareness.ladderModel')}
                         </p>
                       </>
-                    : <p className="text-center text-white/40 text-[0.55rem] mt-3 px-2 leading-snug">
+                    : <p className={`${DASHBOARD_HINT_CLASS} text-center mt-3 px-2`}>
                         {t('awareness.needFx')}
                       </p>
                     }
@@ -2473,7 +2481,7 @@ export function MoneyClock() {
                       {t('footer.engineBrand')}
                     </p>
                     {fxSnapshot &&
-                    <p className="text-center text-white/30 text-[0.52rem] sm:text-[0.55rem] leading-snug pt-1 px-2">
+                    <p className={`${DASHBOARD_HINT_CLASS} text-center pt-1 px-2`}>
                       {t('fx.footer')}
                       {fxSnapshot.updatedUtc ?
                         <>

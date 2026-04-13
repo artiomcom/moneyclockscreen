@@ -78,11 +78,13 @@ export const es: Record<string, string> = {
   'breakdown.endedBadge': 'Finalizados',
   'breakdown.inAccount': 'En la cuenta ahora',
   'breakdown.balancePayrollCaption':
-    'Saldo en ajustes tras la nómina del {payroll}; acumulación desde proyectos en la divisa de la cuenta desde el {accrualFrom} (medianoche del día siguiente).',
+    'Saldo en ajustes tras la nómina del {payroll}; acumulación desde todos los proyectos seleccionados desde el {accrualFrom} (medianoche del día siguiente), otras divisas al tipo API actual.',
   'breakdown.noContractsInCcy': 'Sin contratos en',
   'breakdown.allEndedInCcy': 'Todos finalizados',
   'breakdown.noAccrualHint':
-    'Nada devenga al saldo, no hay proyectos seleccionados en la divisa de la cuenta, solo saldo tras nómina.',
+    'Sin tipos FX en vivo: el saldo en pantalla se queda en la cifra post-nómina. Carga tipos (o añade un proyecto en la divisa de la cuenta).',
+  'breakdown.foreignAccrualFxHint':
+    'Ningún contrato está en la divisa de la cuenta; el total sigue creciendo con devengo de otras divisas al tipo API actual (como «Hoy»).',
   'breakdown.allEndedHint':
     'Todos los proyectos en esta divisa han terminado, no hay devengo al saldo.',
   'breakdown.equivTitle': 'Total en divisa de la cuenta',
@@ -93,9 +95,9 @@ export const es: Record<string, string> = {
   'breakdown.sumBlurb': 'Se suman los importes ya convertidos para comparar en un solo número.',
   'breakdown.howTitle': 'Cómo funciona.',
   'breakdown.howBody':
-    'Saldo tras la última fecha de nómina; desde medianoche del día siguiente, el devengo corre hasta ahora.',
+    'Saldo tras la última nómina; desde medianoche del día siguiente, devengo de todos los proyectos elegidos hasta ahora (otras divisas al tipo en vivo, como el héroe).',
   'breakdown.onlyCcy':
-    'Solo cuentan proyectos en {ccy}. Otras divisas están en “Total ganado”.',
+    'Saldo corriente: todos los proyectos elegidos convertidos a {ccy}. Desglose por divisa en “Total ganado”.',
   'breakdown.sortEndedNote':
     '“Finalizados” significa que todos los contratos en esa divisa pasaron su fecha de fin.',
   'breakdown.rateHeading': 'Tipo.',
@@ -123,6 +125,10 @@ export const es: Record<string, string> = {
   'chart.contractStart': 'Inicio del contrato',
   'chart.contractEnd': 'Fin del contrato',
   'chart.markersToggleAria': 'Mostrar u ocultar inicio y fin de contrato en el gráfico',
+  'chart.currencyCycleAria': 'Cambiar moneda del gráfico. Actual: {code}',
+  'chart.currencyCycleTitle': 'Gráfico en {code}. Clic para cambiar.',
+  'chart.currencyCycleDisabledAria': 'Solo hay una moneda en el gráfico',
+  'chart.currencyCycleDisabledTitle': 'Añade un proyecto en otra moneda para poder cambiar',
   'chart.advancedShow': 'Detalles del gráfico',
   'chart.advancedHide': 'Vista simple',
   'chart.productAria': 'Crecimiento del ingreso y tendencia',
@@ -185,7 +191,7 @@ export const es: Record<string, string> = {
   'settings.takeHomeHint':
     'Se cuenta un {pct}% del contrato para el bloque de “ritmo real” en la pantalla principal. Estimación, no contabilidad.',
   'settings.balanceFooter':
-    '“Total ganado” suma los proyectos seleccionados. El saldo de la cuenta es aparte: base tras nómina más devengo. Solo los proyectos en la divisa de la cuenta devengan al saldo.',
+    '“Total ganado” suma los proyectos seleccionados. Saldo aparte: base tras nómina más devengo de todos ellos; divisas extranjeras con tipo API en vivo (como el contador principal).',
   'settings.projectsPicker': 'Proyectos',
   'settings.projectsPickerHint':
     'Marcado = entra en totales del panel (varios permitidos). Clic en el nombre para editar abajo.',

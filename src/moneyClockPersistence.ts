@@ -306,15 +306,17 @@ export function balanceAccrualSecondsSincePayroll(
 
 /**
  * Остаток на счёте к моменту `nowMs`: сумма после выплаты в `lastPayrollYmd` плюс изменение
- * накоплений по выбранным проектам в валюте счёта с полуночи следующего дня после зарплаты.
- * Совпадает с суммой по проектам с учётом отпусков (в отличие от календарных секунд × ставка).
+ * накоплений по выбранным проектам с полуночи следующего дня после зарплаты.
+ * Проекты в валюте счёта — напрямую; в других валютах — через `convertToBalance` (тот же смысл,
+ * что пересчёт ставки в блоке «Сегодня»), иначе такие проекты не дают доначисления к этой цифре.
  */
 export function balanceOnAccountAt(
   projects: ProjectEntry[],
   balanceCurrency: string,
   currentBalanceAfterPayroll: number,
   lastPayrollYmd: string,
-  nowMs: number
+  nowMs: number,
+  convertToBalance?: (amount: number, fromCurrencyCode: string) => number | null
 ): number {
   const pay = parseLocalDateYmd(lastPayrollYmd.trim());
   if (pay == null) return currentBalanceAfterPayroll;
@@ -326,13 +328,22 @@ export function balanceOnAccountAt(
   const target = normalizeCurrencyCode(balanceCurrency);
   let delta = 0;
   for (const p of projects) {
-    if (normalizeCurrencyCode(p.currencyCode) !== target) continue;
+    const fromCcy = normalizeCurrencyCode(p.currencyCode);
     const ws =
       p.workStartDate.trim() ? parseLocalDateYmd(p.workStartDate.trim()) : null;
     const sliceStartMs =
       ws != null ? Math.max(accrualStartMs, ws) : accrualStartMs;
-    delta +=
+    const raw =
       projectEarningsAt(p, nowMs) - projectEarningsAt(p, sliceStartMs);
+    if (!Number.isFinite(raw)) continue;
+    if (fromCcy === target) {
+      delta += raw;
+      continue;
+    }
+    if (convertToBalance) {
+      const c = convertToBalance(raw, fromCcy);
+      if (c != null && Number.isFinite(c)) delta += c;
+    }
   }
   return currentBalanceAfterPayroll + delta;
 }

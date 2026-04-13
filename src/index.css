@@ -66,8 +66,8 @@ html.dark #root {
   position: relative;
 }
 
-/* Magic Patterns, subtle grid (как в их index.css) */
-.grid-bg {
+/* Как в референсном src/index.css (87be780c…): сетка только при html.dark — класс .grid-bg в разметке без префикса dark: (Tailwind не вариантит произвольные CSS-классы). */
+html.dark .grid-bg {
   background-image:
     linear-gradient(rgba(0, 255, 135, 0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 255, 135, 0.03) 1px, transparent 1px);

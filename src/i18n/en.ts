@@ -78,12 +78,14 @@ export const en: Record<string, string> = {
   'breakdown.endedBadge': 'Ended',
   'breakdown.inAccount': 'What’s on the account now',
   'breakdown.balancePayrollCaption':
-    'Settings balance after payroll on {payroll}; accrual from account-currency projects since {accrualFrom} (midnight next day).',
+    'Settings balance after payroll on {payroll}; accrual from all selected projects since {accrualFrom} (midnight next day), using the live API rate when a project is in another currency.',
   'breakdown.balanceEchoHint': 'Same total as at the top, live accrual in your account currency.',
   'breakdown.noContractsInCcy': 'No contracts in',
   'breakdown.allEndedInCcy': 'All ended',
   'breakdown.noAccrualHint':
-    'Nothing accrues to balance, no selected projects in account currency, only post-payroll balance.',
+    'Live FX rates are missing: the running balance stays at your post-payroll figure. Load rates (or add a project in your account currency) so accrual can include foreign contracts.',
+  'breakdown.foreignAccrualFxHint':
+    'No contract is in your account currency; this total still grows using accrual from other currencies at the current API rate (same conversion idea as “Today”).',
   'breakdown.allEndedHint':
     'All projects in this currency have ended, no accrual to balance.',
   'breakdown.equivTitle': 'Total in account currency',
@@ -98,9 +100,9 @@ export const en: Record<string, string> = {
   'breakdown.sumBlurb': 'Converted amounts are summed so you can compare in one number.',
   'breakdown.howTitle': 'How it works.',
   'breakdown.howBody':
-    'Balance after last payroll date; from midnight the next day, accrual runs to now.',
+    'Balance after last payroll; from midnight the next day, accrual from every selected project runs to now (other currencies converted at the live rate, like the hero).',
   'breakdown.onlyCcy':
-    'Only projects in {ccy} count here. Other currencies are under “Total earned”.',
+    'Running balance uses all selected projects in {ccy} after conversion. Per-currency totals stay under “Total earned”.',
   'breakdown.sortEndedNote':
     '“Ended” means every contract in that currency is past its end date.',
   'breakdown.rateHeading': 'Rate.',
@@ -128,6 +130,10 @@ export const en: Record<string, string> = {
   'chart.contractStart': 'Contract start',
   'chart.contractEnd': 'Contract end',
   'chart.markersToggleAria': 'Show or hide contract start and end markers on the chart',
+  'chart.currencyCycleAria': 'Cycle chart currency. Current: {code}',
+  'chart.currencyCycleTitle': 'Chart in {code}. Click to switch.',
+  'chart.currencyCycleDisabledAria': 'Only one currency on the chart — nothing to switch',
+  'chart.currencyCycleDisabledTitle': 'Add a project in another currency to enable switching',
   'chart.advancedShow': 'Chart details',
   'chart.advancedHide': 'Simple view',
   'chart.productAria': 'Income growth and trend',
@@ -198,7 +204,7 @@ export const en: Record<string, string> = {
   'settings.takeHomeHint':
     '{pct}% of contract counted for the “real rate” block on the main screen. Estimate, not accounting.',
   'settings.balanceFooter':
-    '“Total earned” sums selected projects. Account balance is separate: payroll base plus accrual. Only projects in account currency accrue to balance.',
+    '“Total earned” sums selected projects. Account balance is separate: payroll base plus accrual from all selected projects; foreign amounts convert with the live API rate (same as the main counter).',
   'settings.projectsPicker': 'Projects',
   'settings.projectsPickerHint':
     'Checked = on dashboard totals (several allowed). Click name to edit fields below.',

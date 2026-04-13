@@ -78,11 +78,13 @@ export const pt: Record<string, string> = {
   'breakdown.endedBadge': 'Encerrados',
   'breakdown.inAccount': 'Na conta agora',
   'breakdown.balancePayrollCaption':
-    'Saldo nas definições após o pagamento em {payroll}; acréscimo dos projetos na moeda da conta desde {accrualFrom} (meia-noite do dia seguinte).',
+    'Saldo nas definições após o pagamento em {payroll}; acréscimo de todos os projetos selecionados desde {accrualFrom} (meia-noite do dia seguinte), outras moedas à taxa API atual.',
   'breakdown.noContractsInCcy': 'Sem contratos em',
   'breakdown.allEndedInCcy': 'Todos encerrados',
   'breakdown.noAccrualHint':
-    'Nada acumula no saldo, sem projetos selecionados na moeda da conta, só saldo pós-folha.',
+    'Sem taxas FX ao vivo: o saldo na tela fica no valor pós-folha. Carregue taxas (ou adicione um projeto na moeda da conta).',
+  'breakdown.foreignAccrualFxHint':
+    'Nenhum contrato na moeda da conta; o total ainda cresce com acréscimo de outras moedas à taxa API atual (como «Hoje»).',
   'breakdown.allEndedHint':
     'Todos os projetos nesta moeda terminaram, sem acréscimo ao saldo.',
   'breakdown.equivTitle': 'Total na moeda da conta',
@@ -93,9 +95,9 @@ export const pt: Record<string, string> = {
   'breakdown.sumBlurb': 'Valores convertidos são somados para comparar em um número.',
   'breakdown.howTitle': 'Como funciona.',
   'breakdown.howBody':
-    'Saldo após a última data de folha; da meia-noite do dia seguinte, acumula até agora.',
+    'Saldo após a última folha; da meia-noite seguinte, acúmulo de todos os projetos escolhidos até agora (outras moedas à taxa ao vivo, como o herói).',
   'breakdown.onlyCcy':
-    'Só projetos em {ccy} aqui. Outras moedas estão em “Total ganho”.',
+    'Saldo corrente: todos os projetos escolhidos convertidos para {ccy}. Detalhe por moeda em “Total ganho”.',
   'breakdown.sortEndedNote':
     '“Encerrados” = todos os contratos nesta moeda passaram da data final.',
   'breakdown.rateHeading': 'Taxa.',
@@ -123,6 +125,10 @@ export const pt: Record<string, string> = {
   'chart.contractStart': 'Início do contrato',
   'chart.contractEnd': 'Fim do contrato',
   'chart.markersToggleAria': 'Mostrar ou ocultar início e fim do contrato no gráfico',
+  'chart.currencyCycleAria': 'Alternar moeda do gráfico. Atual: {code}',
+  'chart.currencyCycleTitle': 'Gráfico em {code}. Clique para alternar.',
+  'chart.currencyCycleDisabledAria': 'Só há uma moeda no gráfico',
+  'chart.currencyCycleDisabledTitle': 'Adicione um projeto em outra moeda para poder alternar',
   'chart.advancedShow': 'Detalhes do gráfico',
   'chart.advancedHide': 'Vista simples',
   'chart.productAria': 'Crescimento da renda e tendência',
@@ -185,7 +191,7 @@ export const pt: Record<string, string> = {
   'settings.takeHomeHint':
     '{pct}% do contrato contam para o bloco “taxa real” na tela principal. Estimativa, não contabilidade.',
   'settings.balanceFooter':
-    '“Total ganho” soma projetos selecionados. Saldo da conta é separado: base da folha mais acúmulo. Só projetos na moeda da conta acumulam no saldo.',
+    '“Total ganho” soma projetos selecionados. Saldo separado: base da folha mais acúmulo de todos; moedas estrangeiras com taxa API ao vivo (como o contador principal).',
   'settings.projectsPicker': 'Projetos',
   'settings.projectsPickerHint':
     'Marcado = entra nos totais do painel (vários permitidos). Clique no nome para editar abaixo.',

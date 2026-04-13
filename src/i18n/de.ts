@@ -78,11 +78,13 @@ export const de: Record<string, string> = {
   'breakdown.endedBadge': 'Beendet',
   'breakdown.inAccount': 'Auf dem Konto jetzt',
   'breakdown.balancePayrollCaption':
-    'Kontostand in den Einstellungen nach Gehalt am {payroll}; Aufstockung aus Projekten in Kontowährung ab {accrualFrom} (Mitternacht des Folgetags).',
+    'Kontostand in den Einstellungen nach Gehalt am {payroll}; Aufstockung aus allen gewählten Projekten ab {accrualFrom} (Mitternacht des Folgetags), Fremdwährungen zum aktuellen API-Kurs.',
   'breakdown.noContractsInCcy': 'Keine Verträge in',
   'breakdown.allEndedInCcy': 'Alle beendet',
   'breakdown.noAccrualHint':
-    'Nichts läuft aufs Saldo, keine ausgewählten Projekte in Kontowährung, nur Saldo nach Lohn.',
+    'Keine Live-FX-Kurse: der laufende Saldo bleibt bei der Zahl nach Lohn. Kurse laden (oder Projekt in Kontowährung), damit Fremdwährungen einfließen.',
+  'breakdown.foreignAccrualFxHint':
+    'Kein Vertrag in Kontowährung; der Saldo wächst trotzdem über Aufstockung aus anderen Währungen zum aktuellen API-Kurs (wie „Heute“).',
   'breakdown.allEndedHint':
     'Alle Projekte in dieser Währung sind beendet, kein Zufluss zum Saldo.',
   'breakdown.equivTitle': 'Gesamt in Kontowährung',
@@ -93,9 +95,9 @@ export const de: Record<string, string> = {
   'breakdown.sumBlurb': 'Umgerechnete Beträge werden summiert, um in einer Zahl zu vergleichen.',
   'breakdown.howTitle': 'So funktioniert es.',
   'breakdown.howBody':
-    'Saldo nach letztem Lohndatum; ab Mitternacht des nächsten Tages läuft die Aufstockung bis jetzt.',
+    'Saldo nach letztem Lohn; ab Mitternacht des Folgetags Aufstockung aller gewählten Projekte bis jetzt (Fremdwährungen zum Live-Kurs wie im Hero).',
   'breakdown.onlyCcy':
-    'Nur Projekte in {ccy} zählen hier. Andere Währungen unter „Insgesamt verdient“.',
+    'Laufender Saldo: alle gewählten Projekte nach Umrechnung in {ccy}. Währungsdetails unter „Insgesamt verdient“.',
   'breakdown.sortEndedNote':
     '„Beendet“ heißt: jeder Vertrag in dieser Währung ist über dem Enddatum.',
   'breakdown.rateHeading': 'Kurs.',
@@ -123,6 +125,10 @@ export const de: Record<string, string> = {
   'chart.contractStart': 'Vertragsbeginn',
   'chart.contractEnd': 'Vertragsende',
   'chart.markersToggleAria': 'Vertrags-Start- und Endmarkierungen ein- oder ausblenden',
+  'chart.currencyCycleAria': 'Diagrammwährung wechseln. Aktuell: {code}',
+  'chart.currencyCycleTitle': 'Diagramm in {code}. Klicken zum Wechseln.',
+  'chart.currencyCycleDisabledAria': 'Nur eine Währung — kein Wechsel möglich',
+  'chart.currencyCycleDisabledTitle': 'Projekt in anderer Währung hinzufügen, um zu wechseln',
   'chart.advancedShow': 'Diagramm-Details',
   'chart.advancedHide': 'Einfache Ansicht',
   'chart.productAria': 'Einkommenswachstum und Trend',
@@ -185,7 +191,7 @@ export const de: Record<string, string> = {
   'settings.takeHomeHint':
     '{pct}% des Vertrags für den „Realrate“-Block auf dem Hauptbildschirm. Schätzung, keine Buchhaltung.',
   'settings.balanceFooter':
-    '„Insgesamt verdient“ summiert gewählte Projekte. Kontosaldo ist getrennt: Lohnbasis plus Aufstockung. Nur Projekte in Kontowährung stocken das Saldo.',
+    '„Insgesamt verdient“ summiert gewählte Projekte. Kontosaldo getrennt: Lohnbasis plus Aufstockung aller gewählten Projekte; Fremdwährungen mit Live-API-Kurs (wie Hauptanzeige).',
   'settings.projectsPicker': 'Projekte',
   'settings.projectsPickerHint':
     'Angehakt = in Dashboard-Summen (mehrere erlaubt). Klick auf den Namen zum Bearbeiten unten.',

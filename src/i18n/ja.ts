@@ -78,11 +78,13 @@ export const ja: Record<string, string> = {
   'breakdown.endedBadge': '終了',
   'breakdown.inAccount': '現在の口座残高',
   'breakdown.balancePayrollCaption':
-    '設定の残高（{payroll} の給与後）· 口座通貨プロジェクトの積み上げは {accrualFrom}（翌日0時）から。',
+    '設定の残高（{payroll} の給与後）· 選択した全プロジェクトの積み上げは {accrualFrom}（翌日0時）から。他通貨は現在の API レートで換算。',
   'breakdown.noContractsInCcy': '契約なし',
   'breakdown.allEndedInCcy': 'すべて終了',
   'breakdown.noAccrualHint':
-    '残高に積み上がらない, 口座通貨の選択プロジェクトがなく、給与後残高のみ。',
+    'ライブ FX レートなし：表示残高は給与後の数字のまま。レートを読み込むか、口座通貨のプロジェクトを追加してください。',
+  'breakdown.foreignAccrualFxHint':
+    '口座通貨の契約はありませんが、他通貨の積み上げを現在の API レートで換算して合算します（「今日」と同じ考え方）。',
   'breakdown.allEndedHint':
     'この通貨のプロジェクトはすべて終了, 残高への積み上げなし。',
   'breakdown.equivTitle': '口座通貨での合計',
@@ -92,9 +94,9 @@ export const ja: Record<string, string> = {
   'breakdown.sumBlurb': '換算後に合算し、1つの数字で比較。',
   'breakdown.howTitle': '仕組み。',
   'breakdown.howBody':
-    '最終給与日の残高；翌日0時から現在まで積み上げ。',
+    '最終給与後の残高；翌日0時から、選択した全プロジェクトを現在まで積み上げ（他通貨はライブレート、ヒーローと同様）。',
   'breakdown.onlyCcy':
-    'ここでは {ccy} のプロジェクトのみ。他通貨は「累計獲得」を参照。',
+    '実行残高は選択プロジェクトを {ccy} に換算した合計。通貨別は「累計獲得」。',
   'breakdown.sortEndedNote':
     '「終了」= その通貨のすべての契約が終了日を過ぎている。',
   'breakdown.rateHeading': 'レート。',
@@ -121,6 +123,10 @@ export const ja: Record<string, string> = {
   'chart.contractStart': '契約開始',
   'chart.contractEnd': '契約終了',
   'chart.markersToggleAria': '契約の開始・終了マーカーの表示を切り替え',
+  'chart.currencyCycleAria': 'チャートの通貨を切り替え。現在: {code}',
+  'chart.currencyCycleTitle': 'チャートは {code}。クリックで切り替え。',
+  'chart.currencyCycleDisabledAria': '通貨が1つだけのため切り替え不可',
+  'chart.currencyCycleDisabledTitle': '別通貨のプロジェクトを追加すると切り替え可能',
   'chart.advancedShow': 'チャート詳細',
   'chart.advancedHide': 'シンプル表示',
   'chart.productAria': '収入成長とトレンド',
@@ -183,7 +189,7 @@ export const ja: Record<string, string> = {
   'settings.takeHomeHint':
     '契約の {pct}% をメインの「実質レート」に使用。目安で会計ではありません。',
   'settings.balanceFooter':
-    '「累計獲得」は選択プロジェクトの合計。口座残高は別：給与ベース＋積み上げ。口座通貨のプロジェクトのみ残高に積み上がります。',
+    '「累計獲得」は選択プロジェクトの合計。口座残高は別：給与ベース＋全選択プロジェクトの積み上げ。外貨はライブ API レートで換算（メイン表示と同じ）。',
   'settings.projectsPicker': 'プロジェクト',
   'settings.projectsPickerHint':
     'チェック = ダッシュボード合計に含む（複数可）。名前をクリックして下を編集。',

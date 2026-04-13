@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { convertAmountThroughSnapshot, type FxSnapshot } from './fxRates';
 import {
   AVERAGE_CALENDAR_MONTH_SECONDS,
   balanceOnAccountAt,
@@ -116,6 +117,36 @@ describe('projectEarningsAt, monthly и contract', () => {
 });
 
 describe('balanceOnAccountAt', () => {
+  it('EUR на счёте + проект в USD: доначисление через convertToBalance (как главный экран с FX)', () => {
+    const snap: FxSnapshot = {
+      base: 'EUR',
+      rates: { USD: 1.1 },
+      updatedUtc: ''
+    };
+    const p = newProject({
+      workStartDate: '2026-01-01',
+      projectEndDate: '',
+      projectAmount: '22000',
+      projectBilling: 'monthly',
+      currencyCode: 'USD'
+    });
+    const base = 20_500;
+    const lastPay = '2026-04-09';
+    const accrualStart = parseLocalDateYmd('2026-04-10')!;
+    const now = accrualStart + 86400000 * 3 + 3600000;
+    const withoutFx = balanceOnAccountAt([p], 'EUR', base, lastPay, now);
+    expect(withoutFx).toBe(base);
+    const withFx = balanceOnAccountAt(
+      [p],
+      'EUR',
+      base,
+      lastPay,
+      now,
+      (amt, from) => convertAmountThroughSnapshot(amt, from, 'EUR', snap)
+    );
+    expect(withFx).toBeGreaterThan(base + 100);
+  });
+
   it('до начала доначисления (день после зарплаты) остаток = база, без отрицательной дельты на графике', () => {
     const p = newProject({
       name: 'E',

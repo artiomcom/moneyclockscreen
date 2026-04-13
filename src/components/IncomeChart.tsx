@@ -6,8 +6,7 @@ import {
   useState,
   type ReactNode
 } from 'react';
-import { motion } from 'framer-motion';
-import { CalendarRange } from 'lucide-react';
+import { CalendarRange, Coins } from 'lucide-react';
 import { useI18n } from '../i18n';
 import {
   type ProjectEntry,
@@ -35,7 +34,6 @@ import {
 } from '../worldBankInflation';
 import { intlLocaleTag } from '../i18n/localeMeta';
 import { DASHBOARD_HINT_CLASS } from '../dashboardHintClass';
-import { ARCADE_SETTINGS_BTN_CLASS, PixelSettingsCog } from './RetroGnomesFrame';
 
 export const INCOME_CHART_STEPS = 64;
 const STEPS = INCOME_CHART_STEPS;
@@ -261,6 +259,16 @@ function buildIncomeSeries(
 
   if (payOk && balanceInput) {
     const bCode = normalizeCurrencyCode(balanceInput.currency);
+    const convertBal =
+      fxMerge ?
+        (amt: number, from: string) =>
+          convertAmountThroughSnapshot(
+            amt,
+            from,
+            balanceInput.currency,
+            fxMerge.snapshot
+          )
+      : undefined;
     const balPoints: [number, number][] = [];
     for (let i = 0; i <= STEPS; i++) {
       const t = tMin + (i / STEPS) * (tMax - tMin);
@@ -269,7 +277,8 @@ function buildIncomeSeries(
         balanceInput.currency,
         balanceInput.amount,
         balanceInput.lastPayrollYmd,
-        t
+        t,
+        convertBal
       );
       balPoints.push([t, y]);
     }
@@ -832,7 +841,7 @@ export function IncomeChart({
   inflationYearly = null,
   inflationCurrencyCodes = [],
   trajectoryHint = null,
-  onOpenGrow
+  onOpenGrow: _onOpenGrow
 }: {
   projects: ProjectEntry[];
   nowMs: number;
@@ -853,6 +862,37 @@ export function IncomeChart({
   const [advancedDetails, setAdvancedDetails] = useState(false);
   const [chartFocusProjectId, setChartFocusProjectId] = useState<string | null>(null);
   const [showContractMarkers, setShowContractMarkers] = useState(true);
+  /** Валюта оси графика (накопление / детали); по умолчанию = счёт. */
+  const [chartDisplayCcyOverride, setChartDisplayCcyOverride] = useState<string | null>(
+    null
+  );
+
+  useEffect(() => {
+    setChartDisplayCcyOverride(null);
+  }, [balanceCurrency]);
+
+  const chartDisplayCurrency = useMemo(
+    () => normalizeCurrencyCode(chartDisplayCcyOverride ?? balanceCurrency),
+    [chartDisplayCcyOverride, balanceCurrency]
+  );
+
+  const chartCurrencyChoices = useMemo(() => {
+    const s = new Set<string>();
+    s.add(normalizeCurrencyCode(balanceCurrency));
+    for (const p of projects) s.add(normalizeCurrencyCode(p.currencyCode));
+    return [...s].sort();
+  }, [balanceCurrency, projects]);
+
+  const chartCurrencyDisabled = chartCurrencyChoices.length < 2;
+
+  const cycleChartCurrency = useCallback(() => {
+    if (chartCurrencyChoices.length < 2) return;
+    const i = chartCurrencyChoices.indexOf(chartDisplayCurrency);
+    const idx = i < 0 ? 0 : i;
+    setChartDisplayCcyOverride(
+      chartCurrencyChoices[(idx + 1) % chartCurrencyChoices.length]!
+    );
+  }, [chartCurrencyChoices, chartDisplayCurrency]);
 
   const chartFocusResolved =
     chartFocusProjectId && projects.some((p) => p.id === chartFocusProjectId) ?
@@ -900,7 +940,7 @@ export function IncomeChart({
       viewWindow.tMax,
       STEPS,
       fxSnapshot,
-      balanceCurrency,
+      chartDisplayCurrency,
       fxHistoryRows,
       chartFocusResolved
     );
@@ -908,7 +948,7 @@ export function IncomeChart({
     viewWindow,
     projects,
     fxSnapshot,
-    balanceCurrency,
+    chartDisplayCurrency,
     fxHistoryRows,
     chartFocusResolved
   ]);
@@ -1290,18 +1330,37 @@ export function IncomeChart({
                   className="rounded-md px-2.5 py-1 text-[0.58rem] sm:text-[0.6rem] font-bold uppercase tracking-[0.05em] border border-violet-400/22 bg-violet-500/10 text-violet-100/95 hover:bg-violet-500/16 hover:border-violet-400/32 transition-all">
                   {t('chart.advancedShow')}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setShowContractMarkers((v) => !v)}
-                  aria-pressed={showContractMarkers}
-                  aria-label={t('chart.markersToggleAria')}
-                  className={`rounded-md p-1.5 transition-all border ${
-                    showContractMarkers ?
-                      'border-amber-400/40 bg-amber-500/14 text-amber-100 shadow-[0_0_12px_rgba(251,191,36,0.15)]'
-                    : 'border-transparent text-white/42 hover:bg-white/[0.07] hover:text-white/75'
-                  }`}>
-                  <CalendarRange size={14} strokeWidth={2.2} aria-hidden />
-                </button>
+                <span className="inline-flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    disabled={chartCurrencyDisabled}
+                    onClick={cycleChartCurrency}
+                    aria-label={
+                      chartCurrencyDisabled ?
+                        t('chart.currencyCycleDisabledAria')
+                      : t('chart.currencyCycleAria', { code: chartDisplayCurrency })
+                    }
+                    title={
+                      chartCurrencyDisabled ?
+                        t('chart.currencyCycleDisabledTitle')
+                      : t('chart.currencyCycleTitle', { code: chartDisplayCurrency })
+                    }
+                    className={`rounded-md p-1.5 transition-all border border-sky-400/35 bg-sky-500/10 text-sky-100/95 shadow-[0_0_10px_rgba(56,189,248,0.12)] hover:bg-sky-500/16 hover:border-sky-400/45 disabled:pointer-events-none disabled:opacity-35 disabled:shadow-none`}>
+                    <Coins size={14} strokeWidth={2.2} aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowContractMarkers((v) => !v)}
+                    aria-pressed={showContractMarkers}
+                    aria-label={t('chart.markersToggleAria')}
+                    className={`rounded-md p-1.5 transition-all border ${
+                      showContractMarkers ?
+                        'border-amber-400/40 bg-amber-500/14 text-amber-100 shadow-[0_0_12px_rgba(251,191,36,0.15)]'
+                      : 'border-transparent text-white/42 hover:bg-white/[0.07] hover:text-white/75'
+                    }`}>
+                    <CalendarRange size={14} strokeWidth={2.2} aria-hidden />
+                  </button>
+                </span>
               </>
             }
           />
@@ -1656,18 +1715,37 @@ export function IncomeChart({
                   className="rounded-md border border-white/15 bg-white/[0.06] px-2 py-1 text-[0.55rem] font-bold uppercase tracking-[0.05em] text-white/82 transition-all hover:border-white/22 hover:bg-white/12 sm:text-[0.58rem]">
                   {t('chart.advancedHide')}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setShowContractMarkers((v) => !v)}
-                  aria-pressed={showContractMarkers}
-                  aria-label={t('chart.markersToggleAria')}
-                  className={`rounded-md p-1.5 transition-all border ${
-                    showContractMarkers ?
-                      'border-amber-400/40 bg-amber-500/14 text-amber-100 shadow-[0_0_12px_rgba(251,191,36,0.14)]'
-                    : 'border-transparent text-white/42 hover:bg-white/[0.07] hover:text-white/78'
-                  }`}>
-                  <CalendarRange size={14} strokeWidth={2.2} aria-hidden />
-                </button>
+                <span className="inline-flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    disabled={chartCurrencyDisabled}
+                    onClick={cycleChartCurrency}
+                    aria-label={
+                      chartCurrencyDisabled ?
+                        t('chart.currencyCycleDisabledAria')
+                      : t('chart.currencyCycleAria', { code: chartDisplayCurrency })
+                    }
+                    title={
+                      chartCurrencyDisabled ?
+                        t('chart.currencyCycleDisabledTitle')
+                      : t('chart.currencyCycleTitle', { code: chartDisplayCurrency })
+                    }
+                    className={`rounded-md p-1.5 transition-all border border-cyan-400/38 bg-cyan-500/12 text-cyan-50 shadow-[0_0_10px_rgba(34,211,238,0.12)] hover:bg-cyan-500/18 hover:border-cyan-400/48 disabled:pointer-events-none disabled:opacity-35 disabled:shadow-none`}>
+                    <Coins size={14} strokeWidth={2.2} aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowContractMarkers((v) => !v)}
+                    aria-pressed={showContractMarkers}
+                    aria-label={t('chart.markersToggleAria')}
+                    className={`rounded-md p-1.5 transition-all border ${
+                      showContractMarkers ?
+                        'border-amber-400/40 bg-amber-500/14 text-amber-100 shadow-[0_0_12px_rgba(251,191,36,0.14)]'
+                      : 'border-transparent text-white/42 hover:bg-white/[0.07] hover:text-white/78'
+                    }`}>
+                    <CalendarRange size={14} strokeWidth={2.2} aria-hidden />
+                  </button>
+                </span>
               </>
             }
           />

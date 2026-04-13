@@ -78,11 +78,13 @@ export const fr: Record<string, string> = {
   'breakdown.endedBadge': 'Terminés',
   'breakdown.inAccount': 'Sur le compte maintenant',
   'breakdown.balancePayrollCaption':
-    'Solde réglé après la paie du {payroll}; ajout depuis les projets en devise du compte à partir du {accrualFrom} (minuit du lendemain).',
+    'Solde réglé après la paie du {payroll}; ajout depuis tous les projets sélectionnés à partir du {accrualFrom} (minuit du lendemain), autres devises au taux API actuel.',
   'breakdown.noContractsInCcy': 'Aucun contrat en',
   'breakdown.allEndedInCcy': 'Tous terminés',
   'breakdown.noAccrualHint':
-    'Rien ne s’accumule au solde, pas de projets sélectionnés dans la devise du compte, seulement solde post-paie.',
+    'Pas de taux FX en direct : le solde affiché reste sur le montant post-paie. Chargez les taux (ou ajoutez un projet dans la devise du compte).',
+  'breakdown.foreignAccrualFxHint':
+    'Aucun contrat dans la devise du compte ; le total augmente quand même via l’accumulation des autres devises au taux API actuel (comme « Aujourd’hui »).',
   'breakdown.allEndedHint':
     'Tous les projets dans cette devise sont terminés, pas d’accumulation au solde.',
   'breakdown.equivTitle': 'Total en devise du compte',
@@ -93,9 +95,9 @@ export const fr: Record<string, string> = {
   'breakdown.sumBlurb': 'Les montants convertis sont additionnés pour comparer en un seul chiffre.',
   'breakdown.howTitle': 'Comment ça marche.',
   'breakdown.howBody':
-    'Solde après la dernière date de paie ; à partir de minuit le lendemain, l’accumulation court jusqu’à maintenant.',
+    'Solde après la dernière paie ; à partir de minuit le lendemain, accumulation de tous les projets choisis jusqu’à maintenant (autres devises au taux en direct, comme le héros).',
   'breakdown.onlyCcy':
-    'Seuls les projets en {ccy} comptent ici. Les autres devises sont sous « Total gagné ».',
+    'Solde courant : tous les projets choisis convertis en {ccy}. Détail par devise sous « Total gagné ».',
   'breakdown.sortEndedNote':
     '« Terminés » = chaque contrat dans cette devise est après sa date de fin.',
   'breakdown.rateHeading': 'Taux.',
@@ -123,6 +125,10 @@ export const fr: Record<string, string> = {
   'chart.contractStart': 'Début du contrat',
   'chart.contractEnd': 'Fin du contrat',
   'chart.markersToggleAria': 'Afficher ou masquer début et fin de contrat sur le graphique',
+  'chart.currencyCycleAria': 'Changer la devise du graphique. Actuelle : {code}',
+  'chart.currencyCycleTitle': 'Graphique en {code}. Clic pour changer.',
+  'chart.currencyCycleDisabledAria': 'Une seule devise sur le graphique',
+  'chart.currencyCycleDisabledTitle': 'Ajoutez un projet dans une autre devise pour activer le changement',
   'chart.advancedShow': 'Détails du graphique',
   'chart.advancedHide': 'Vue simple',
   'chart.productAria': 'Croissance du revenu et tendance',
@@ -185,7 +191,7 @@ export const fr: Record<string, string> = {
   'settings.takeHomeHint':
     '{pct}% du contrat comptés pour le bloc « taux réel » sur l’écran principal. Estimation, pas de la compta.',
   'settings.balanceFooter':
-    '« Total gagné » additionne les projets sélectionnés. Le solde du compte est séparé : base paie plus accumulation. Seuls les projets dans la devise du compte s’accumulent au solde.',
+    '« Total gagné » additionne les projets sélectionnés. Solde séparé : base paie plus accumulation de tous ; devises étrangères au taux API en direct (comme le compteur principal).',
   'settings.projectsPicker': 'Projets',
   'settings.projectsPickerHint':
     'Coché = inclus dans les totaux du tableau (plusieurs possibles). Clic sur le nom pour éditer ci-dessous.',

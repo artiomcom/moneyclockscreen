@@ -525,6 +525,20 @@ export function MoneyClock() {
   }, [currentBalance]);
 
   /** Остаток: сумма после последней зарплаты + дельта накоплений по проектам в валюте счёта (с отпусками). */
+  const balanceConvertToAccount = useMemo(
+    () =>
+      fxSnapshot ?
+        (amount: number, fromCcy: string) =>
+          convertAmountThroughSnapshot(
+            amount,
+            fromCcy,
+            currentBalanceCurrency,
+            fxSnapshot
+          )
+      : undefined,
+    [fxSnapshot, currentBalanceCurrency]
+  );
+
   const displayBalanceWithAccrual = useMemo(
     () =>
       balanceOnAccountAt(
@@ -532,14 +546,16 @@ export function MoneyClock() {
         currentBalanceCurrency,
         displayBalanceAmount,
         lastPayrollYmd,
-        nowTick
+        nowTick,
+        balanceConvertToAccount
       ),
     [
       selectedProjectsOrdered,
       currentBalanceCurrency,
       displayBalanceAmount,
       lastPayrollYmd,
-      nowTick
+      nowTick,
+      balanceConvertToAccount
     ]
   );
 
@@ -575,6 +591,30 @@ export function MoneyClock() {
     const hasActiveInCcy = currenciesWithActiveContract.has(b);
     return { anyInCcy, hasActiveInCcy };
   }, [selectedProjectsOrdered, currentBalanceCurrency, currenciesWithActiveContract]);
+
+  const balanceAccrualNoFxWarning = useMemo(
+    () =>
+      selectedProjectsOrdered.length > 0 &&
+      !accountBalanceCurrencyStatus.anyInCcy &&
+      fxSnapshot == null,
+    [
+      selectedProjectsOrdered.length,
+      accountBalanceCurrencyStatus.anyInCcy,
+      fxSnapshot
+    ]
+  );
+
+  const balanceAccrualForeignWithFxHint = useMemo(
+    () =>
+      selectedProjectsOrdered.length > 0 &&
+      !accountBalanceCurrencyStatus.anyInCcy &&
+      fxSnapshot != null,
+    [
+      selectedProjectsOrdered.length,
+      accountBalanceCurrencyStatus.anyInCcy,
+      fxSnapshot
+    ]
+  );
 
   /** Курс для итога «все валюты → одна сумма» и сортировки: на дату последней выплаты из истории, иначе spot. */
   const earningsConversionSnapshot = useMemo(() => {
@@ -1690,7 +1730,7 @@ export function MoneyClock() {
   }, [fxSnapshot, currentBalanceCurrency, selectedProjectsOrdered]);
 
   return (
-    <div className="relative w-full min-h-screen flex flex-col overflow-x-hidden dark:bg-deep dark:grid-bg">
+    <div className="relative w-full min-h-screen flex flex-col overflow-x-hidden dark:bg-deep grid-bg">
       {theme === 'dark' ?
         <div className="scanline-overlay" aria-hidden />
       : null}
@@ -2048,11 +2088,16 @@ export function MoneyClock() {
                           ccy: normalizeCurrencyCode(currentBalanceCurrency)
                         })}
                       </p>
-                      {selectedProjectsOrdered.length > 0 && !accountBalanceCurrencyStatus.anyInCcy &&
-                      <p className="text-amber-200/75 text-[0.5rem] leading-snug mt-2">
-                        {t('breakdown.noAccrualHint')}
-                      </p>
-                      }
+                      {balanceAccrualNoFxWarning ?
+                        <p className="text-amber-200/75 text-[0.5rem] leading-snug mt-2">
+                          {t('breakdown.noAccrualHint')}
+                        </p>
+                      : null}
+                      {balanceAccrualForeignWithFxHint ?
+                        <p className={`${DASHBOARD_HINT_CLASS} mt-2`}>
+                          {t('breakdown.foreignAccrualFxHint')}
+                        </p>
+                      : null}
                       {selectedProjectsOrdered.length > 0 &&
                       accountBalanceCurrencyStatus.anyInCcy &&
                       !accountBalanceCurrencyStatus.hasActiveInCcy &&
@@ -2084,11 +2129,16 @@ export function MoneyClock() {
                           })}
                         </span>
                       : null}
-                      {selectedProjectsOrdered.length > 0 && !accountBalanceCurrencyStatus.anyInCcy &&
-                      <p className="text-amber-100/75 text-[0.52rem] leading-snug mb-2">
-                        {t('breakdown.noAccrualHint')}
-                      </p>
-                      }
+                      {balanceAccrualNoFxWarning ?
+                        <p className="text-amber-100/75 text-[0.52rem] leading-snug mb-2">
+                          {t('breakdown.noAccrualHint')}
+                        </p>
+                      : null}
+                      {balanceAccrualForeignWithFxHint ?
+                        <p className={`${DASHBOARD_HINT_CLASS} mb-2`}>
+                          {t('breakdown.foreignAccrualFxHint')}
+                        </p>
+                      : null}
                       {selectedProjectsOrdered.length > 0 &&
                       accountBalanceCurrencyStatus.anyInCcy &&
                       !accountBalanceCurrencyStatus.hasActiveInCcy &&

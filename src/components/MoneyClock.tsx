@@ -1859,11 +1859,9 @@ export function MoneyClock() {
                       </div>
                       <div className="mx-auto w-20 h-px bg-gradient-to-r from-transparent via-neon-green/22 to-transparent dark:block hidden" />
                       <div
-                        className="flex min-w-0 flex-nowrap items-baseline justify-center gap-x-2 font-mono dark:font-arcade font-bold tabular-nums leading-none text-[var(--accent-money)]/82"
+                        className="hero-rate-glow flex min-w-0 flex-nowrap items-baseline justify-center gap-x-2 font-mono dark:font-arcade font-black tabular-nums leading-none text-[var(--accent-money)]"
                         style={{
-                          fontSize: 'clamp(0.95rem, 3.6vmin, 1.4rem)',
-                          textShadow:
-                            '0 0 12px rgba(0,255,170,0.12), 0 1px 6px rgba(0,0,0,0.25)'
+                          fontSize: 'clamp(1.08rem, 4.1vmin, 1.55rem)'
                         }}>
                         <AnimatedCounter
                           className="shrink-0"
@@ -1871,7 +1869,7 @@ export function MoneyClock() {
                           decimals={heroRateBasis.perSec >= 0.01 ? 4 : 5}
                           prefix={`+${heroRateBasis.symbol}`}
                         />
-                        <span className="shrink-0 font-sans text-[0.68em] font-bold tracking-tight text-white/46 dark:text-mp-muted">
+                        <span className="shrink-0 font-sans text-[0.68em] font-bold tracking-tight text-white/72 dark:text-emerald-100/88">
                           {t('hero.perSec')}
                         </span>
                       </div>

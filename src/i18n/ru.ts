@@ -46,7 +46,7 @@ export const ru: Record<string, string> = {
   'hero.btnHideChart': 'Скрыть график',
   'hero.emptyPrompt':
     'Добавьте проект и сумму в настройках — здесь появится темп в реальном времени.',
-  'hero.emptyCta': 'Открыть настройки',
+  'hero.emptyCta': 'Настройки — зелёная кнопка вверху справа.',
   'hero.noFxHint':
     'Для одной строки темпа включите курсы API или выберите проекты в одной валюте.',
 
@@ -80,6 +80,8 @@ export const ru: Record<string, string> = {
     'Каждая валюта отдельно. Сначала — валюты с действующими контрактами; без курса внутри группы — по коду валюты.',
   'breakdown.endedBadge': 'Завершены',
   'breakdown.inAccount': 'На счёте сейчас',
+  'breakdown.balanceEchoHint':
+    'Тот же итог, что наверху — живое начисление в валюте счёта.',
   'breakdown.noContractsInCcy': 'Нет контрактов в',
   'breakdown.allEndedInCcy': 'Все завершены',
   'breakdown.noAccrualHint':
@@ -156,6 +158,13 @@ export const ru: Record<string, string> = {
   'footer.sigmaPerSec': 'Σ ≈ +',
   'footer.inCcy': 'в',
   'footer.byRate': '(по курсу)',
+  'footer.liveRates': 'Курсы live',
+  'footer.engineBrand': 'Money awareness engine',
+
+  'dashboard.momentumTitle': 'Анализ темпа',
+  'dashboard.momentumTeaser': 'Темп на вашей стороне',
+  'dashboard.momentumColDelta': 'Если +20% / год',
+  'dashboard.estimate12m': 'Оценка на 12 мес.',
 
   'awareness.title': 'Money Awareness Engine',
   'awareness.sub': 'Мой темп (шэринг)',
@@ -254,6 +263,10 @@ export const ru: Record<string, string> = {
   'settings.cloudRestoreFail': 'Ссылка недействительна или данные не найдены.',
   'settings.cloudRestoreOk':
     'Данные загружены по ссылке из облака. Адрес /u/… остаётся в строке — это закладка на эту копию.',
+  'settings.cloudProfileLinkTitle': 'Ссылка на профиль в облаке',
+  'settings.cloudProfileLinkHint':
+    'Последняя magic link в этом браузере. Если данные не менялись, «Сохранить в облаке» отдаёт ту же ссылку (без дубликата в KV).',
+  'settings.cloudProfileCopy': 'Копировать ссылку',
 
   'backupBanner.title': 'Резервная копия',
   'backupBanner.body':

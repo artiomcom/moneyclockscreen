@@ -23,7 +23,8 @@ import {
   CloudUpload,
   Moon,
   Sun,
-  TrendingUp
+  TrendingUp,
+  ArrowRight
 } from 'lucide-react';
 import { ParticleBackground } from './ParticleBackground';
 import { RetroGnomesFrame } from './RetroGnomesFrame';
@@ -98,6 +99,12 @@ import {
   parseMagicLinkPath,
   buildMagicLinkUrl
 } from '../cloudBackupApi';
+import {
+  hashMoneyClockExportJson,
+  readCloudBackupMeta,
+  writeCloudBackupMeta,
+  getLastCloudProfileMagicUrl
+} from '../cloudBackupLocalMeta';
 import {
   captureMagicLinkIdFromUrlToSession,
   peekMagicLinkIdFromSession,
@@ -233,8 +240,6 @@ export function MoneyClock() {
     readBackupBannerSnoozeUntil()
   );
   const [theme, setTheme] = useState<ThemePreference>(() => readStoredTheme());
-  /** 0 = hero, 1 = breakdown, 2 = trajectory, 3 = chart */
-  const [detailStep, setDetailStep] = useState<0 | 1 | 2 | 3>(0);
   /** Multi-currency breakdown: default one merged total, expand for all tickers */
   const [showAllCurrencies, setShowAllCurrencies] = useState(false);
 
@@ -242,10 +247,6 @@ export function MoneyClock() {
     applyThemeToDocument(theme);
     writeStoredTheme(theme);
   }, [theme]);
-
-  useEffect(() => {
-    if (detailStep === 0) setShowAllCurrencies(false);
-  }, [detailStep]);
 
   const { projects, activeProjectId, selectedProjectIds } = projectsBundle;
   const activeProject = useMemo(
@@ -280,18 +281,12 @@ export function MoneyClock() {
     selectedProjectsOrdered.length === 1 ? selectedProjectsOrdered[0] : null;
 
   const showBackupReminderBanner = useMemo(() => {
-    if (detailStep !== 0 || selectedProjectsOrdered.length === 0) return false;
+    if (selectedProjectsOrdered.length === 0) return false;
     const now = Date.now();
     if (now < backupSnoozeUntil) return false;
     const staleMs = 7 * 86400000;
     return lastExportMs == null || now - lastExportMs > staleMs;
-  }, [
-    backupSnoozeUntil,
-    detailStep,
-    lastExportMs,
-    nowTick,
-    selectedProjectsOrdered.length
-  ]);
+  }, [backupSnoozeUntil, lastExportMs, nowTick, selectedProjectsOrdered.length]);
 
   const patchActiveProject = useCallback((patch: Partial<ProjectEntry>) => {
     setProjectsBundle((s) => ({
@@ -923,7 +918,16 @@ export function MoneyClock() {
     setCloudSavePending(true);
     try {
       const text = exportMoneyClockJsonString(persistSnapshot);
-      const { path } = await postCloudBackup(text);
+      const hash = await hashMoneyClockExportJson(text);
+      const prev = readCloudBackupMeta();
+      if (prev && prev.hash === hash) {
+        setCloudLinkModal(buildMagicLinkUrl(`/u/${prev.id}`));
+        touchLastExportTimestamp();
+        setLastExportMs(Date.now());
+        return;
+      }
+      const { id, path } = await postCloudBackup(text);
+      writeCloudBackupMeta(hash, id);
       setCloudLinkModal(buildMagicLinkUrl(path));
       touchLastExportTimestamp();
       setLastExportMs(Date.now());
@@ -943,6 +947,17 @@ export function MoneyClock() {
       showPortalToast(t('settings.copyJsonFail'));
     }
   }, [cloudLinkModal, showPortalToast, t]);
+
+  const handleCopyLastCloudProfileUrl = useCallback(async () => {
+    const url = getLastCloudProfileMagicUrl();
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      showPortalToast(t('settings.cloudCopied'));
+    } catch {
+      showPortalToast(t('settings.copyJsonFail'));
+    }
+  }, [showPortalToast, t]);
 
   const handleSnoozeBackupBanner = useCallback(() => {
     const until = Date.now() + 14 * 86400000;
@@ -1144,6 +1159,8 @@ export function MoneyClock() {
       ),
     [locale, t]
   );
+
+  const lastCloudProfileUrl = getLastCloudProfileMagicUrl();
 
   const settingsForm = (
     <>
@@ -1569,6 +1586,27 @@ export function MoneyClock() {
           <CloudUpload size={20} strokeWidth={2.2} />
           {cloudSavePending ? t('settings.cloudBusy') : t('settings.saveCloud')}
         </motion.button>
+        {lastCloudProfileUrl ?
+          <div className="mt-4 rounded-r80-sm border border-cyan-200/70 bg-cyan-50/60 px-3 py-3 dark:bg-cyan-950/35 dark:border-cyan-500/40">
+            <p className="text-cyan-900 dark:text-cyan-100/95 text-xs font-bold text-center mb-1">
+              {t('settings.cloudProfileLinkTitle')}
+            </p>
+            <p className="text-gray-600 dark:text-cyan-200/55 text-[0.65rem] text-center leading-snug mb-2 px-0.5">
+              {t('settings.cloudProfileLinkHint')}
+            </p>
+            <p className="break-all text-center text-[0.65rem] font-mono text-gray-800 dark:text-cyan-50/90 bg-white/85 dark:bg-slate-900/85 rounded-r80-sm px-2 py-2 border border-cyan-100 dark:border-cyan-900/45 mb-2">
+              {lastCloudProfileUrl}
+            </p>
+            <motion.button
+              type="button"
+              onClick={() => void handleCopyLastCloudProfileUrl()}
+              whileTap={{ scale: 0.98 }}
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-r80-sm font-bold text-xs bg-white text-cyan-900 border border-cyan-200 dark:bg-slate-900 dark:text-cyan-100 dark:border-cyan-500/40">
+              <Copy size={16} strokeWidth={2.2} />
+              {t('settings.cloudProfileCopy')}
+            </motion.button>
+          </div>
+        : null}
       </div>
     </>
   );
@@ -1583,7 +1621,7 @@ export function MoneyClock() {
   }, [fxSnapshot, currentBalanceCurrency, selectedProjectsOrdered]);
 
   return (
-    <div className="relative w-full min-h-screen flex flex-col overflow-hidden">
+    <div className="relative w-full min-h-screen flex flex-col overflow-x-hidden">
       {theme === 'dark' ?
         <div className="arcade-scanlines" aria-hidden />
       : null}
@@ -1611,7 +1649,17 @@ export function MoneyClock() {
                 }}
                 aria-hidden
               />
-              <div className="relative z-10 flex flex-col gap-5 sm:gap-6 px-4 sm:px-6 lg:px-8 pt-5 sm:pt-7 pb-5 sm:pb-7">
+              <div className="relative z-10 flex flex-col gap-5 sm:gap-6 px-4 sm:px-6 lg:px-8 pt-4 sm:pt-5 pb-5 sm:pb-7">
+              <div
+                className="sticky top-0 z-30 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 py-2.5 mb-1 flex flex-wrap items-center justify-end gap-2 border-b border-white/[0.08] bg-gradient-to-b from-black/[0.18] via-black/[0.1] to-transparent dark:from-[rgba(6,10,18,0.92)] dark:via-[rgba(6,10,18,0.78)] dark:to-transparent backdrop-blur-md supports-[backdrop-filter]:bg-black/[0.06] dark:supports-[backdrop-filter]:bg-[rgba(6,10,18,0.65)]">
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setSettingsOpen(true)}
+                  className="shrink-0 text-[0.65rem] sm:text-[0.7rem] font-extrabold uppercase tracking-wide text-[#061018] bg-[var(--accent-money)] px-4 py-2 sm:px-5 sm:py-2.5 rounded-r80-sm hover:brightness-110 transition-[filter] shadow-[0_0_20px_rgba(0,255,160,0.22)]">
+                  {t('hero.ctaGrow')}
+                </motion.button>
+              </div>
               {showBackupReminderBanner ?
                 <div
                   className="rounded-r80-sm border border-amber-300/35 bg-amber-500/[0.14] px-3 py-3 sm:px-4 sm:py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
@@ -1643,51 +1691,80 @@ export function MoneyClock() {
               {hasPositiveAccrualRate && heroRateBasis && realRateBreakdown ?
                 <>
                   <section
-                    className="text-center max-w-2xl mx-auto space-y-3 sm:space-y-4 pt-2 pb-1"
-                    aria-label={t('hero.aria')}>
-                    <p className="text-white/40 text-[0.65rem] font-extrabold uppercase tracking-[0.22em]">
-                      {t('hero.now')}
-                    </p>
-                    <p className="text-white/80 text-base sm:text-lg font-semibold leading-tight max-w-[18rem] mx-auto tracking-tight">
+                    className="text-center max-w-2xl mx-auto space-y-4 sm:space-y-5 pt-2 pb-1"
+                    aria-label={t('hero.aria')}
+                    id="dash-hero">
+                    <p className="text-white/75 text-sm sm:text-base font-semibold leading-snug max-w-[20rem] mx-auto tracking-tight">
                       {t('hero.tagline')}
                     </p>
-                    <div
-                      className="hero-rate-glow font-black tabular-nums leading-none text-[var(--accent-money)] flex flex-wrap items-baseline justify-center gap-x-1"
-                      style={{ fontSize: 'clamp(2.35rem, 9.5vmin, 4.25rem)' }}>
-                      <span>+{heroRateBasis.symbol}</span>
-                      <AnimatedCounter
-                        value={heroRateBasis.perSec}
-                        decimals={heroRateBasis.perSec >= 0.01 ? 4 : 5}
-                        prefix=""
-                      />
-                      <span className="text-white/40 text-[0.35em] font-bold ml-1">{t('hero.perSec')}</span>
-                    </div>
-                    <p className="font-bold text-2xl sm:text-3xl text-white tabular-nums tracking-tight">
-                      ≈ {heroRateBasis.symbol}
-                      {(
-                        realRateBreakdown.purchasingPowerPerHour ??
-                        realRateBreakdown.afterTaxPerHour
-                      ).toFixed(2)}
-                      {t('hero.perHour')}
-                      <span className="text-white/45 font-medium text-base sm:text-lg">
-                        {' '}
-                        {t('hero.realHint')}
-                      </span>
-                    </p>
                     {heroTodayAccrual != null ?
-                      <div className="pt-1 space-y-0.5">
-                        <div className="text-white/55 text-sm sm:text-base font-bold tabular-nums">
-                          {t('hero.today')}:{' '}
+                      <div className="space-y-1.5 pt-1" id="dash-today">
+                        <p className="text-white/45 text-[0.68rem] sm:text-[0.72rem] font-extrabold uppercase tracking-[0.2em]">
+                          {t('hero.today')}
+                        </p>
+                        <div
+                          className="hero-rate-glow font-black tabular-nums leading-none text-[var(--accent-money)] flex flex-wrap items-baseline justify-center gap-x-1"
+                          style={{ fontSize: 'clamp(3rem, 14vmin, 6rem)' }}>
                           <AnimatedCounter
                             value={heroTodayAccrual}
                             prefix={`+${heroRateBasis.symbol}`}
                             decimals={2}
                           />
                         </div>
-                        <p className="text-white/32 text-[0.65rem] font-medium">{t('hero.todayNote')}</p>
+                        <p className="text-white/30 text-[0.65rem] font-medium max-w-sm mx-auto">
+                          {t('hero.todayNote')}
+                        </p>
                       </div>
                     : null}
-                    <details className="hero-more-numbers text-left max-w-md mx-auto pt-2 border-t border-white/10 mt-2">
+                    <div
+                      className="space-y-1.5 pt-3 border-t border-white/12"
+                      id="dash-balance">
+                      <p className="text-white/42 text-[0.65rem] sm:text-[0.68rem] font-extrabold uppercase tracking-[0.18em]">
+                        {t('breakdown.inAccount')}
+                      </p>
+                      <div
+                        className="font-black tabular-nums leading-none text-white flex flex-wrap items-baseline justify-center gap-x-1"
+                        style={{
+                          fontSize: 'clamp(1.9rem, 9vmin, 3.85rem)',
+                          textShadow:
+                            '0 2px 20px rgba(0,0,0,0.35), 0 0 28px rgba(255,255,255,0.08)'
+                        }}>
+                        <AnimatedCounter
+                          value={displayBalanceWithAccrual}
+                          prefix={balanceCurrencySymbol}
+                          decimals={2}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2 pt-3 border-t border-white/10">
+                      <p className="text-white/38 text-[0.62rem] font-extrabold uppercase tracking-[0.2em]">
+                        {t('hero.now')}
+                      </p>
+                      <div
+                        className="hero-rate-glow font-black tabular-nums leading-none text-[var(--accent-money)]/95 flex flex-wrap items-baseline justify-center gap-x-1"
+                        style={{ fontSize: 'clamp(1.65rem, 6.5vmin, 2.85rem)' }}>
+                        <span>+{heroRateBasis.symbol}</span>
+                        <AnimatedCounter
+                          value={heroRateBasis.perSec}
+                          decimals={heroRateBasis.perSec >= 0.01 ? 4 : 5}
+                          prefix=""
+                        />
+                        <span className="text-white/35 text-[0.4em] font-bold ml-1">{t('hero.perSec')}</span>
+                      </div>
+                      <p className="font-bold text-lg sm:text-xl md:text-2xl text-white tabular-nums tracking-tight">
+                        ≈ {heroRateBasis.symbol}
+                        {(
+                          realRateBreakdown.purchasingPowerPerHour ??
+                          realRateBreakdown.afterTaxPerHour
+                        ).toFixed(2)}
+                        {t('hero.perHour')}
+                        <span className="text-white/45 font-medium text-sm sm:text-base">
+                          {' '}
+                          {t('hero.realHint')}
+                        </span>
+                      </p>
+                    </div>
+                    <details className="hero-more-numbers text-left max-w-md mx-auto pt-2 border-t border-white/10 mt-1">
                       <summary className="text-center text-[0.68rem] font-bold uppercase tracking-wide text-white/45 py-2 hover:text-white/75">
                         {t('hero.moreNumbers')}
                       </summary>
@@ -1716,87 +1793,15 @@ export function MoneyClock() {
                       </div>
                     </details>
                   </section>
-
-                  <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-2.5 sm:gap-3 pt-5 pb-1">
-                    <motion.button
-                      type="button"
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => setSettingsOpen(true)}
-                      className="text-[0.72rem] sm:text-[0.75rem] font-extrabold uppercase tracking-wide text-[#061018] bg-[var(--accent-money)] px-6 py-3 rounded-r80-sm hover:brightness-110 transition-[filter] shadow-[0_0_24px_rgba(0,255,160,0.25)]">
-                      {t('hero.ctaGrow')}
-                    </motion.button>
-                    {detailStep === 0 ?
-                      <motion.button
-                        type="button"
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => setDetailStep(1)}
-                        className="text-[0.68rem] font-bold uppercase tracking-wide text-white/65 border border-white/22 px-4 py-2.5 rounded-r80-sm hover:bg-white/[0.07] hover:text-white/90 transition-colors">
-                        {t('hero.btnBreakdown')}
-                      </motion.button>
-                    : null}
-                    {detailStep === 1 ?
-                      <>
-                        <motion.button
-                          type="button"
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => setDetailStep(0)}
-                          className="text-[0.68rem] font-bold uppercase tracking-wide text-white/55 border border-white/16 px-4 py-2.5 rounded-r80-sm hover:bg-white/[0.05] transition-colors">
-                          {t('hero.btnBackCompact')}
-                        </motion.button>
-                        {trajectorySnap ?
-                          <motion.button
-                            type="button"
-                            whileTap={{ scale: 0.98 }}
-                            onClick={() => setDetailStep(2)}
-                            className="text-[0.68rem] font-bold uppercase tracking-wide text-white/65 border border-violet-400/35 px-4 py-2.5 rounded-r80-sm hover:bg-violet-500/10 transition-colors">
-                            {t('hero.btnTrajectory')}
-                          </motion.button>
-                        : null}
-                      </>
-                    : null}
-                    {detailStep === 2 ?
-                      <>
-                        <motion.button
-                          type="button"
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => setDetailStep(1)}
-                          className="text-[0.68rem] font-bold uppercase tracking-wide text-white/55 border border-white/16 px-4 py-2.5 rounded-r80-sm hover:bg-white/[0.05] transition-colors">
-                          {t('hero.btnBackBreakdown')}
-                        </motion.button>
-                        {selectedProjectsOrdered.length > 0 ?
-                          <motion.button
-                            type="button"
-                            whileTap={{ scale: 0.98 }}
-                            onClick={() => setDetailStep(3)}
-                            className="text-[0.68rem] font-bold uppercase tracking-wide text-white/65 border border-cyan-400/35 px-4 py-2.5 rounded-r80-sm hover:bg-cyan-400/10 transition-colors">
-                            {t('hero.btnChart')}
-                          </motion.button>
-                        : null}
-                      </>
-                    : null}
-                    {detailStep === 3 ?
-                      <motion.button
-                        type="button"
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => setDetailStep(2)}
-                        className="text-[0.68rem] font-bold uppercase tracking-wide text-white/55 border border-white/16 px-4 py-2.5 rounded-r80-sm hover:bg-white/[0.05] transition-colors">
-                        {t('hero.btnBackTrajectory')}
-                      </motion.button>
-                    : null}
-                  </div>
                 </>
               : !hasPositiveAccrualRate ?
-                <section className="text-center py-10 space-y-5 max-w-md mx-auto px-2">
+                <section className="text-center py-8 sm:py-10 space-y-4 max-w-md mx-auto px-2">
                   <p className="text-white/70 text-base font-medium leading-relaxed">
                     {t('hero.emptyPrompt')}
                   </p>
-                  <motion.button
-                    type="button"
-                    whileTap={{ scale: 0.97 }}
-                    onClick={() => setSettingsOpen(true)}
-                    className="text-[0.75rem] font-extrabold uppercase tracking-wide text-[#061018] bg-[var(--accent-money)] px-6 py-3 rounded-r80-sm hover:brightness-110 shadow-[0_0_20px_rgba(0,255,160,0.2)]">
-                    {t('hero.ctaGrow')}
-                  </motion.button>
+                  <p className="text-white/38 text-[0.65rem] font-medium leading-snug">
+                    {t('hero.emptyCta')}
+                  </p>
                 </section>
               : (
                 <p className="text-center text-amber-200/90 text-sm py-8 px-4 max-w-md mx-auto leading-relaxed">
@@ -1804,337 +1809,338 @@ export function MoneyClock() {
                 </p>
               )}
 
-              {detailStep === 1 ?
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 items-start">
-                <div className="space-y-3 text-center md:text-left min-w-0">
-                  <p className="text-white/60 text-[0.65rem] sm:text-xs font-extrabold uppercase tracking-[0.14em]">
-                    {t('breakdown.totalEarned')}
-                  </p>
-                  <p className="text-white/42 text-[0.6rem] sm:text-[0.62rem] leading-snug max-w-md mx-auto md:mx-0">
-                    {fxSnapshot ?
-                      t('breakdown.sortParagraphFx', {
-                        ccy: normalizeCurrencyCode(currentBalanceCurrency)
-                      })
-                    : t('breakdown.sortParagraphNoFx')}{' '}
-                    {t('breakdown.sortEndedNote')}
-                  </p>
-                  {selectedProjectsOrdered.length > 0 &&
-                  earningsByCurrencySortedForDisplay.length > 1 &&
-                  fxSnapshot &&
-                  equivalentEarningsInBalanceCcy != null &&
-                  <div className="flex justify-center md:justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setShowAllCurrencies((v) => !v)}
-                      className="text-[0.62rem] font-bold uppercase tracking-wide text-cyan-200/85 hover:text-cyan-100 border border-cyan-400/25 rounded-r80-sm px-2.5 py-1 transition-colors">
-                      {showAllCurrencies ?
-                        t('breakdown.hideAllCurrencies')
-                      : t('breakdown.showAllCurrencies')}
-                    </button>
-                  </div>
-                  }
-                  <div
-                    className="relative font-black tracking-tight leading-none text-white flex flex-col md:flex-row md:flex-wrap items-center md:items-baseline justify-center md:justify-start gap-x-6 gap-y-3"
-                    style={{
-                      fontSize: 'clamp(1rem, 4.2vmin, 3.25rem)',
-                      textShadow:
-                        '0 2px 22px rgba(0,0,0,0.35), 0 0 36px rgba(255,255,255,0.12)'
-                    }}>
-                    {selectedProjectsOrdered.length > 0 ?
-                    (() => {
-                        const entries = earningsByCurrencySortedForDisplay;
-                        if (entries.length === 0) {
-                          return (
-                            <AnimatedCounter
-                            value={0}
-                            prefix={balanceCurrencySymbol}
-                            decimals={2} />);
-
-
-                        }
-                        if (entries.length === 1) {
-                          const [ccy, val] = entries[0];
-                          const ccyActive = currenciesWithActiveContract.has(ccy);
-                          return (
-                            <div className="flex flex-col items-center md:items-start gap-1">
-                              <span className="inline-flex items-center gap-1.5 flex-wrap justify-center md:justify-start">
-                                <span
-                                  className="text-white/70 font-bold drop-shadow"
-                                  style={{ fontSize: 'clamp(0.55rem, 1.85vmin, 0.8rem)' }}>
-                                  {ccy}
-                                </span>
-                                {!ccyActive ?
-                                  <span className="text-[0.48rem] font-extrabold uppercase tracking-[0.12em] text-slate-200/85 px-1.5 py-0.5 rounded-r80-sm bg-slate-600/40 border border-white/12">
-                                    {t('breakdown.endedBadge')}
-                                  </span>
-                                : null}
-                              </span>
-                              <AnimatedCounter
-                                value={val}
-                                prefix={getCurrencySymbol(ccy)}
-                                decimals={2}
-                              />
-                            </div>
-                          );
-                        }
-                        if (
-                          entries.length > 1 &&
-                          fxSnapshot &&
-                          equivalentEarningsInBalanceCcy != null &&
-                          !showAllCurrencies
-                        ) {
-                          return (
-                            <div className="flex flex-col items-center md:items-start gap-2 w-full max-w-md mx-auto md:mx-0">
-                              <p className="text-white/45 text-[0.62rem] font-bold uppercase tracking-[0.12em]">
-                                {t('breakdown.oneTotalTitle')}
-                              </p>
-                              <AnimatedCounter
-                                value={equivalentEarningsInBalanceCcy}
-                                prefix={balanceCurrencySymbol}
-                                decimals={2}
-                              />
-                            </div>
-                          );
-                        }
-                        return entries.map(([ccy, val]) => {
-                          const ccyActive = currenciesWithActiveContract.has(ccy);
-                          return (
-                            <div key={ccy} className="flex flex-col items-center md:items-start gap-0.5">
-                              <span className="inline-flex items-center gap-1.5 flex-wrap justify-center md:justify-start">
-                                <span
-                                  className="text-white/70 font-bold drop-shadow"
-                                  style={{ fontSize: 'clamp(0.55rem, 1.85vmin, 0.8rem)' }}>
-                                  {ccy}
-                                </span>
-                                {!ccyActive ?
-                                  <span className="text-[0.48rem] font-extrabold uppercase tracking-[0.12em] text-slate-200/85 px-1.5 py-0.5 rounded-r80-sm bg-slate-600/40 border border-white/12">
-                                    {t('breakdown.endedBadge')}
-                                  </span>
-                                : null}
-                              </span>
-                              <AnimatedCounter
-                                value={val}
-                                prefix={getCurrencySymbol(ccy)}
-                                decimals={2}
-                              />
-                            </div>
-                          );
-                        });
-                      })()
-                    : <AnimatedCounter
-                      value={displayAmount}
-                      prefix={balanceCurrencySymbol}
-                      decimals={2} />
-                    }
-                  </div>
-                  {equivalentEarningsInBalanceCcy != null &&
-                  selectedProjectsOrdered.length > 0 &&
-                  <section
-                    className="pt-4 mt-2 border-t border-white/12 w-full max-w-xl mx-auto md:mx-0"
-                    aria-label={t('breakdown.equivTitle')}>
-                    <div
-                      className="rounded-r80 border border-sky-200/25 bg-gradient-to-b from-sky-400/[0.14] to-white/[0.04] px-4 py-4 sm:px-5 sm:py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
-                      <p className="text-white/55 text-[0.6rem] sm:text-[0.62rem] font-extrabold uppercase tracking-[0.14em] text-center md:text-left mb-3">
-                        {t('breakdown.equivTitle')}
-                      </p>
-                      <div
-                        className="font-black tracking-tight text-white tabular-nums text-center md:text-left leading-none mx-auto md:mx-0 w-fit max-w-full"
-                        style={{
-                          fontSize: 'clamp(1.35rem, 5.2vmin, 3.05rem)',
-                          textShadow:
-                            '0 2px 24px rgba(0,0,0,0.38), 0 0 28px rgba(125, 211, 252, 0.12)'
-                        }}>
-                        <AnimatedCounter
-                          value={equivalentEarningsInBalanceCcy}
-                          prefix={balanceCurrencySymbol}
-                          decimals={2}
-                        />
-                      </div>
-                      <p className="text-white/40 text-[0.56rem] sm:text-[0.58rem] font-medium text-center md:text-left mt-2.5">
-                        {t('breakdown.equivHint')}
-                      </p>
-                      <div
-                        className="mt-4 rounded-r80-sm border border-white/12 bg-black/15 px-3 py-3 sm:px-3.5 sm:py-3.5 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-                        <div className="flex gap-2.5">
-                          <span
-                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-r80-sm bg-sky-400/18 border border-sky-200/25 text-sky-100/90"
-                            aria-hidden>
-                            <Globe size={16} strokeWidth={2.2} />
-                          </span>
-                          <p
-                            className="text-white/50 font-medium leading-relaxed pt-0.5"
-                            style={{ fontSize: 'clamp(0.56rem, 1.45vmin, 0.7rem)' }}>
-                            <span className="text-white/68 font-semibold">{t('breakdown.rateHeading')}</span>{' '}
-                            {t('breakdown.fxBlurb')} {normalizeCurrencyCode(currentBalanceCurrency)}.
-                          </p>
-                        </div>
-                        <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                        <div className="flex gap-2.5">
-                          <span
-                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-r80-sm bg-violet-400/16 border border-violet-200/22 text-violet-100/88"
-                            aria-hidden>
-                            <Layers size={16} strokeWidth={2.2} />
-                          </span>
-                          <p
-                            className="text-white/46 font-medium leading-relaxed pt-0.5"
-                            style={{ fontSize: 'clamp(0.55rem, 1.4vmin, 0.68rem)' }}>
-                            <span className="text-white/64 font-semibold">{t('breakdown.sumHeading')}</span>{' '}
-                            {t('breakdown.sumBlurb')}
-                          </p>
-                        </div>
-                      </div>
+              {hasPositiveAccrualRate && heroRateBasis && realRateBreakdown ?
+              <div
+                className="w-full max-w-3xl mx-auto border-t border-white/10 pt-6 mt-2 space-y-4 px-1"
+                id="dash-breakdown">
+                <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
+                  <div className="relative rounded-[10px] border border-white/10 bg-white/[0.035] px-3 py-3 sm:px-4 sm:py-4 min-w-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                    <span
+                      className="absolute top-2.5 right-2.5 text-[var(--accent-money)]/85 pointer-events-none"
+                      aria-hidden>
+                      <Layers size={15} strokeWidth={2.2} />
+                    </span>
+                    <p className="text-white/50 text-[0.55rem] sm:text-[0.6rem] font-extrabold uppercase tracking-[0.12em] pr-6 mb-2">
+                      {t('breakdown.totalEarned')}
+                    </p>
+                    {selectedProjectsOrdered.length > 0 &&
+                    earningsByCurrencySortedForDisplay.length > 1 &&
+                    fxSnapshot &&
+                    equivalentEarningsInBalanceCcy != null &&
+                    <div className="mb-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowAllCurrencies((v) => !v)}
+                        className="text-[0.55rem] font-bold uppercase tracking-wide text-cyan-200/85 hover:text-cyan-100 border border-cyan-400/25 rounded-lg px-2 py-0.5 transition-colors">
+                        {showAllCurrencies ?
+                          t('breakdown.hideAllCurrencies')
+                        : t('breakdown.showAllCurrencies')}
+                      </button>
                     </div>
-                  </section>
-                  }
+                    }
+                    <div
+                      className="relative font-black tracking-tight leading-none text-white flex flex-col items-start gap-y-2 min-w-0"
+                      style={{
+                        fontSize: 'clamp(0.85rem, 3.2vmin, 1.85rem)',
+                        textShadow:
+                          '0 2px 18px rgba(0,0,0,0.35), 0 0 28px rgba(255,255,255,0.1)'
+                      }}>
+                      {selectedProjectsOrdered.length > 0 ?
+                      (() => {
+                          const entries = earningsByCurrencySortedForDisplay;
+                          if (entries.length === 0) {
+                            return (
+                              <AnimatedCounter
+                              value={0}
+                              prefix={balanceCurrencySymbol}
+                              decimals={2} />);
+
+
+                          }
+                          if (entries.length === 1) {
+                            const [ccy, val] = entries[0];
+                            const ccyActive = currenciesWithActiveContract.has(ccy);
+                            return (
+                              <div className="flex flex-col items-start gap-1 min-w-0 w-full">
+                                <span className="inline-flex items-center gap-1.5 flex-wrap">
+                                  <span
+                                    className="text-white/65 font-bold drop-shadow"
+                                    style={{ fontSize: 'clamp(0.5rem, 1.6vmin, 0.72rem)' }}>
+                                    {ccy}
+                                  </span>
+                                  {!ccyActive ?
+                                    <span className="text-[0.45rem] font-extrabold uppercase tracking-[0.1em] text-slate-200/85 px-1 py-0.5 rounded-md bg-slate-600/40 border border-white/12">
+                                      {t('breakdown.endedBadge')}
+                                    </span>
+                                  : null}
+                                </span>
+                                <AnimatedCounter
+                                  value={val}
+                                  prefix={getCurrencySymbol(ccy)}
+                                  decimals={2}
+                                />
+                              </div>
+                            );
+                          }
+                          if (
+                            entries.length > 1 &&
+                            fxSnapshot &&
+                            equivalentEarningsInBalanceCcy != null &&
+                            !showAllCurrencies
+                          ) {
+                            return (
+                              <div className="flex flex-col items-start gap-1.5 w-full min-w-0">
+                                <p className="text-white/42 text-[0.55rem] font-bold uppercase tracking-[0.1em]">
+                                  {t('breakdown.oneTotalTitle')}
+                                </p>
+                                <AnimatedCounter
+                                  value={equivalentEarningsInBalanceCcy}
+                                  prefix={balanceCurrencySymbol}
+                                  decimals={2}
+                                />
+                              </div>
+                            );
+                          }
+                          return entries.map(([ccy, val]) => {
+                            const ccyActive = currenciesWithActiveContract.has(ccy);
+                            return (
+                              <div key={ccy} className="flex flex-col items-start gap-0.5 min-w-0 w-full">
+                                <span className="inline-flex items-center gap-1.5 flex-wrap">
+                                  <span
+                                    className="text-white/65 font-bold drop-shadow"
+                                    style={{ fontSize: 'clamp(0.5rem, 1.6vmin, 0.72rem)' }}>
+                                    {ccy}
+                                  </span>
+                                  {!ccyActive ?
+                                    <span className="text-[0.45rem] font-extrabold uppercase tracking-[0.1em] text-slate-200/85 px-1 py-0.5 rounded-md bg-slate-600/40 border border-white/12">
+                                      {t('breakdown.endedBadge')}
+                                    </span>
+                                  : null}
+                                </span>
+                                <AnimatedCounter
+                                  value={val}
+                                  prefix={getCurrencySymbol(ccy)}
+                                  decimals={2}
+                                />
+                              </div>
+                            );
+                          });
+                        })()
+                      : <AnimatedCounter
+                        value={displayAmount}
+                        prefix={balanceCurrencySymbol}
+                        decimals={2} />
+                      }
+                    </div>
+                  </div>
+
+                  <div className="relative rounded-[10px] border border-white/10 bg-white/[0.035] px-3 py-3 sm:px-4 sm:py-4 min-w-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                    <span
+                      className="absolute top-2.5 right-2.5 text-sky-300/90 pointer-events-none"
+                      aria-hidden>
+                      <Wallet size={15} strokeWidth={2.2} />
+                    </span>
+                    <div className="flex flex-col gap-1.5 pr-6 mb-2">
+                      <p className="text-white/50 text-[0.55rem] sm:text-[0.6rem] font-extrabold uppercase tracking-[0.12em]">
+                        {t('breakdown.inAccount')}
+                      </p>
+                      {selectedProjectsOrdered.length > 0 && !accountBalanceCurrencyStatus.anyInCcy ?
+                        <span className="inline-flex items-center text-[0.45rem] font-extrabold uppercase tracking-[0.1em] text-amber-100/95 px-1.5 py-0.5 rounded-md bg-amber-500/20 border border-amber-200/30 w-fit">
+                          {t('breakdown.noContractsInCcy')}{' '}
+                          {normalizeCurrencyCode(currentBalanceCurrency)}
+                        </span>
+                      : selectedProjectsOrdered.length > 0 &&
+                        accountBalanceCurrencyStatus.anyInCcy &&
+                        !accountBalanceCurrencyStatus.hasActiveInCcy ?
+                        <span className="inline-flex items-center text-[0.45rem] font-extrabold uppercase tracking-[0.1em] text-slate-100/90 px-1.5 py-0.5 rounded-md bg-slate-600/45 border border-white/15 w-fit">
+                          {t('breakdown.allEndedWithCcy', {
+                            ccy: normalizeCurrencyCode(currentBalanceCurrency)
+                          })}
+                        </span>
+                      : null}
+                    </div>
+                    {selectedProjectsOrdered.length > 0 && !accountBalanceCurrencyStatus.anyInCcy &&
+                    <p className="text-amber-100/75 text-[0.52rem] leading-snug mb-2">
+                      {t('breakdown.noAccrualHint')}
+                    </p>
+                    }
+                    {selectedProjectsOrdered.length > 0 &&
+                    accountBalanceCurrencyStatus.anyInCcy &&
+                    !accountBalanceCurrencyStatus.hasActiveInCcy &&
+                    <p className="text-white/48 text-[0.52rem] leading-snug mb-2">
+                      {t('breakdown.allEndedHint')}
+                    </p>
+                    }
+                    <div
+                      className="relative font-semibold tracking-tight text-white tabular-nums w-full min-w-0"
+                      style={{
+                        fontSize: 'clamp(0.95rem, 2.8vmin, 1.35rem)',
+                        textShadow: '0 1px 12px rgba(0,0,0,0.25)'
+                      }}>
+                      <AnimatedCounter
+                        value={displayBalanceWithAccrual}
+                        prefix={balanceCurrencySymbol}
+                        decimals={2}
+                      />
+                    </div>
+                    <p className="text-white/32 text-[0.52rem] leading-snug mt-2">
+                      {t('breakdown.balanceEchoHint')}
+                    </p>
+                  </div>
+
+                  <div className="relative rounded-[10px] border border-white/10 bg-white/[0.035] px-3 py-3 sm:px-4 sm:py-4 min-w-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                    <span
+                      className="absolute top-2.5 right-2.5 text-amber-200/85 pointer-events-none"
+                      aria-hidden>
+                      <Clock3 size={15} strokeWidth={2.2} />
+                    </span>
+                    <p className="text-white/50 text-[0.55rem] sm:text-[0.6rem] font-extrabold uppercase tracking-[0.12em] pr-6 mb-2">
+                      {t('hero.moreNominal')}
+                    </p>
+                    <p
+                      className="font-black tabular-nums text-white leading-tight"
+                      style={{ fontSize: 'clamp(0.8rem, 2.4vmin, 1.15rem)' }}>
+                      {heroRateBasis.symbol}
+                      {realRateBreakdown.nominalPerHour.toFixed(2)}
+                      <span className="text-white/40 font-bold text-[0.65em]">{t('hero.perHour')}</span>
+                    </p>
+                    <p className="text-white/30 text-[0.5rem] mt-1.5 font-mono">{heroRateBasis.code}</p>
+                  </div>
+
+                  <div className="relative rounded-[10px] border border-white/10 bg-white/[0.035] px-3 py-3 sm:px-4 sm:py-4 min-w-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                    <span
+                      className="absolute top-2.5 right-2.5 text-[var(--accent-money)]/80 pointer-events-none"
+                      aria-hidden>
+                      <TrendingUp size={15} strokeWidth={2.2} />
+                    </span>
+                    <p className="text-white/50 text-[0.55rem] sm:text-[0.6rem] font-extrabold uppercase tracking-[0.12em] pr-6 mb-2">
+                      {t('dashboard.estimate12m')}
+                    </p>
+                    {trajectorySnap ?
+                      <p
+                        className="font-black tabular-nums text-white leading-tight"
+                        style={{ fontSize: 'clamp(0.72rem, 2vmin, 1.05rem)' }}>
+                        ≈ {trajectorySnap.symbol}
+                        {formatCompactAnnual(trajectorySnap.y12)}
+                        <span className="text-white/35 mx-0.5">–</span>
+                        {trajectorySnap.symbol}
+                        {formatCompactAnnual(trajectorySnap.y12plus)}
+                      </p>
+                    : <p className="text-white/35 text-[0.6rem]">—</p>
+                    }
+                    <p className="text-white/30 text-[0.5rem] mt-1.5">{t('hero.futureIfPlus20')}</p>
+                  </div>
                 </div>
 
-                <div className="space-y-3 sm:space-y-4 text-center md:text-left min-w-0 pt-1 border-t border-white/10 md:border-t-0 md:border-l md:border-white/15 md:pl-10 flex flex-col">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-start gap-2">
-                    <p className="text-white/60 text-[0.65rem] sm:text-xs font-extrabold uppercase tracking-[0.14em]">
-                      {t('breakdown.inAccount')}
-                    </p>
-                    {selectedProjectsOrdered.length > 0 && !accountBalanceCurrencyStatus.anyInCcy ?
-                      <span className="inline-flex items-center justify-center sm:justify-start text-[0.48rem] font-extrabold uppercase tracking-[0.12em] text-amber-100/95 px-2 py-0.5 rounded-r80-sm bg-amber-500/20 border border-amber-200/30 w-fit mx-auto sm:mx-0">
-                        {t('breakdown.noContractsInCcy')}{' '}
-                        {normalizeCurrencyCode(currentBalanceCurrency)}
-                      </span>
-                    : selectedProjectsOrdered.length > 0 &&
-                      accountBalanceCurrencyStatus.anyInCcy &&
-                      !accountBalanceCurrencyStatus.hasActiveInCcy ?
-                      <span className="inline-flex items-center justify-center sm:justify-start text-[0.48rem] font-extrabold uppercase tracking-[0.12em] text-slate-100/90 px-2 py-0.5 rounded-r80-sm bg-slate-600/45 border border-white/15 w-fit mx-auto sm:mx-0">
-                        {t('breakdown.allEndedWithCcy', {
-                          ccy: normalizeCurrencyCode(currentBalanceCurrency)
-                        })}
-                      </span>
-                    : null}
-                  </div>
-                  {selectedProjectsOrdered.length > 0 && !accountBalanceCurrencyStatus.anyInCcy &&
-                  <p className="text-amber-100/75 text-[0.56rem] sm:text-[0.58rem] leading-relaxed max-w-md mx-auto md:mx-0">
-                    {t('breakdown.noAccrualHint')}
+                <p className="text-white/38 text-[0.58rem] leading-snug px-0.5">
+                  {fxSnapshot ?
+                    t('breakdown.sortParagraphFx', {
+                      ccy: normalizeCurrencyCode(currentBalanceCurrency)
+                    })
+                  : t('breakdown.sortParagraphNoFx')}{' '}
+                  {t('breakdown.sortEndedNote')}
+                </p>
+
+                {equivalentEarningsInBalanceCcy != null &&
+                selectedProjectsOrdered.length > 0 &&
+                <section
+                  className="rounded-[10px] border border-sky-400/20 bg-sky-500/[0.06] px-3 py-3 sm:px-4 sm:py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                  aria-label={t('breakdown.equivTitle')}>
+                  <p className="text-white/50 text-[0.55rem] font-extrabold uppercase tracking-[0.12em] mb-2">
+                    {t('breakdown.equivTitle')}
                   </p>
-                  }
-                  {selectedProjectsOrdered.length > 0 &&
-                  accountBalanceCurrencyStatus.anyInCcy &&
-                  !accountBalanceCurrencyStatus.hasActiveInCcy &&
-                  <p className="text-white/50 text-[0.56rem] sm:text-[0.58rem] leading-relaxed max-w-md mx-auto md:mx-0">
-                    {t('breakdown.allEndedHint')}
-                  </p>
-                  }
                   <div
-                    className="relative font-black tracking-tight leading-none text-white tabular-nums mx-auto md:mx-0 w-fit max-w-full"
-                    style={{
-                      fontSize: 'clamp(1.55rem, 5vmin, 3.15rem)',
-                      textShadow:
-                        '0 2px 22px rgba(0,0,0,0.35), 0 0 32px rgba(255,255,255,0.12)'
-                    }}>
+                    className="font-black tracking-tight text-white tabular-nums leading-none"
+                    style={{ fontSize: 'clamp(1rem, 3.8vmin, 1.85rem)' }}>
                     <AnimatedCounter
-                      value={displayBalanceWithAccrual}
+                      value={equivalentEarningsInBalanceCcy}
                       prefix={balanceCurrencySymbol}
                       decimals={2}
                     />
                   </div>
-                  <div
-                    className="rounded-r80 border border-white/14 bg-gradient-to-br from-white/[0.07] to-white/[0.02] px-3 py-3 sm:px-3.5 sm:py-3.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] space-y-3 max-w-md mx-auto md:mx-0 w-full">
-                    <div className="flex gap-2.5">
+                  <p className="text-white/38 text-[0.54rem] font-medium mt-2 leading-snug">
+                    {t('breakdown.equivHint')}
+                  </p>
+                  <div className="mt-3 rounded-lg border border-white/10 bg-black/20 px-2.5 py-2.5 space-y-2">
+                    <div className="flex gap-2">
                       <span
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-r80-sm bg-emerald-400/15 border border-emerald-200/20 text-emerald-100/90"
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-sky-400/18 border border-sky-200/25 text-sky-100/90"
                         aria-hidden>
-                        <Wallet size={16} strokeWidth={2.2} />
+                        <Globe size={14} strokeWidth={2.2} />
                       </span>
-                      <p
-                        className="text-white/52 font-medium leading-relaxed pt-0.5"
-                        style={{ fontSize: 'clamp(0.58rem, 1.5vmin, 0.72rem)' }}>
-                        <span className="text-white/68 font-semibold">{t('breakdown.howTitle')}</span>{' '}
-                        {t('breakdown.howBody')}
+                      <p className="text-white/48 font-medium leading-relaxed text-[0.55rem] pt-0.5">
+                        <span className="text-white/65 font-semibold">{t('breakdown.rateHeading')}</span>{' '}
+                        {t('breakdown.fxBlurb')} {normalizeCurrencyCode(currentBalanceCurrency)}.
                       </p>
                     </div>
-                    <div className="h-px bg-gradient-to-r from-transparent via-white/12 to-transparent" />
-                    <div className="flex gap-2.5">
+                    <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                    <div className="flex gap-2">
                       <span
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-r80-sm bg-amber-400/14 border border-amber-200/22 text-amber-100/90"
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-violet-400/16 border border-violet-200/22 text-violet-100/88"
                         aria-hidden>
-                        <Clock3 size={16} strokeWidth={2.2} />
+                        <Layers size={14} strokeWidth={2.2} />
                       </span>
-                      <p
-                        className="text-white/48 font-medium leading-relaxed pt-0.5"
-                        style={{ fontSize: 'clamp(0.56rem, 1.45vmin, 0.7rem)' }}>
-                        {t('breakdown.onlyCcy', {
-                          ccy: normalizeCurrencyCode(currentBalanceCurrency)
-                        })}
+                      <p className="text-white/44 font-medium leading-relaxed text-[0.54rem] pt-0.5">
+                        <span className="text-white/62 font-semibold">{t('breakdown.sumHeading')}</span>{' '}
+                        {t('breakdown.sumBlurb')}
                       </p>
                     </div>
+                  </div>
+                </section>
+                }
+
+                <div className="rounded-[10px] border border-white/10 bg-white/[0.03] px-3 py-3 sm:px-4 sm:py-3.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] space-y-2.5">
+                  <div className="flex gap-2.5">
+                    <span
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-400/12 border border-emerald-200/18 text-emerald-100/90"
+                      aria-hidden>
+                      <Wallet size={16} strokeWidth={2.2} />
+                    </span>
+                    <p
+                      className="text-white/50 font-medium leading-relaxed pt-0.5"
+                      style={{ fontSize: 'clamp(0.56rem, 1.45vmin, 0.68rem)' }}>
+                      <span className="text-white/68 font-semibold">{t('breakdown.howTitle')}</span>{' '}
+                      {t('breakdown.howBody')}
+                    </p>
+                  </div>
+                  <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                  <div className="flex gap-2.5">
+                    <span
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-400/12 border border-amber-200/18 text-amber-100/90"
+                      aria-hidden>
+                      <Clock3 size={16} strokeWidth={2.2} />
+                    </span>
+                    <p
+                      className="text-white/46 font-medium leading-relaxed pt-0.5"
+                      style={{ fontSize: 'clamp(0.54rem, 1.4vmin, 0.66rem)' }}>
+                      {t('breakdown.onlyCcy', {
+                        ccy: normalizeCurrencyCode(currentBalanceCurrency)
+                      })}
+                    </p>
                   </div>
                 </div>
               </div>
               : null}
 
-              {detailStep === 1 && fxSnapshot && fxCaptionBlock ?
+              {hasPositiveAccrualRate &&
+              heroRateBasis &&
+              realRateBreakdown &&
+              fxSnapshot &&
+              fxCaptionBlock?.kind === 'missing-rates' &&
               <div
-                className="rounded-r80-sm bg-black/35 border border-white/15 px-3 py-2.5 sm:py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-                role="note"
-                aria-label={t('fx.title')}>
-                {fxCaptionBlock.kind === 'rates' &&
-                <p
-                  className="text-[0.68rem] sm:text-xs leading-relaxed text-white/78 text-center md:text-left font-medium tabular-nums [text-shadow:0_1px_2px_rgba(0,0,0,0.45)] select-text"
-                  title={fxCaptionBlock.lines.map((x) => x.line).join(' · ')}>
-                  <span className="text-white/55 font-bold uppercase tracking-wider text-[0.6rem] sm:text-[0.65rem]">
-                    {t('fx.title')}{' '}
-                  </span>
-                  {fxCaptionBlock.lines.map(({ code, line }, i) =>
-                    <React.Fragment key={code}>
-                      {i > 0 ?
-                        <span className="text-white/35 mx-1.5" aria-hidden>
-                          ·
-                        </span>
-                      : null}
-                      <span className="text-white/90">{line}</span>
-                    </React.Fragment>
-                  )}
-                </p>
-                }
-                {fxCaptionBlock.kind === 'no-foreign' &&
-                <p className="text-[0.68rem] sm:text-xs leading-relaxed text-white/72 text-center md:text-left font-medium [text-shadow:0_1px_2px_rgba(0,0,0,0.45)]">
-                  <span className="text-white/55 font-bold uppercase tracking-wider text-[0.6rem] sm:text-[0.65rem]">
-                    {t('fx.title')}{' '}
-                  </span>
-                  <span className="text-white/88">
-                    {t('fx.noForeign', { balance: fxCaptionBlock.balance })}
-                  </span>
-                </p>
-                }
-                {fxCaptionBlock.kind === 'missing-rates' &&
-                <p className="text-[0.68rem] sm:text-xs leading-relaxed text-amber-100/90 text-center md:text-left font-medium [text-shadow:0_1px_2px_rgba(0,0,0,0.45)]">
-                  {t('fx.missing', {
-                    codes: fxCaptionBlock.foreignCodes.join(', '),
-                    base: normalizeCurrencyCode(fxSnapshot.base)
-                  })}
-                </p>
-                }
-                <p className="text-[0.6rem] sm:text-[0.65rem] text-white/45 mt-1.5 text-center md:text-left leading-snug">
-                  {t('fx.footer')}
-                  {fxSnapshot?.updatedUtc ?
-                    <>
-                      {' '}
-                      ·{' '}
-                      {new Date(fxSnapshot.updatedUtc).toLocaleString(intlLocaleTag[locale], {
-                        day: 'numeric',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </>
-                  : null}{' '}
-                  <a
-                    href="https://www.exchangerate-api.com/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-amber-200/90 underline underline-offset-2 decoration-amber-200/40 hover:text-amber-100">
-                    exchangerate-api.com
-                  </a>
-                </p>
+                className="max-w-3xl mx-auto rounded-[10px] border border-amber-400/30 bg-amber-500/[0.08] px-3 py-2.5 text-[0.65rem] sm:text-[0.68rem] leading-relaxed text-amber-100/95 text-center md:text-left"
+                role="status">
+                {t('fx.missing', {
+                  codes: fxCaptionBlock.foreignCodes.join(', '),
+                  base: normalizeCurrencyCode(fxSnapshot.base)
+                })}
               </div>
-              : null}
-              {detailStep === 1 && fxReady && !fxSnapshot &&
+              }
+              {hasPositiveAccrualRate &&
+              heroRateBasis &&
+              realRateBreakdown &&
+              fxReady &&
+              !fxSnapshot &&
               <div
                 className="rounded-r80-sm bg-black/35 border border-white/15 px-3 py-2 text-[0.65rem] sm:text-xs text-white/60 text-center md:text-left [text-shadow:0_1px_2px_rgba(0,0,0,0.4)]"
                 role="status">
@@ -2142,64 +2148,71 @@ export function MoneyClock() {
               </div>
               }
 
-              {detailStep === 2 && trajectorySnap ?
+              {hasPositiveAccrualRate &&
+              heroRateBasis &&
+              realRateBreakdown &&
+              trajectorySnap ?
               <section
-                className="max-w-xl mx-auto border-t border-white/10 pt-6 mt-2 px-1"
-                aria-label={t('trajectory.aria')}>
-                <div className="flex items-center justify-center gap-2 mb-3">
-                  <TrendingUp className="w-5 h-5 text-fuchsia-300/90 shrink-0" strokeWidth={2.2} aria-hidden />
-                  <p className="text-white/45 text-[0.62rem] font-extrabold uppercase tracking-[0.18em] text-center">
-                    {t('trajectory.kicker')}
-                  </p>
-                </div>
-                <p className="text-center text-white/38 text-[0.62rem] leading-snug mb-5 px-2">
+                className="max-w-3xl mx-auto border-t border-white/10 pt-6 mt-2 px-1"
+                aria-label={t('trajectory.aria')}
+                id="dash-trajectory">
+                <p className="text-white/42 text-[0.58rem] font-extrabold uppercase tracking-[0.16em] text-center mb-2">
+                  {t('chart.productTrajectoryLead')}
+                </p>
+                <p className="text-center text-white/32 text-[0.58rem] leading-snug mb-4 px-2">
                   {t('trajectory.disclaimer')}
                 </p>
-                <div className="rounded-r80 border border-fuchsia-400/20 bg-gradient-to-b from-fuchsia-500/[0.12] to-white/[0.03] px-4 py-5 sm:px-6 sm:py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] space-y-4 text-center">
-                  <p className="text-white/50 text-[0.62rem] font-bold uppercase tracking-[0.14em]">
-                    {t('trajectory.steadyLead')}
-                  </p>
-                  <p className="text-white text-xl sm:text-2xl font-black tabular-nums leading-tight">
-                    ≈ {trajectorySnap.symbol}
-                    {formatCompactAnnual(trajectorySnap.y12)}
-                    <span className="text-white/45 font-semibold text-sm sm:text-base block sm:inline sm:ml-2">
-                      {t('trajectory.next12')}
-                    </span>
-                  </p>
-                  <p className="text-white/55 text-sm sm:text-base font-semibold tabular-nums">
-                    {t('trajectory.fiveYearLead')}{' '}
-                    <span className="text-white font-bold">
-                      ≈ {trajectorySnap.symbol}
-                      {formatCompactAnnual(trajectorySnap.y5)}
-                    </span>
-                  </p>
-                  <details className="hero-more-numbers text-left pt-3 border-t border-white/10">
-                    <summary className="text-center text-[0.68rem] font-bold uppercase tracking-wide text-fuchsia-200/80 py-2 cursor-pointer hover:text-fuchsia-100">
+                <div className="rounded-[10px] border border-white/10 bg-white/[0.035] px-4 py-5 sm:px-5 sm:py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                  <div className="grid grid-cols-[1fr_auto_1fr] gap-2 sm:gap-4 items-center">
+                    <div className="text-center min-w-0">
+                      <p className="text-white/45 text-[0.55rem] sm:text-[0.58rem] font-bold uppercase tracking-[0.1em] mb-2">
+                        {t('chart.productSteady12')}
+                      </p>
+                      <p className="text-white font-black tabular-nums leading-tight text-sm sm:text-base">
+                        ≈ {trajectorySnap.symbol}
+                        {formatCompactAnnual(trajectorySnap.y12)}
+                      </p>
+                      <p className="text-white/30 text-[0.5rem] mt-1">{t('trajectory.next12')}</p>
+                    </div>
+                    <ArrowRight
+                      className="w-5 h-5 sm:w-6 sm:h-6 text-white/25 shrink-0"
+                      strokeWidth={2}
+                      aria-hidden
+                    />
+                    <div className="text-center min-w-0">
+                      <p className="text-white/45 text-[0.55rem] sm:text-[0.58rem] font-bold uppercase tracking-[0.1em] mb-2">
+                        {t('chart.productPlus20')}
+                      </p>
+                      <p className="text-white font-black tabular-nums leading-tight text-sm sm:text-base">
+                        ≈ {trajectorySnap.symbol}
+                        {formatCompactAnnual(trajectorySnap.y12plus)}
+                      </p>
+                      <p className="text-white/30 text-[0.5rem] mt-1">{t('trajectory.next12')}</p>
+                    </div>
+                  </div>
+                  <div className="mt-5 pt-4 border-t border-white/10 text-center">
+                    <p className="text-[var(--accent-money)] font-black tabular-nums text-base sm:text-lg">
+                      {trajectorySnap.deltaYear >= 0 ? '+' : '−'}
+                      {trajectorySnap.symbol}
+                      {formatCompactAnnual(Math.abs(trajectorySnap.deltaYear))}
+                      <span className="text-white/40 font-semibold text-xs sm:text-sm ml-1">
+                        {t('chart.productPerYearHint')}
+                      </span>
+                    </p>
+                  </div>
+                  <details className="hero-more-numbers text-left mt-4 pt-3 border-t border-white/10">
+                    <summary className="text-center text-[0.62rem] font-bold uppercase tracking-wide text-white/40 py-2 cursor-pointer hover:text-white/65">
                       {t('trajectory.morePaths')}
                     </summary>
-                    <div className="space-y-4 pb-1 text-center text-sm text-white/75">
-                      <p>
-                        <span className="text-white/40 text-[0.6rem] font-bold uppercase tracking-wider block mb-1">
-                          {t('trajectory.plus20Lead')}
-                        </span>
-                        <span className="font-bold tabular-nums text-lg text-white">
+                    <div className="space-y-3 pb-1 text-center text-xs sm:text-sm text-white/65">
+                      <p className="tabular-nums">
+                        {t('trajectory.fiveYearLead')}{' '}
+                        <span className="text-white font-bold">
                           ≈ {trajectorySnap.symbol}
-                          {formatCompactAnnual(trajectorySnap.y12plus)}
+                          {formatCompactAnnual(trajectorySnap.y5)}
                         </span>
-                        <span className="text-white/45 text-xs block mt-0.5">{t('trajectory.next12')}</span>
                       </p>
-                      <p className="rounded-r80-sm bg-black/25 border border-emerald-400/25 px-3 py-3">
-                        <span className="text-emerald-200/90 text-[0.6rem] font-bold uppercase tracking-wider block mb-1">
-                          {t('trajectory.deltaLead')}
-                        </span>
-                        <span className="font-black tabular-nums text-xl text-[var(--accent-money)]">
-                          {trajectorySnap.deltaYear >= 0 ? '+' : '−'}
-                          {trajectorySnap.symbol}
-                          {formatCompactAnnual(Math.abs(trajectorySnap.deltaYear))}
-                        </span>
-                        <span className="text-white/55 text-xs block mt-1">{t('trajectory.perYearVs')}</span>
-                      </p>
-                      <p className="text-white/6 text-xs tabular-nums leading-relaxed">
+                      <p className="text-white/45 tabular-nums leading-relaxed">
                         {t('trajectory.fiveCompare', {
                           base: `${trajectorySnap.symbol}${formatCompactAnnual(trajectorySnap.y5)}`,
                           plus: `${trajectorySnap.symbol}${formatCompactAnnual(trajectorySnap.y5plus)}`
@@ -2207,16 +2220,74 @@ export function MoneyClock() {
                       </p>
                     </div>
                   </details>
-                  <p className="text-white/28 text-[0.55rem] leading-snug pt-1">{t('trajectory.geekFootnote')}</p>
+                  <p className="text-white/25 text-[0.52rem] leading-snug text-center mt-3">{t('trajectory.geekFootnote')}</p>
                 </div>
               </section>
               : null}
 
-              {detailStep >= 3 && selectedProjectsOrdered.length > 0 &&
+              {hasPositiveAccrualRate &&
+              heroRateBasis &&
+              realRateBreakdown &&
+              trajectorySnap &&
+              <section
+                className="max-w-3xl mx-auto mt-4 px-1"
+                aria-label={t('dashboard.momentumTitle')}
+                id="dash-momentum">
+                <div className="rounded-[10px] border border-white/10 bg-white/[0.03] px-4 py-4 sm:px-5 sm:py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                  <p className="text-white/40 text-[0.55rem] font-extrabold uppercase tracking-[0.14em] text-center mb-2">
+                    {t('dashboard.momentumTitle')}
+                  </p>
+                  <p className="text-center text-[var(--accent-money)] font-bold text-sm sm:text-base mb-4 leading-snug">
+                    {t('dashboard.momentumTeaser')}
+                  </p>
+                  <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center">
+                    <div className="min-w-0">
+                      <p className="text-white/35 text-[0.5rem] sm:text-[0.52rem] font-bold uppercase tracking-[0.08em] mb-1.5">
+                        {t('chart.productNow')}
+                      </p>
+                      <p className="text-white font-black tabular-nums text-xs sm:text-sm">
+                        +{heroRateBasis.symbol}
+                        {heroRateBasis.perSec >= 0.01 ?
+                          heroRateBasis.perSec.toFixed(4)
+                        : heroRateBasis.perSec.toFixed(5)}
+                      </p>
+                      <p className="text-white/28 text-[0.48rem] mt-0.5">{t('hero.perSec')}</p>
+                    </div>
+                    <div className="min-w-0 border-x border-white/10 px-1">
+                      <p className="text-white/35 text-[0.5rem] sm:text-[0.52rem] font-bold uppercase tracking-[0.08em] mb-1.5">
+                        {t('chart.productTrendEnd')}
+                      </p>
+                      <p className="text-white font-black tabular-nums text-xs sm:text-sm">
+                        ≈ {trajectorySnap.symbol}
+                        {formatCompactAnnual(trajectorySnap.y12)}
+                      </p>
+                      <p className="text-white/28 text-[0.48rem] mt-0.5">{t('trajectory.next12')}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-white/35 text-[0.5rem] sm:text-[0.52rem] font-bold uppercase tracking-[0.08em] mb-1.5">
+                        {t('dashboard.momentumColDelta')}
+                      </p>
+                      <p className="text-[var(--accent-money)] font-black tabular-nums text-xs sm:text-sm">
+                        {trajectorySnap.deltaYear >= 0 ? '+' : '−'}
+                        {trajectorySnap.symbol}
+                        {formatCompactAnnual(Math.abs(trajectorySnap.deltaYear))}
+                      </p>
+                      <p className="text-white/28 text-[0.48rem] mt-0.5">{t('trajectory.perYearVs')}</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              }
+
+              {hasPositiveAccrualRate &&
+              heroRateBasis &&
+              realRateBreakdown &&
+              selectedProjectsOrdered.length > 0 &&
               <div
-                className="rounded-r80 bg-black/22 border border-white/12 p-3 sm:p-4 lg:p-5 min-h-0 min-w-0 shadow-inner isolate"
-                aria-label={t('chart.ariaPanel')}>
-                <p className="text-white/45 text-[0.58rem] font-extrabold uppercase tracking-[0.14em] text-center mb-3 sm:mb-4">
+                className="rounded-[10px] bg-white/[0.025] border border-white/10 p-3 sm:p-4 lg:p-5 min-h-0 min-w-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] isolate"
+                aria-label={t('chart.ariaPanel')}
+                id="dash-chart">
+                <p className="text-white/42 text-[0.56rem] font-extrabold uppercase tracking-[0.16em] text-center mb-3 sm:mb-4">
                   {t('chart.panelTitle')}
                 </p>
                 <div className="relative z-[1] min-w-0">
@@ -2248,8 +2319,7 @@ export function MoneyClock() {
               </div>
               }
 
-              {(detailStep !== 2 &&
-                (detailStep >= 1 || (hasPositiveAccrualRate && !heroRateBasis))) && (
+              {hasPositiveAccrualRate && (!heroRateBasis || realRateBreakdown) && (
               <AnimatePresence>
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
@@ -2281,93 +2351,53 @@ export function MoneyClock() {
                     }
                   </div>
                   }
-                  <div
-                    className="flex items-center justify-center"
-                    style={{ gap: 'clamp(0.5rem, 2.5vmin, 2.5rem)' }}>
-                    <div
-                    className="rounded-none shrink-0"
-                    style={{
-                      width: 'clamp(0.625rem, 3.125vmin, 3.125rem)',
-                      height: 'clamp(0.625rem, 3.125vmin, 3.125rem)',
-                      background:
-                        anySelectedProjectLive ?
-                          '#fff' :
-                          '#ffffffaa',
-                      boxShadow:
-                        anySelectedProjectLive ?
-                          '0 0 10px rgba(255,255,255,0.7)' :
-                          'none'
-                    }} />
-                  
-                    <span
-                      className="text-white/90 font-bold tabular-nums drop-shadow flex flex-col items-center justify-center gap-y-1.5 w-full"
-                      style={{ fontSize: 'clamp(0.75rem, 1.0625vmin, 1.25rem)' }}>
-                      <span className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
-                        {ratesByCurrency.size > 0 ?
-                        [...ratesByCurrency.entries()].
-                        sort(([a], [b]) => a.localeCompare(b)).
-                        map(([ccy, r]) =>
-                        <span key={ccy}>
-                              +{getCurrencySymbol(ccy)}
-                              {r.toFixed(4)} {t('footer.perSec')} ({ccy})
-                            </span>
-                        ) :
-                        <>
-                            +{balanceCurrencySymbol}
-                            {totalRatePerSecond.toFixed(4)} {t('footer.perSec')}
-                          </>
-                        }
-                      </span>
-                      {equivalentRatePerSecondInBalanceCcy != null &&
-                      <span className="text-white/65 font-semibold text-[0.7em] sm:text-[0.72em]">
-                        {t('footer.sigmaPerSec')}
-                        {balanceCurrencySymbol}
-                        {equivalentRatePerSecondInBalanceCcy.toFixed(4)} {t('footer.perSec')}{' '}
-                        {t('footer.inCcy')}{' '}
-                        {normalizeCurrencyCode(currentBalanceCurrency)} {t('footer.byRate')}
-                      </span>
-                      }
-                    </span>
-                  </div>
-
                   {moneyAwarenessSnap &&
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                    className="mx-auto mt-5 w-full max-w-lg rounded-r80 border border-fuchsia-200/22 bg-gradient-to-br from-fuchsia-500/[0.14] via-white/[0.05] to-violet-600/[0.1] px-4 py-4 sm:px-5 sm:py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.11)]">
-                    <p className="text-center text-white/48 text-[0.52rem] sm:text-[0.54rem] font-extrabold uppercase tracking-[0.16em] mb-2">
+                    className="mx-auto w-full max-w-3xl rounded-[10px] border border-white/10 bg-white/[0.035] px-4 py-4 sm:px-5 sm:py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+                    id="dash-awareness">
+                    <p className="text-center text-white/40 text-[0.52rem] sm:text-[0.54rem] font-extrabold uppercase tracking-[0.18em] mb-3">
                       {t('awareness.title')}
                     </p>
                     <p
-                      className="text-center font-black tabular-nums text-white leading-tight"
-                      style={{ fontSize: 'clamp(1rem, 3.4vmin, 1.45rem)' }}>
-                      <span className="text-white/55 text-[0.65em] font-bold block mb-1 normal-case tracking-normal">
+                      className="text-center font-black tabular-nums leading-tight"
+                      style={{ fontSize: 'clamp(0.95rem, 3.2vmin, 1.35rem)' }}>
+                      <span className="text-white/45 text-[0.65em] font-bold block mb-1.5 normal-case tracking-normal">
                         {t('awareness.sub')}
                       </span>
-                      +{getCurrencySymbol(moneyAwarenessSnap.rateCurrency)}
-                      {moneyAwarenessSnap.rate >= 0.01 ?
-                        moneyAwarenessSnap.rate.toFixed(3)
-                      : moneyAwarenessSnap.rate >= 0.001 ?
-                        moneyAwarenessSnap.rate.toFixed(4)
-                      : moneyAwarenessSnap.rate.toFixed(5)}
-                      /sec · {moneyAwarenessSnap.rateCurrency}
+                      <span className="text-[var(--accent-money)]">
+                        +{getCurrencySymbol(moneyAwarenessSnap.rateCurrency)}
+                        {moneyAwarenessSnap.rate >= 0.01 ?
+                          moneyAwarenessSnap.rate.toFixed(3)
+                        : moneyAwarenessSnap.rate >= 0.001 ?
+                          moneyAwarenessSnap.rate.toFixed(4)
+                        : moneyAwarenessSnap.rate.toFixed(5)}
+                      </span>
+                      <span className="text-white/50 font-bold text-[0.55em]">
+                        {' '}
+                        {t('hero.perSec')} · {moneyAwarenessSnap.rateCurrency}
+                      </span>
                     </p>
                     {moneyAwarenessSnap.demoPct != null ?
                       <>
                         <p
-                          className="text-center text-white/82 font-bold mt-3 leading-snug px-1"
-                          style={{ fontSize: 'clamp(0.8rem, 2.4vmin, 1.05rem)' }}>
+                          className="text-center text-white/75 font-bold mt-3 leading-snug px-1"
+                          style={{ fontSize: 'clamp(0.72rem, 2.1vmin, 0.95rem)' }}>
                           {t('awareness.ladder', { pct: moneyAwarenessSnap.demoPct })}
                         </p>
-                        <p className="text-center text-white/70 text-[0.58rem] sm:text-[0.6rem] font-semibold mt-1 px-2">
+                        <p className="text-center text-[var(--accent-money)]/90 text-[0.58rem] sm:text-[0.6rem] font-semibold mt-1 px-2">
+                          ~{moneyAwarenessSnap.demoPct}%
+                        </p>
+                        <p className="text-center text-white/38 text-[0.48rem] sm:text-[0.5rem] leading-snug mt-2 px-2">
                           {t('awareness.ladderNote', { pct: moneyAwarenessSnap.demoPct })}
                         </p>
-                        <p className="text-center text-white/34 text-[0.48rem] sm:text-[0.5rem] leading-snug mt-2 px-2">
+                        <p className="text-center text-white/28 text-[0.46rem] sm:text-[0.48rem] leading-snug mt-1.5 px-2">
                           {t('awareness.ladderModel')}
                         </p>
                       </>
-                    : <p className="text-center text-white/42 text-[0.55rem] mt-3 px-2 leading-snug">
+                    : <p className="text-center text-white/40 text-[0.55rem] mt-3 px-2 leading-snug">
                         {t('awareness.needFx')}
                       </p>
                     }
@@ -2376,7 +2406,7 @@ export function MoneyClock() {
                         type="button"
                         whileTap={{ scale: 0.96 }}
                         onClick={() => void handleShareMoneyAwareness()}
-                        className="inline-flex items-center gap-1.5 rounded-r80-sm border border-fuchsia-200/35 bg-fuchsia-500/20 px-3 py-2 text-[0.62rem] sm:text-[0.65rem] font-extrabold uppercase tracking-wide text-fuchsia-50 hover:bg-fuchsia-500/30 transition-colors">
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent-money)]/35 bg-[var(--accent-money)]/12 px-3 py-2 text-[0.6rem] sm:text-[0.62rem] font-extrabold uppercase tracking-wide text-[var(--accent-money)] hover:bg-[var(--accent-money)]/18 transition-colors">
                         <Share2 size={14} strokeWidth={2.4} className="opacity-90" aria-hidden />
                         {t('awareness.share')}
                       </motion.button>
@@ -2384,7 +2414,7 @@ export function MoneyClock() {
                         type="button"
                         whileTap={{ scale: 0.96 }}
                         onClick={() => void handleCopyAwareness()}
-                        className="inline-flex items-center gap-1.5 rounded-r80-sm border border-white/20 bg-white/10 px-3 py-2 text-[0.6rem] sm:text-[0.62rem] font-bold text-white/85 hover:bg-white/16 transition-colors">
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.06] px-3 py-2 text-[0.58rem] sm:text-[0.6rem] font-bold text-white/80 hover:bg-white/10 transition-colors">
                         <Copy size={14} strokeWidth={2.2} className="opacity-85" aria-hidden />
                         {t('awareness.copyCurrent')}
                       </motion.button>
@@ -2398,6 +2428,75 @@ export function MoneyClock() {
                     : null}
                   </motion.div>
                   }
+
+                  <div
+                    className="max-w-3xl mx-auto w-full pt-2 space-y-3"
+                    id="dash-live-rates">
+                    <div className="flex items-center justify-center gap-2">
+                      <span
+                        className={
+                          'h-2 w-2 shrink-0 rounded-full bg-[var(--accent-money)] shadow-[0_0_10px_rgba(0,255,136,0.65)] ' +
+                          (anySelectedProjectLive ? 'animate-pulse' : 'opacity-45')
+                        }
+                        aria-hidden
+                      />
+                      <p className="text-white/45 text-[0.58rem] sm:text-[0.62rem] font-extrabold uppercase tracking-[0.2em]">
+                        {t('footer.liveRates')}
+                      </p>
+                    </div>
+                    <p className="text-white/50 font-semibold tabular-nums text-center text-[0.65rem] sm:text-[0.72rem] leading-relaxed flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+                      {ratesByCurrency.size > 0 ?
+                      [...ratesByCurrency.entries()].
+                      sort(([a], [b]) => a.localeCompare(b)).
+                      map(([ccy, r]) =>
+                      <span key={ccy} className="whitespace-nowrap">
+                            +{getCurrencySymbol(ccy)}
+                            {r.toFixed(4)} {t('footer.perSec')} ({ccy})
+                          </span>
+                      ) :
+                      <>
+                          +{balanceCurrencySymbol}
+                          {totalRatePerSecond.toFixed(4)} {t('footer.perSec')}
+                        </>
+                      }
+                    </p>
+                    {equivalentRatePerSecondInBalanceCcy != null &&
+                    <p className="text-center text-white/55 font-semibold tabular-nums text-[0.62rem] sm:text-[0.68rem]">
+                      {t('footer.sigmaPerSec')}
+                      {balanceCurrencySymbol}
+                      {equivalentRatePerSecondInBalanceCcy.toFixed(4)} {t('footer.perSec')}{' '}
+                      {t('footer.inCcy')}{' '}
+                      {normalizeCurrencyCode(currentBalanceCurrency)} {t('footer.byRate')}
+                    </p>
+                    }
+                    <p className="text-center text-white/[0.22] text-[0.52rem] sm:text-[0.55rem] font-semibold uppercase tracking-[0.35em] pt-2">
+                      {t('footer.engineBrand')}
+                    </p>
+                    {fxSnapshot &&
+                    <p className="text-center text-white/30 text-[0.52rem] sm:text-[0.55rem] leading-snug pt-1 px-2">
+                      {t('fx.footer')}
+                      {fxSnapshot.updatedUtc ?
+                        <>
+                          {' '}
+                          ·{' '}
+                          {new Date(fxSnapshot.updatedUtc).toLocaleString(intlLocaleTag[locale], {
+                            day: 'numeric',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </>
+                      : null}{' '}
+                      <a
+                        href="https://www.exchangerate-api.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[var(--accent-money)]/80 underline underline-offset-2 decoration-[var(--accent-money)]/30 hover:text-[var(--accent-money)]">
+                        exchangerate-api.com
+                      </a>
+                    </p>
+                    }
+                  </div>
                 </>
               </motion.div>
             </AnimatePresence>

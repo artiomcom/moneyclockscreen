@@ -46,7 +46,7 @@ export const en: Record<string, string> = {
   'hero.btnHideChart': 'Hide chart',
   'hero.emptyPrompt':
     'Add a project and amounts in settings — your live rate appears here.',
-  'hero.emptyCta': 'Open settings',
+  'hero.emptyCta': 'Use the green button at the top to open settings.',
   'hero.noFxHint':
     'For a single headline rate, enable FX rates or use projects in one currency.',
 
@@ -80,6 +80,7 @@ export const en: Record<string, string> = {
     'Each currency separately. Active contracts first; without FX, within each group sort is by currency code.',
   'breakdown.endedBadge': 'Ended',
   'breakdown.inAccount': 'On account now',
+  'breakdown.balanceEchoHint': 'Same total as at the top — live accrual in your account currency.',
   'breakdown.noContractsInCcy': 'No contracts in',
   'breakdown.allEndedInCcy': 'All ended',
   'breakdown.noAccrualHint':
@@ -153,6 +154,13 @@ export const en: Record<string, string> = {
   'footer.sigmaPerSec': 'Σ ≈ +',
   'footer.inCcy': 'in',
   'footer.byRate': '(API rate)',
+  'footer.liveRates': 'Live rates',
+  'footer.engineBrand': 'Money awareness engine',
+
+  'dashboard.momentumTitle': 'Momentum analysis',
+  'dashboard.momentumTeaser': 'Momentum is on your side',
+  'dashboard.momentumColDelta': 'If +20% / yr',
+  'dashboard.estimate12m': '12-month estimate',
 
   'awareness.title': 'Money Awareness Engine',
   'awareness.sub': 'My pace (sharing)',
@@ -251,6 +259,10 @@ export const en: Record<string, string> = {
   'settings.cloudRestoreFail': 'This cloud link is invalid or expired.',
   'settings.cloudRestoreOk':
     'Restored from your cloud link. The /u/… URL stays in the address bar as a bookmark to this backup.',
+  'settings.cloudProfileLinkTitle': 'Cloud profile link',
+  'settings.cloudProfileLinkHint':
+    'Last magic link from this browser. If nothing changed, “Save to cloud” reuses the same link (no duplicate upload).',
+  'settings.cloudProfileCopy': 'Copy cloud link',
 
   'backupBanner.title': 'Have a backup',
   'backupBanner.body':

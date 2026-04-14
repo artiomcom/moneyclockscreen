@@ -57,7 +57,8 @@ function buildMoneyDisplayParts(value: number, decimals: number): DisplayPart[] 
 
 const PUNCT_WIDTH: Record<string, string> = {
   ',': '0.65ch',
-  '.': '0.55ch',
+  /** Must stay readable in flex rows (e.g. hero /sec); too narrow reads as "000558" instead of "0.00558". */
+  '.': 'min(1ch, 0.85em)',
   '\u2212': '0.7ch'
 };
 
@@ -262,7 +263,8 @@ export function AnimatedCounter({
 
   if (!atmosphere) {
     return (
-      <div className={`money-coma-counter flex items-center justify-center gap-0 tabular-nums ${className}`}>
+      <div
+        className={`money-coma-counter inline-flex shrink-0 items-center justify-center gap-0 whitespace-nowrap tabular-nums ${className}`}>
         {inner}
       </div>
     );
@@ -283,7 +285,9 @@ export function AnimatedCounter({
         </div>
       : null}
       <div className="money-atmosphere-digits relative z-10 inline-flex min-w-0 items-center justify-center px-1 py-0 sm:px-0">
-        <div className="money-coma-counter flex items-center justify-center gap-0 tabular-nums">{inner}</div>
+        <div className="money-coma-counter inline-flex shrink-0 items-center justify-center gap-0 whitespace-nowrap tabular-nums">
+          {inner}
+        </div>
       </div>
     </div>
   );

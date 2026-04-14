@@ -1954,7 +1954,7 @@ export function MoneyClock() {
                         </span>
                       </div>
                       {heroUsesFteNominalHourly ?
-                        <p className={`${DASHBOARD_HINT_CLASS} text-center max-w-[22rem] px-1`}>
+                        <p className={`${DASHBOARD_HINT_CLASS} text-center max-w-[22rem] px-1 break-normal`}>
                           {t('hero.fteHourNote')}
                         </p>
                       : null}

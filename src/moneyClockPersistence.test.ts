@@ -6,10 +6,14 @@ import {
   defaultMoneyClockState,
   earningsTotalsByCurrency,
   exportMoneyClockJsonString,
+  FTE_WORK_HOURS_PER_MONTH,
   newProject,
   parseLocalDateYmd,
   parseMoneyClockJson,
-  projectEarningsAt
+  projectEarningsAt,
+  projectNominalHourlyFteInProjectCurrency,
+  projectNominalMonthlyInProjectCurrency,
+  projectRatePerSecond
 } from './moneyClockPersistence';
 
 describe('earningsTotalsByCurrency (Всего заработано по валютам)', () => {
@@ -85,6 +89,15 @@ describe('projectEarningsAt, monthly и contract', () => {
     expect(projectEarningsAt(p, afterAvgMonth)).toBeCloseTo(15000, 0);
   });
 
+  it('projectNominalMonthlyInProjectCurrency для monthly совпадает с суммой в настройках', () => {
+    const p = newProject({
+      projectAmount: '15000',
+      projectBilling: 'monthly',
+      currencyCode: 'RUB'
+    });
+    expect(projectNominalMonthlyInProjectCurrency(p)).toBeCloseTo(15000, 5);
+  });
+
   it('monthly: не использует знаменатель 22×8 ч на календарные секунды (регрессия ~4×)', () => {
     const p = newProject({
       workStartDate: '2020-06-01',
@@ -113,6 +126,43 @@ describe('projectEarningsAt, monthly и contract', () => {
     });
     const endMs = parseLocalDateYmd('2025-02-01')!;
     expect(projectEarningsAt(p, endMs)).toBeCloseTo(6200, 0);
+  });
+});
+
+describe('projectNominalHourlyFteInProjectCurrency (FTE 40 h/week)', () => {
+  it('monthly: месячная сумма / среднее число рабочих часов в месяце', () => {
+    const p = newProject({
+      projectAmount: '6000',
+      projectBilling: 'monthly',
+      currencyCode: 'EUR'
+    });
+    expect(projectNominalHourlyFteInProjectCurrency(p)).toBeCloseTo(
+      6000 / FTE_WORK_HOURS_PER_MONTH,
+      8
+    );
+  });
+
+  it('hourly: возвращает ставку за час как есть', () => {
+    const p = newProject({
+      projectAmount: '85',
+      projectBilling: 'hourly',
+      currencyCode: 'USD'
+    });
+    expect(projectNominalHourlyFteInProjectCurrency(p)).toBe(85);
+  });
+
+  it('contract: совпадает с projectRatePerSecond × 3600', () => {
+    const p = newProject({
+      workStartDate: '2025-01-01',
+      projectEndDate: '2025-01-31',
+      projectAmount: '6200',
+      projectBilling: 'contract',
+      currencyCode: 'USD'
+    });
+    expect(projectNominalHourlyFteInProjectCurrency(p)).toBeCloseTo(
+      projectRatePerSecond(p) * 3600,
+      10
+    );
   });
 });
 

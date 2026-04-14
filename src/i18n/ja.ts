@@ -26,6 +26,8 @@ export const ja: Record<string, string> = {
   'hero.realHint': '· 実質',
   'hero.today': '今日',
   'hero.todayNote': '深夜0時から · ローカル時間',
+  'hero.fteHourNote':
+    '時給の名目はフルタイム（週40時間）。秒あたりの積み上げは暦ベースのままです。',
   'hero.moreNominal': '名目（調整前）',
   'hero.insightTitle': '税・インフレ後',
   'hero.insightAria': '実質購買力',
@@ -123,6 +125,16 @@ export const ja: Record<string, string> = {
   'chart.contractStart': '契約開始',
   'chart.contractEnd': '契約終了',
   'chart.markersToggleAria': '契約の開始・終了マーカーの表示を切り替え',
+  'chart.monthlyRatesToggleAria':
+    '名目月額ライン（プロジェクト別、時間軸でFX換算）の表示を切り替え',
+  'chart.monthlyRatesToggleTitle':
+    '破線: 各プロジェクトの名目月額を口座通貨で時系列換算（Frankfurter）。右軸がそのスケール。',
+  'chart.monthlyRatesTipMonth': '{month}',
+  'chart.monthlyRatesTipLine': '{name}: {amount}',
+  'chart.monthlyRatesTipSum': '換算合計: {amount}',
+  'chart.monthlyRateLineLabel': '{name} · 名目月額（FX）',
+  'chart.monthlyRateUnit': '/月',
+  'chart.monthlyAxisShort': '月額（FX）',
   'chart.currencyCycleAria': 'チャートの通貨を切り替え。現在: {code}',
   'chart.currencyCycleTitle': 'チャートは {code}。クリックで切り替え。',
   'chart.currencyCycleDisabledAria': '通貨が1つだけのため切り替え不可',
@@ -270,6 +282,19 @@ export const ja: Record<string, string> = {
   'chart.legend.inf': 'インフレ（CPI、年率%）：',
   'chart.legend.infBlurb':
     '、FP.CPI.TOTL.ZG。線 = 選択通貨の経済圏の平均物価水準指数（100 = チャート開始年1月1日）；通貨≠国, 静的マッピング。',
+
+  'chart.insightsTitle': 'この範囲で目立つ点',
+  'chart.insightHover':
+    'この付近は、下の注記で示した為替・インフレの変動に近い日付です。',
+  'chart.insight.fxPeak':
+    '為替平均指数が {date} 付近で約 {pct}% に達します（100% = チャート開始時のレート）。',
+  'chart.insight.fxTrough': '為替平均指数が {date} 付近で約 {pct}% まで下がります。',
+  'chart.insight.fxJump':
+    'このプロット最大の為替指数ステップ：約 {delta} p.p.、{date} 付近。',
+  'chart.insight.infPeak':
+    '物価指数（インフレ）が {date} 付近で約 {idx} にピークします。',
+  'chart.insight.infJump':
+    'このプロット最大のインフレ指数ステップ：約 {delta}、{date} 付近。',
 
   'chart.series.others': 'その他',
   'chart.series.projects': 'プロジェクト',

@@ -49,6 +49,7 @@ import {
   projectEarningsAt,
   earningsTotalsByCurrency,
   projectRatePerSecond,
+  projectNominalHourlyFteInProjectCurrency,
   projectIsEndedByDeadline,
   parseLocalDateYmd,
   localYmdPlusDays,
@@ -282,6 +283,12 @@ export function MoneyClock() {
     });
   }, [projects, selectedProjectIds, nowTick]);
 
+  /** Только контракты, по которым ещё идёт начисление (для героя и «ставки в час»). */
+  const activeSelectedProjectsOrdered = useMemo(
+    () => selectedProjectsOrdered.filter((p) => !projectIsEndedByDeadline(p, nowTick)),
+    [selectedProjectsOrdered, nowTick]
+  );
+
   const singleSelectedForCopy =
     selectedProjectsOrdered.length === 1 ? selectedProjectsOrdered[0] : null;
 
@@ -360,8 +367,8 @@ export function MoneyClock() {
 
   const totalRatePerSecond = useMemo(
     () =>
-      selectedProjectsOrdered.reduce((acc, p) => acc + projectRatePerSecond(p), 0),
-    [selectedProjectsOrdered]
+      activeSelectedProjectsOrdered.reduce((acc, p) => acc + projectRatePerSecond(p), 0),
+    [activeSelectedProjectsOrdered]
   );
 
   const balanceAccrualRatePerSecond = useMemo(() => {
@@ -673,12 +680,12 @@ export function MoneyClock() {
 
   const ratesByCurrency = useMemo(() => {
     const m = new Map<string, number>();
-    for (const p of selectedProjectsOrdered) {
+    for (const p of activeSelectedProjectsOrdered) {
       const c = normalizeCurrencyCode(p.currencyCode);
       m.set(c, (m.get(c) ?? 0) + projectRatePerSecond(p));
     }
     return m;
-  }, [selectedProjectsOrdered]);
+  }, [activeSelectedProjectsOrdered]);
 
   /** Сумма накоплений по всем выбранным проектам в валюте счёта (курс на дату последней выплаты из истории, иначе API). */
   const equivalentEarningsInBalanceCcy = useMemo(() => {
@@ -721,25 +728,58 @@ export function MoneyClock() {
 
   /** Сумма ставок (валюта/сек) всех проектов в пересчёте на валюту счёта. */
   const equivalentRatePerSecondInBalanceCcy = useMemo(() => {
-    if (!fxSnapshot || selectedProjectsOrdered.length === 0) return null;
+    if (!fxSnapshot || activeSelectedProjectsOrdered.length === 0) return null;
     const target = normalizeCurrencyCode(currentBalanceCurrency);
     let sum = 0;
-    for (const p of selectedProjectsOrdered) {
+    for (const p of activeSelectedProjectsOrdered) {
       const r = projectRatePerSecond(p);
       const c = convertAmountThroughSnapshot(r, p.currencyCode, target, fxSnapshot);
       if (c == null) return null;
       sum += c;
     }
     return sum;
-  }, [fxSnapshot, selectedProjectsOrdered, currentBalanceCurrency]);
+  }, [fxSnapshot, activeSelectedProjectsOrdered, currentBalanceCurrency]);
+
+  /**
+   * Номинальная «зарплата за рабочий час» (40 ч/нед) в валюте счёта: для monthly — месячная / (52×40/12) ч;
+   * для hourly — ставка за час; завершённые контракты не входят.
+   */
+  const equivalentFteHourlyInBalanceCcy = useMemo(() => {
+    if (activeSelectedProjectsOrdered.length === 0) return null;
+    const target = normalizeCurrencyCode(currentBalanceCurrency);
+    if (!fxSnapshot) {
+      const codes = [
+        ...new Set(
+          activeSelectedProjectsOrdered.map((p) => normalizeCurrencyCode(p.currencyCode))
+        )
+      ];
+      if (codes.length === 1 && codes[0] === target) {
+        let sum = 0;
+        for (const p of activeSelectedProjectsOrdered) {
+          sum += projectNominalHourlyFteInProjectCurrency(p);
+        }
+        return sum;
+      }
+      return null;
+    }
+    let sum = 0;
+    for (const p of activeSelectedProjectsOrdered) {
+      const h = projectNominalHourlyFteInProjectCurrency(p);
+      if (h <= 0) continue;
+      const c = convertAmountThroughSnapshot(h, p.currencyCode, target, fxSnapshot);
+      if (c == null) return null;
+      sum += c;
+    }
+    return sum;
+  }, [fxSnapshot, activeSelectedProjectsOrdered, currentBalanceCurrency]);
 
   const hasPositiveAccrualRate = useMemo(
-    () => selectedProjectsOrdered.some((p) => projectRatePerSecond(p) > 0),
-    [selectedProjectsOrdered]
+    () => activeSelectedProjectsOrdered.some((p) => projectRatePerSecond(p) > 0),
+    [activeSelectedProjectsOrdered]
   );
 
   const heroRateBasis = useMemo(() => {
-    if (!hasPositiveAccrualRate || selectedProjectsOrdered.length === 0) return null;
+    if (!hasPositiveAccrualRate || activeSelectedProjectsOrdered.length === 0) return null;
     const balCode = normalizeCurrencyCode(currentBalanceCurrency);
     if (equivalentRatePerSecondInBalanceCcy != null) {
       return {
@@ -756,7 +796,7 @@ export function MoneyClock() {
     return null;
   }, [
     hasPositiveAccrualRate,
-    selectedProjectsOrdered.length,
+    activeSelectedProjectsOrdered.length,
     equivalentRatePerSecondInBalanceCcy,
     currentBalanceCurrency,
     ratesByCurrency
@@ -764,12 +804,31 @@ export function MoneyClock() {
 
   const realRateBreakdown = useMemo(() => {
     if (!heroRateBasis) return null;
+    const fteHour = equivalentFteHourlyInBalanceCcy;
+    if (fteHour != null && fteHour > 0) {
+      return computeRealEarningsRateBreakdown(
+        fteHour / 3600,
+        takeHomeFraction,
+        inflationYearly
+      );
+    }
     return computeRealEarningsRateBreakdown(
       heroRateBasis.perSec,
       takeHomeFraction,
       inflationYearly
     );
-  }, [heroRateBasis, takeHomeFraction, inflationYearly]);
+  }, [
+    heroRateBasis,
+    equivalentFteHourlyInBalanceCcy,
+    takeHomeFraction,
+    inflationYearly
+  ]);
+
+  const heroUsesFteNominalHourly = useMemo(
+    () =>
+      equivalentFteHourlyInBalanceCcy != null && equivalentFteHourlyInBalanceCcy > 0,
+    [equivalentFteHourlyInBalanceCcy]
+  );
 
   const futureYearly = useMemo(() => {
     if (!heroRateBasis) return null;
@@ -811,7 +870,7 @@ export function MoneyClock() {
 
   /** Демо-шкала + тексты для шэринга (ставка в валюте счёта или единственной валюте проектов). */
   const moneyAwarenessSnap = useMemo(() => {
-    if (!hasPositiveAccrualRate || selectedProjectsOrdered.length === 0) return null;
+    if (!hasPositiveAccrualRate || activeSelectedProjectsOrdered.length === 0) return null;
     const bal = normalizeCurrencyCode(currentBalanceCurrency);
     let rate: number | null = equivalentRatePerSecondInBalanceCcy;
     let rateCurrency = bal;
@@ -837,7 +896,7 @@ export function MoneyClock() {
     return { rate, demoPct, lines, rateCurrency };
   }, [
     hasPositiveAccrualRate,
-    selectedProjectsOrdered.length,
+    activeSelectedProjectsOrdered.length,
     equivalentRatePerSecondInBalanceCcy,
     ratesByCurrency,
     currentBalanceCurrency,
@@ -957,11 +1016,8 @@ export function MoneyClock() {
 
   const anySelectedProjectLive = useMemo(
     () =>
-      selectedProjectsOrdered.some(
-        (p) =>
-          p.workStartDate.trim() && !projectIsEndedByDeadline(p, nowTick)
-      ),
-    [selectedProjectsOrdered, nowTick]
+      activeSelectedProjectsOrdered.some((p) => p.workStartDate.trim()),
+    [activeSelectedProjectsOrdered]
   );
 
   const persistSnapshot: MoneyClockSavedState = useMemo(
@@ -1897,6 +1953,11 @@ export function MoneyClock() {
                           · {heroRateBasis.code}
                         </span>
                       </div>
+                      {heroUsesFteNominalHourly ?
+                        <p className={`${DASHBOARD_HINT_CLASS} text-center max-w-[22rem] px-1`}>
+                          {t('hero.fteHourNote')}
+                        </p>
+                      : null}
                       <div className="mx-auto w-20 h-px bg-gradient-to-r from-transparent via-neon-green/22 to-transparent dark:block hidden" />
                       <div
                         className="hero-rate-glow flex min-w-0 flex-nowrap items-baseline justify-center gap-x-2 font-mono dark:font-arcade font-black tabular-nums leading-none text-[var(--accent-money)]"

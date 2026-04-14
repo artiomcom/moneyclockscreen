@@ -26,6 +26,8 @@ export const de: Record<string, string> = {
   'hero.realHint': '· real',
   'hero.today': 'Heute',
   'hero.todayNote': 'seit Mitternacht · Ortszeit',
+  'hero.fteHourNote':
+    'Nominal /h: Vollzeit (40 h/Woche). Sekundenabrechnung bleibt kalenderbasiert.',
   'hero.moreNominal': 'Nominal (vor Anpassung)',
   'hero.insightTitle': 'Nach Steuern & Inflation',
   'hero.insightAria': 'Reale Kaufkraft',
@@ -125,6 +127,16 @@ export const de: Record<string, string> = {
   'chart.contractStart': 'Vertragsbeginn',
   'chart.contractEnd': 'Vertragsende',
   'chart.markersToggleAria': 'Vertrags-Start- und Endmarkierungen ein- oder ausblenden',
+  'chart.monthlyRatesToggleAria':
+    'Nominale Monatslinien pro Projekt (in Kontowährung über Zeit, FX) ein-/ausblenden',
+  'chart.monthlyRatesToggleTitle':
+    'Gestrichelt: nominale Monatssumme je Projekt in Kontowährung über die Zeit (Frankfurter). Rechte Achse = diese Skala.',
+  'chart.monthlyRatesTipMonth': '{month}',
+  'chart.monthlyRatesTipLine': '{name}: {amount}',
+  'chart.monthlyRatesTipSum': 'Umgerechnete Summe: {amount}',
+  'chart.monthlyRateLineLabel': '{name} · nominell monatlich (FX)',
+  'chart.monthlyRateUnit': '/Mo.',
+  'chart.monthlyAxisShort': 'Monatlich (FX)',
   'chart.currencyCycleAria': 'Diagrammwährung wechseln. Aktuell: {code}',
   'chart.currencyCycleTitle': 'Diagramm in {code}. Klicken zum Wechseln.',
   'chart.currencyCycleDisabledAria': 'Nur eine Währung — kein Wechsel möglich',
@@ -275,6 +287,19 @@ export const de: Record<string, string> = {
   'chart.legend.inf': 'Inflation (VPI, jährlich %):',
   'chart.legend.infBlurb':
     ', FP.CPI.TOTL.ZG. Linie = mittlerer Preisniveau-Index für Volkswirtschaften der gewählten Währungen (100 = 1. Jan. des Startjahrs); Währung ≠ Land, statisches Mapping.',
+
+  'chart.insightsTitle': 'Auffällig in diesem Ausschnitt',
+  'chart.insightHover':
+    'Sie sind nahe einem hervorgehobenen FX- oder Inflationsereignis (siehe unten).',
+  'chart.insight.fxPeak':
+    'FX-Mittelindex erreicht etwa {pct}% um {date} (100% = Kurs am Diagrammstart).',
+  'chart.insight.fxTrough': 'FX-Mittelindex fällt auf etwa {pct}% um {date}.',
+  'chart.insight.fxJump':
+    'Größter FX-Index-Schritt in diesem Plot: etwa {delta} Prozentpunkte um {date}.',
+  'chart.insight.infPeak':
+    'Inflations-Preisindex erreicht etwa {idx} um {date}.',
+  'chart.insight.infJump':
+    'Größter Inflationsindex-Schritt in diesem Plot: etwa {delta} um {date}.',
 
   'chart.series.others': 'andere',
   'chart.series.projects': 'Projekte',

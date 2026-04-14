@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode
 } from 'react';
-import { CalendarRange, Coins } from 'lucide-react';
+import { CalendarClock, CalendarRange, Coins } from 'lucide-react';
 import { useI18n } from '../i18n';
 import {
   type ProjectEntry,
@@ -14,7 +14,8 @@ import {
   parseLocalDateYmd,
   normalizeCurrencyCode,
   getCurrencySymbol,
-  balanceOnAccountAt
+  balanceOnAccountAt,
+  projectNominalMonthlyInProjectCurrency
 } from '../moneyClockPersistence';
 import {
   convertAmountThroughSnapshot,
@@ -34,6 +35,7 @@ import {
 } from '../worldBankInflation';
 import { intlLocaleTag } from '../i18n/localeMeta';
 import { DASHBOARD_HINT_CLASS } from '../dashboardHintClass';
+import { buildChartSeriesInsights } from '../chartSeriesInsights';
 
 export const INCOME_CHART_STEPS = 64;
 const STEPS = INCOME_CHART_STEPS;
@@ -52,7 +54,7 @@ type Series = {
   code: string;
   label: string;
   points: [number, number][];
-  kind: 'projects' | 'balance' | 'fx' | 'fxHist' | 'infHist';
+  kind: 'projects' | 'balance' | 'fx' | 'fxHist' | 'infHist' | 'monthlyRate';
   /** Фоновые серии в режиме «одна компания» */
   muted?: boolean;
 };
@@ -117,11 +119,24 @@ export function getIncomeChartTimeRange(
   return { tMin, tMax };
 }
 
+const MONTHLY_RATE_LINE_PALETTE = [
+  '#ddd6fe',
+  '#c4b5fd',
+  '#a78bfa',
+  '#8b5cf6',
+  '#7c3aed',
+  '#6d28d9'
+];
+
 function strokeColorForSeries(all: Series[], s: Series, idx: number): string {
   if (s.kind === 'balance') return s.muted ? 'rgba(253, 230, 138, 0.42)' : BALANCE_LINE;
   if (s.kind === 'fx') return FX_MERGE_LINE;
   if (s.kind === 'fxHist') return FX_HIST_LINE;
   if (s.kind === 'infHist') return INF_HIST_LINE;
+  if (s.kind === 'monthlyRate') {
+    const mi = all.filter((x) => x.kind === 'monthlyRate').findIndex((x) => x.id === s.id);
+    return MONTHLY_RATE_LINE_PALETTE[Math.max(0, mi) % MONTHLY_RATE_LINE_PALETTE.length];
+  }
   if (s.muted) return MUTED_PROJECT_LINE;
   if (s.id.startsWith('proj-focus-')) return FOCUS_PROJECT_LINE;
   const n = all.slice(0, idx).filter((x) => x.kind === 'projects' && !x.muted).length;
@@ -439,6 +454,7 @@ function ContractMarkerLayer({
   tMin,
   tMax,
   plotBottomY,
+  padR = PAD_R,
   startAbbr,
   endAbbr,
   startTitle,
@@ -448,6 +464,7 @@ function ContractMarkerLayer({
   tMin: number;
   tMax: number;
   plotBottomY: number;
+  padR?: number;
   startAbbr: string;
   endAbbr: string;
   startTitle: string;
@@ -457,7 +474,7 @@ function ContractMarkerLayer({
   return (
     <g aria-hidden>
       {markers.map((m, idx) => {
-        const xb = xScale(m.t, tMin, tMax);
+        const xb = xScale(m.t, tMin, tMax, padR);
         const x = xb + ((idx % 5) - 2) * 1.6;
         const stroke =
           m.kind === 'start' ? 'rgba(52, 211, 153, 0.72)' : 'rgba(251, 191, 36, 0.78)';
@@ -675,8 +692,8 @@ function formatCompactAnnualChart(n: number): string {
   return `${Math.round(n)}`;
 }
 
-function xScale(t: number, tMin: number, tMax: number): number {
-  const w = VB_W - PAD_L - PAD_R;
+function xScale(t: number, tMin: number, tMax: number, padR: number = PAD_R): number {
+  const w = VB_W - PAD_L - padR;
   if (tMax <= tMin) return PAD_L;
   return PAD_L + ((t - tMin) / (tMax - tMin)) * w;
 }
@@ -740,6 +757,100 @@ function formatMoneyAmount(n: number, localeTag: string): string {
   });
 }
 
+function projectAccruesAtMs(p: ProjectEntry, whenMs: number): boolean {
+  const ws = parseLocalDateYmd(p.workStartDate);
+  if (ws == null || whenMs < ws) return false;
+  const endTrim = p.projectEndDate?.trim();
+  if (endTrim) {
+    const pe = parseLocalDateYmd(endTrim);
+    if (pe != null && whenMs >= pe + DAY_MS) return false;
+  }
+  return true;
+}
+
+/** Общая шкала для линий месячной ставки (только положительные значения, чтобы нули не сжимали шкалу). */
+function monthlyRateYBounds(list: Series[]): { minV: number; maxV: number } {
+  const vals = list
+    .flatMap((s) => s.points.map(([, y]) => y))
+    .filter((y) => Number.isFinite(y) && y > 0);
+  if (vals.length === 0) return { minV: 0, maxV: 1 };
+  let minV = Math.min(...vals);
+  let maxV = Math.max(...vals);
+  if (maxV <= minV) return { minV: minV - 1, maxV: maxV + 1 };
+  const pad = (maxV - minV) * 0.08;
+  return { minV: Math.max(0, minV - pad), maxV: maxV + pad };
+}
+
+function buildMonthlyRateSeriesList(
+  projects: ProjectEntry[],
+  focusProjectId: string | null,
+  tMin: number,
+  tMax: number,
+  balanceCurrency: string,
+  fxSnapshot: FxSnapshot,
+  fxHistoryRows: FrankfurterRow[] | null,
+  labels: ChartSeriesLabels,
+  t: (key: string, vars?: Record<string, string | number>) => string
+): Series[] {
+  const plist =
+    focusProjectId ?
+      projects.filter((p) => p.id === focusProjectId)
+    : projects;
+  if (plist.length === 0 || tMax <= tMin) return [];
+  const target = normalizeCurrencyCode(balanceCurrency);
+  const foreignCcys = [
+    ...new Set(
+      plist.map((p) => normalizeCurrencyCode(p.currencyCode)).filter((c) => c !== target)
+    )
+  ];
+  const out: Series[] = [];
+
+  for (const p of plist) {
+    const nom = projectNominalMonthlyInProjectCurrency(p);
+    if (nom <= 0) continue;
+
+    const points: [number, number][] = [];
+    for (let i = 0; i <= STEPS; i++) {
+      const tt = tMin + (i / STEPS) * (tMax - tMin);
+      if (!projectAccruesAtMs(p, tt)) {
+        points.push([tt, 0]);
+        continue;
+      }
+      const ymd = formatLocalYmdFromMs(tt);
+      const histS =
+        foreignCcys.length > 0 && fxHistoryRows?.length ?
+          historicalFxSnapshotForYmd(fxHistoryRows, target, ymd, foreignCcys)
+        : null;
+      const snap: FxSnapshot = histS ?? fxSnapshot;
+      let c = convertAmountThroughSnapshot(nom, p.currencyCode, target, snap);
+      if (c == null && histS != null) {
+        c = convertAmountThroughSnapshot(nom, p.currencyCode, target, fxSnapshot);
+      }
+      points.push([tt, c ?? 0]);
+    }
+
+    const nm = chartLabelFromProjectName(p.name, labels.defaultProject);
+    out.push({
+      id: `mon-${p.id}`,
+      code: target,
+      label: t('chart.monthlyRateLineLabel', { name: nm }),
+      points,
+      kind: 'monthlyRate',
+      muted: false
+    });
+  }
+
+  out.sort((a, b) => a.label.localeCompare(b.label));
+  return out;
+}
+
+type SvgHoverExtraSlice = {
+  id: string;
+  points: [number, number][];
+  minV: number;
+  maxV: number;
+};
+
 /** Реальные границы значений серии (для подписей оси Y). */
 function seriesRawBounds(points: [number, number][]): { minV: number; maxV: number } {
   const vals = points.map(([, y]) => y).filter((y) => Number.isFinite(y));
@@ -787,9 +898,11 @@ function pickHoverFromSvg(
   sy: number,
   chartSeries: Series[],
   tMin: number,
-  tMax: number
+  tMax: number,
+  opts?: { padR?: number; extraSlices?: SvgHoverExtraSlice[] }
 ): { t: number; seriesId: string | null } {
-  const plotW = VB_W - PAD_L - PAD_R;
+  const padR = opts?.padR ?? PAD_R;
+  const plotW = VB_W - PAD_L - padR;
   const t =
     tMax > tMin ?
       tMin + ((sx - PAD_L) / plotW) * (tMax - tMin)
@@ -799,21 +912,33 @@ function pickHoverFromSvg(
   let bestD = HOVER_HIT_PX + 1;
   let bestId: string | null = null;
 
-  for (const s of chartSeries) {
-    const { minV, maxV } = seriesValueBounds(s.points);
-    for (let i = 0; i < s.points.length - 1; i++) {
-      const [ta, va] = s.points[i];
-      const [tb, vb] = s.points[i + 1];
-      const x1 = xScale(ta, tMin, tMax);
+  const consider = (
+    id: string,
+    points: [number, number][],
+    minV: number,
+    maxV: number
+  ) => {
+    for (let i = 0; i < points.length - 1; i++) {
+      const [ta, va] = points[i]!;
+      const [tb, vb] = points[i + 1]!;
+      const x1 = xScale(ta, tMin, tMax, padR);
       const y1 = yScaleSeries(va, minV, maxV);
-      const x2 = xScale(tb, tMin, tMax);
+      const x2 = xScale(tb, tMin, tMax, padR);
       const y2 = yScaleSeries(vb, minV, maxV);
       const d = distPointToSegment(sx, sy, x1, y1, x2, y2);
       if (d < bestD) {
         bestD = d;
-        bestId = s.id;
+        bestId = id;
       }
     }
+  };
+
+  for (const s of chartSeries) {
+    const { minV, maxV } = seriesValueBounds(s.points);
+    consider(s.id, s.points, minV, maxV);
+  }
+  for (const ex of opts?.extraSlices ?? []) {
+    consider(ex.id, ex.points, ex.minV, ex.maxV);
   }
 
   if (bestId === null || bestD > HOVER_HIT_PX) {
@@ -862,6 +987,7 @@ export function IncomeChart({
   const [advancedDetails, setAdvancedDetails] = useState(false);
   const [chartFocusProjectId, setChartFocusProjectId] = useState<string | null>(null);
   const [showContractMarkers, setShowContractMarkers] = useState(true);
+  const [showMonthlyRates, setShowMonthlyRates] = useState(true);
   /** Валюта оси графика (накопление / детали); по умолчанию = счёт. */
   const [chartDisplayCcyOverride, setChartDisplayCcyOverride] = useState<string | null>(
     null
@@ -1052,6 +1178,62 @@ export function IncomeChart({
     chartFocusResolved
   ]);
 
+  const chartInsights = useMemo(
+    () =>
+      buildChartSeriesInsights(
+        series.map((s) => ({ id: s.id, kind: s.kind, points: s.points })),
+        (ms) => formatChartAxisDate(ms, localeTag),
+        { maxItems: 3 }
+      ),
+    [series, localeTag]
+  );
+
+  const insightNearMs = useMemo(
+    () => (tMax > tMin ? Math.max(DAY_MS * 12, (tMax - tMin) * 0.04) : DAY_MS * 14),
+    [tMin, tMax]
+  );
+
+  const monthlyRateSeries = useMemo(() => {
+    if (
+      !showMonthlyRates ||
+      !embedded ||
+      !advancedDetails ||
+      !fxSnapshot ||
+      tMax <= tMin
+    ) {
+      return [] as Series[];
+    }
+    return buildMonthlyRateSeriesList(
+      projects,
+      chartFocusResolved,
+      tMin,
+      tMax,
+      balanceCurrency,
+      fxSnapshot,
+      fxHistoryRows,
+      chartLabels,
+      t
+    );
+  }, [
+    showMonthlyRates,
+    embedded,
+    advancedDetails,
+    fxSnapshot,
+    tMax,
+    tMin,
+    projects,
+    chartFocusResolved,
+    balanceCurrency,
+    fxHistoryRows,
+    chartLabels,
+    t
+  ]);
+
+  const monthlyYBounds = useMemo(() => {
+    if (monthlyRateSeries.length === 0) return null;
+    return monthlyRateYBounds(monthlyRateSeries);
+  }, [monthlyRateSeries]);
+
   const contractMarkersMain = useMemo(() => {
     if (
       !showContractMarkers ||
@@ -1092,7 +1274,11 @@ export function IncomeChart({
     );
   }, [showContractMarkers, viewWindow, projects, chartFocusResolved, t]);
 
-  const plotW = VB_W - PAD_L - PAD_R;
+  const chartPadR =
+    embedded && advancedDetails && showMonthlyRates && monthlyRateSeries.length > 0 ?
+      54
+    : PAD_R;
+  const plotW = VB_W - PAD_L - chartPadR;
   const plotH = VB_H - PAD_T - PAD_B;
   const y0 = PAD_T + plotH;
 
@@ -1108,6 +1294,29 @@ export function IncomeChart({
     tipX: number;
     tipY: number;
   } | null>(null);
+
+  const hoverNearInsight = useMemo(() => {
+    if (!hover || chartInsights.length === 0) return null;
+    return (
+      chartInsights.find((ins) => Math.abs(ins.anchorMs - hover.t) <= insightNearMs) ??
+      null
+    );
+  }, [hover, chartInsights, insightNearMs]);
+
+  const svgHoverMonthlySlices = useMemo((): SvgHoverExtraSlice[] => {
+    if (!showMonthlyRates || !monthlyYBounds || monthlyRateSeries.length === 0) return [];
+    return monthlyRateSeries.map((s) => ({
+      id: s.id,
+      points: s.points,
+      minV: monthlyYBounds.minV,
+      maxV: monthlyYBounds.maxV
+    }));
+  }, [showMonthlyRates, monthlyYBounds, monthlyRateSeries]);
+
+  const combinedSeriesForUi = useMemo(
+    () => (showMonthlyRates ? [...series, ...monthlyRateSeries] : series),
+    [showMonthlyRates, series, monthlyRateSeries]
+  );
 
   const svgRef = useRef<SVGSVGElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -1125,7 +1334,10 @@ export function IncomeChart({
       const ctm = svg.getScreenCTM();
       if (!ctm) return;
       const p = pt.matrixTransform(ctm.inverse());
-      const { t, seriesId } = pickHoverFromSvg(p.x, p.y, series, tMin, tMax);
+      const { t, seriesId } = pickHoverFromSvg(p.x, p.y, series, tMin, tMax, {
+        padR: chartPadR,
+        extraSlices: svgHoverMonthlySlices
+      });
       if (seriesId == null) {
         setHover(null);
         return;
@@ -1138,7 +1350,7 @@ export function IncomeChart({
         tipY: clientY - wr.top
       });
     },
-    [series, tMin, tMax]
+    [series, tMin, tMax, chartPadR, svgHoverMonthlySlices]
   );
 
   const handleLeave = useCallback(() => setHover(null), []);
@@ -1632,7 +1844,7 @@ export function IncomeChart({
   const showMidDate = rangeMs > 45 * DAY_MS;
   const gridFracs = [0, 0.5, 1] as const;
   const midMs = tMin + rangeMs / 2;
-  const midX = (PAD_L + (VB_W - PAD_R)) / 2;
+  const midX = (PAD_L + (VB_W - chartPadR)) / 2;
 
   const focusSeries =
     hover ?
@@ -1745,6 +1957,19 @@ export function IncomeChart({
                     }`}>
                     <CalendarRange size={14} strokeWidth={2.2} aria-hidden />
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowMonthlyRates((v) => !v)}
+                    aria-pressed={showMonthlyRates}
+                    aria-label={t('chart.monthlyRatesToggleAria')}
+                    title={t('chart.monthlyRatesToggleTitle')}
+                    className={`rounded-md p-1.5 transition-all border ${
+                      showMonthlyRates ?
+                        'border-violet-400/40 bg-violet-500/14 text-violet-100 shadow-[0_0_12px_rgba(167,139,250,0.16)]'
+                      : 'border-transparent text-white/42 hover:bg-white/[0.07] hover:text-white/78'
+                    }`}>
+                    <CalendarClock size={14} strokeWidth={2.2} aria-hidden />
+                  </button>
                 </span>
               </>
             }
@@ -1796,7 +2021,7 @@ export function IncomeChart({
         <line
           x1={PAD_L}
           y1={y0}
-          x2={VB_W - PAD_R}
+          x2={VB_W - chartPadR}
           y2={y0}
           stroke="rgba(255,255,255,0.25)"
           strokeWidth="1"
@@ -1816,7 +2041,7 @@ export function IncomeChart({
               key={frac}
               x1={PAD_L}
               y1={y}
-              x2={VB_W - PAD_R}
+              x2={VB_W - chartPadR}
               y2={y}
               stroke="rgba(255,255,255,0.08)"
               strokeWidth="1"
@@ -1829,6 +2054,7 @@ export function IncomeChart({
           tMin={tMin}
           tMax={tMax}
           plotBottomY={y0}
+          padR={chartPadR}
           startAbbr={t('chart.markerStartAbbr')}
           endAbbr={t('chart.markerEndAbbr')}
           startTitle={t('chart.contractStart')}
@@ -1850,22 +2076,22 @@ export function IncomeChart({
             : baseLayerOp;
           const lineD = s.points
             .map(([t, v], i) => {
-              const x = xScale(t, tMin, tMax);
+              const x = xScale(t, tMin, tMax, chartPadR);
               const y = yScaleSeries(v, minV, maxV);
               return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
             })
             .join(' ');
 
           const areaD =
-            `M ${xScale(s.points[0][0], tMin, tMax).toFixed(1)} ${y0.toFixed(1)} ` +
+            `M ${xScale(s.points[0][0], tMin, tMax, chartPadR).toFixed(1)} ${y0.toFixed(1)} ` +
             s.points
               .map(([t, v]) => {
-                const x = xScale(t, tMin, tMax);
+                const x = xScale(t, tMin, tMax, chartPadR);
                 const y = yScaleSeries(v, minV, maxV);
                 return `L ${x.toFixed(1)} ${y.toFixed(1)}`;
               })
               .join(' ') +
-            ` L ${xScale(s.points[s.points.length - 1][0], tMin, tMax).toFixed(1)} ${y0.toFixed(1)} Z`;
+            ` L ${xScale(s.points[s.points.length - 1][0], tMin, tMax, chartPadR).toFixed(1)} ${y0.toFixed(1)} Z`;
 
           return (
             <g
@@ -1904,6 +2130,43 @@ export function IncomeChart({
                 }}
               />
             </g>
+          );
+        })}
+
+        {showMonthlyRates &&
+        monthlyYBounds &&
+        monthlyRateSeries.map((s) => {
+          const full = combinedSeriesForUi;
+          const idx = full.indexOf(s);
+          const color = strokeColorForSeries(full, s, idx);
+          const { minV, maxV } = monthlyYBounds;
+          const isHi = Boolean(hover && hover.seriesId === s.id);
+          const dim = Boolean(hover && hover.seriesId !== s.id);
+          const layerOpacity = isHi ? 1 : dim ? 0.28 : 0.9;
+          const lineD = s.points
+            .map(([t, v], i) => {
+              const x = xScale(t, tMin, tMax, chartPadR);
+              const y = yScaleSeries(v, minV, maxV);
+              return `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
+            })
+            .join(' ');
+          return (
+            <path
+              key={s.id}
+              d={lineD}
+              fill="none"
+              stroke={color}
+              strokeWidth={isHi ? 3.6 : 2.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray="6 4"
+              pointerEvents="none"
+              style={{
+                opacity: layerOpacity,
+                transition: 'opacity 0.18s ease',
+                filter: isHi ? 'drop-shadow(0 0 8px rgba(167, 139, 250, 0.45))' : undefined
+              }}
+            />
           );
         })}
 
@@ -1946,6 +2209,41 @@ export function IncomeChart({
           {hover ? t('chart.yHover') : t('chart.yFirst')}
         </text>
 
+        {showMonthlyRates && monthlyYBounds && monthlyRateSeries.length > 0 ?
+          <>
+            <text
+              x={VB_W - 4}
+              y={PAD_T + 11}
+              fill="rgba(216, 180, 254, 0.9)"
+              fontSize="9"
+              fontWeight="700"
+              textAnchor="end"
+              fontFamily="inherit"
+              style={{ fontVariantNumeric: 'tabular-nums' }}>
+              {formatCompact(monthlyYBounds.maxV)} {getCurrencySymbol(balanceCurrency)}
+            </text>
+            <text
+              x={VB_W - 4}
+              y={y0 - 1}
+              fill="rgba(216, 180, 254, 0.68)"
+              fontSize="8"
+              textAnchor="end"
+              fontFamily="inherit"
+              style={{ fontVariantNumeric: 'tabular-nums' }}>
+              {formatCompact(monthlyYBounds.minV)} {getCurrencySymbol(balanceCurrency)}
+            </text>
+            <text
+              x={VB_W - 4}
+              y={PAD_T + 22}
+              fill="rgba(216, 180, 254, 0.48)"
+              fontSize="7.5"
+              textAnchor="end"
+              fontFamily="inherit">
+              {t('chart.monthlyAxisShort')}
+            </text>
+          </>
+        : null}
+
         <rect
           x={PAD_L}
           y={PAD_T}
@@ -1969,9 +2267,9 @@ export function IncomeChart({
         {hover &&
         <>
           <line
-            x1={xScale(hover.t, tMin, tMax)}
+            x1={xScale(hover.t, tMin, tMax, chartPadR)}
             y1={PAD_T}
-            x2={xScale(hover.t, tMin, tMax)}
+            x2={xScale(hover.t, tMin, tMax, chartPadR)}
             y2={y0}
             stroke="rgba(255,255,255,0.72)"
             strokeWidth="1.35"
@@ -1979,11 +2277,15 @@ export function IncomeChart({
             pointerEvents="none"
             style={{ filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.35))' }}
           />
-          {series.map((s, idx) => {
-            const color = strokeColorForSeries(series, s, idx);
-            const { minV, maxV } = seriesValueBounds(s.points);
+          {combinedSeriesForUi.map((s) => {
+            const idx = combinedSeriesForUi.indexOf(s);
+            const color = strokeColorForSeries(combinedSeriesForUi, s, idx);
+            const { minV, maxV } =
+              s.kind === 'monthlyRate' && monthlyYBounds ?
+                monthlyYBounds
+              : seriesValueBounds(s.points);
             const v = interpolateValueAtT(s.points, hover.t);
-            const cx = xScale(hover.t, tMin, tMax);
+            const cx = xScale(hover.t, tMin, tMax, chartPadR);
             const cy = yScaleSeries(v, minV, maxV);
             return (
               <circle
@@ -1999,6 +2301,7 @@ export function IncomeChart({
                   opacity:
                     hover.seriesId === s.id ? 1
                     : s.muted ? 0.35
+                    : s.kind === 'monthlyRate' ? 0.75
                     : 0.8
                 }}
               />
@@ -2036,7 +2339,7 @@ export function IncomeChart({
         </text>
         }
         <text
-          x={VB_W - PAD_R}
+          x={VB_W - chartPadR}
           y={VB_H - 36}
           fill="rgba(255,255,255,0.42)"
           fontSize="10"
@@ -2045,7 +2348,7 @@ export function IncomeChart({
           {t('chart.now')}
         </text>
         <text
-          x={VB_W - PAD_R}
+          x={VB_W - chartPadR}
           y={VB_H - 20}
           fill="rgba(255,255,255,0.78)"
           fontSize="12"
@@ -2055,7 +2358,7 @@ export function IncomeChart({
           {formatChartAxisNowDate(nowMs, localeTag)}
         </text>
         <text
-          x={VB_W - PAD_R}
+          x={VB_W - chartPadR}
           y={VB_H - 4}
           fill="rgba(255,255,255,0.62)"
           fontSize="11"
@@ -2078,9 +2381,9 @@ export function IncomeChart({
           {formatChartAxisDate(hover.t, localeTag)}
         </p>
         <ul className="space-y-1 font-medium">
-          {series.map((s) => {
-            const seriesIdx = series.indexOf(s);
-            const color = strokeColorForSeries(series, s, seriesIdx);
+          {combinedSeriesForUi.map((s) => {
+            const seriesIdx = combinedSeriesForUi.indexOf(s);
+            const color = strokeColorForSeries(combinedSeriesForUi, s, seriesIdx);
             const val = interpolateValueAtT(s.points, hover.t);
             const active = s.id === hover.seriesId;
             return (
@@ -2108,6 +2411,10 @@ export function IncomeChart({
                         {
                           background: 'repeating-linear-gradient(90deg, #fb923c 0 3px, transparent 3px 5px)'
                         }
+                      : s.kind === 'monthlyRate' ?
+                        {
+                          background: `repeating-linear-gradient(90deg, ${color} 0 4px, transparent 4px 8px)`
+                        }
                       : {})
                     }}
                   />
@@ -2120,6 +2427,12 @@ export function IncomeChart({
                     `${val.toFixed(1)}%`
                   : s.kind === 'infHist' ?
                     `${val.toFixed(1)} ${t('chart.indexSuffix')}`
+                  : s.kind === 'monthlyRate' ?
+                    <>
+                      {getCurrencySymbol(s.code)}
+                      {formatMoneyAmount(val, localeTag)}
+                      <span className="text-white/45 font-medium"> {t('chart.monthlyRateUnit')}</span>
+                    </>
                   : <>
                       {getCurrencySymbol(s.code)}
                       {formatMoneyAmount(val, localeTag)}
@@ -2130,14 +2443,19 @@ export function IncomeChart({
             );
           })}
         </ul>
+        {hoverNearInsight ?
+          <p className="mt-1.5 border-t border-white/15 pt-1.5 text-[0.62rem] font-medium leading-snug text-amber-100/90 sm:text-[0.68rem]">
+            {t('chart.insightHover')}
+          </p>
+        : null}
       </div>
       : null}
 
       </div>
 
       <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 px-1 pt-2 pb-0.5">
-        {series.map((s, idx) => {
-          const color = strokeColorForSeries(series, s, idx);
+        {combinedSeriesForUi.map((s, idx) => {
+          const color = strokeColorForSeries(combinedSeriesForUi, s, idx);
           const peak = Math.max(
             0,
             ...s.points.map(([, v]) => (Number.isFinite(v) ? v : 0))
@@ -2145,6 +2463,8 @@ export function IncomeChart({
           const peakLabel =
             s.kind === 'fxHist' ? `${peak.toFixed(0)}%`
             : s.kind === 'infHist' ? `${peak.toFixed(0)} ${t('chart.indexSuffix')}`
+            : s.kind === 'monthlyRate' ?
+              `${formatCompact(peak)} ${t('chart.monthlyRateUnit')}`
             : formatCompact(peak);
           return (
             <span
@@ -2166,12 +2486,18 @@ export function IncomeChart({
                     {
                       background: 'repeating-linear-gradient(90deg, #fb923c 0 3px, transparent 3px 5px)'
                     }
+                  : s.kind === 'monthlyRate' ?
+                    {
+                      background: `repeating-linear-gradient(90deg, ${color} 0 4px, transparent 4px 8px)`
+                    }
                   : {})
                 }}
               />
               {s.label}
               {s.kind === 'fxHist' || s.kind === 'infHist' ?
                 ` · ${peakLabel}`
+              : s.kind === 'monthlyRate' ?
+                ` · ${getCurrencySymbol(s.code)} ${peakLabel}`
               : ` (${getCurrencySymbol(s.code)}) · ${peakLabel}`}
             </span>
           );
@@ -2205,6 +2531,18 @@ export function IncomeChart({
           {t('chart.legend.infBlurb')}
         </p>
         }
+        {chartInsights.length > 0 ?
+          <div className="mt-2 border-t border-white/10 pt-2 text-left">
+            <p className="mb-1 text-center text-[0.65rem] font-bold uppercase tracking-wide text-white/55 sm:text-left">
+              {t('chart.insightsTitle')}
+            </p>
+            <ul className="list-disc space-y-0.5 pl-4 text-[0.68rem] leading-snug text-white/70 sm:text-xs">
+              {chartInsights.map((ins) => (
+                <li key={ins.id}>{t(ins.key, ins.vars)}</li>
+              ))}
+            </ul>
+          </div>
+        : null}
       </div>
       }
     </div>

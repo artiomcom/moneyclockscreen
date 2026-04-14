@@ -496,6 +496,12 @@ function projectLegacyDurationSeconds(p: ProjectEntry): number {
 export const AVERAGE_CALENDAR_MONTH_SECONDS = (365.25 / 12) * 24 * 3600;
 
 /**
+ * Среднее число рабочих часов в месяце при полной ставке 40 ч/нед и 52 нед/год.
+ * Для подписи «сколько в час» по месячной зарплате (без календарного распределения).
+ */
+export const FTE_WORK_HOURS_PER_MONTH = (52 * 40) / 12;
+
+/**
  * Ставка валюты в секунду по проекту.
  * - contract: сумма контракта / календарный срок (даты начала–конца, минус отпуск) или старая ручная длительность;
  * - monthly: месячный платёж, равномерно на средний календарный месяц (согласовано с календарным `workStartDate`…`now`);
@@ -512,6 +518,30 @@ export function projectRatePerSecond(p: ProjectEntry): number {
   if (fromDates > 0) return amount / fromDates;
   const legacy = projectLegacyDurationSeconds(p);
   return legacy > 0 ? amount / legacy : 0;
+}
+
+/**
+ * Номинальная сумма за средний календарный месяц в валюте проекта (как при начислении `projectEarningsAt`).
+ * Удобно для подписей «месячная ставка» с последующей конвертацией по курсу на дату.
+ */
+export function projectNominalMonthlyInProjectCurrency(p: ProjectEntry): number {
+  return projectRatePerSecond(p) * AVERAGE_CALENDAR_MONTH_SECONDS;
+}
+
+/**
+ * Номинальная ставка «за рабочий час» в валюте проекта (для отображения рядом с месячной зарплатой):
+ * - monthly: месячный платёж / {@link FTE_WORK_HOURS_PER_MONTH};
+ * - hourly: ставка за час;
+ * - contract: тот же «календарный» €/час, что и `projectRatePerSecond * 3600` (длительность контракта по календарю).
+ */
+export function projectNominalHourlyFteInProjectCurrency(p: ProjectEntry): number {
+  const amount = parseFloat(p.projectAmount) || 0;
+  const billing = normalizeProjectBillingMode(p.projectBilling);
+  if (billing === 'hourly') return amount;
+  if (billing === 'monthly') {
+    return amount > 0 ? amount / FTE_WORK_HOURS_PER_MONTH : 0;
+  }
+  return projectRatePerSecond(p) * 3600;
 }
 
 /** «Всего заработано» по списку проектов: сумма `projectEarningsAt` в разрезе валют (без конвертации). */

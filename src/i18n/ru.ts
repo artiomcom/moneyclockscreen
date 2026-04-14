@@ -26,6 +26,8 @@ export const ru: Record<string, string> = {
   'hero.realHint': '· реально',
   'hero.today': 'Сегодня',
   'hero.todayNote': 'с полуночи · локальное время',
+  'hero.fteHourNote':
+    'Номинал в час — по полной ставке 40 ч/нед; начисление в секунду по календарю.',
   'hero.moreNominal': 'Номинал (до корректировок)',
   'hero.insightTitle': 'После налогов и инфляции',
   'hero.insightAria': 'Реальная покупательная способность',
@@ -132,6 +134,16 @@ export const ru: Record<string, string> = {
   'chart.contractStart': 'Старт контракта',
   'chart.contractEnd': 'Окончание контракта',
   'chart.markersToggleAria': 'Показать или скрыть даты входа и выхода по контрактам на графике',
+  'chart.monthlyRatesToggleAria':
+    'Показать или скрыть линии номинальной месячной ставки по проектам (пересчёт в валюту счёта по курсу во времени)',
+  'chart.monthlyRatesToggleTitle':
+    'Пунктир: как номинальная месячная сумма каждого проекта пересчитывается в валюту графика по ходу времени (Frankfurter). Справа — шкала этих значений.',
+  'chart.monthlyRatesTipMonth': '{month}',
+  'chart.monthlyRatesTipLine': '{name}: {amount}',
+  'chart.monthlyRatesTipSum': 'Сумма (пересчёт): {amount}',
+  'chart.monthlyRateLineLabel': '{name} · номинал в мес. (курс)',
+  'chart.monthlyRateUnit': '/мес',
+  'chart.monthlyAxisShort': 'Мес. (курс)',
   'chart.currencyCycleAria': 'Сменить валюту графика. Сейчас: {code}',
   'chart.currencyCycleTitle': 'График в {code}. Нажмите для переключения.',
   'chart.currencyCycleDisabledAria': 'На графике одна валюта — переключать нечего',
@@ -307,6 +319,19 @@ export const ru: Record<string, string> = {
   'chart.legend.inf': 'Инфляция (CPI, годовая %):',
   'chart.legend.infBlurb':
     ', индикатор FP.CPI.TOTL.ZG. Линия, средний накопленный индекс уровня цен по экономикам выбранных валют (100 = 1 янв. года старта графика); валюта ≠ страна, используется статический маппинг.',
+
+  'chart.insightsTitle': 'На этом отрезке заметно',
+  'chart.insightHover':
+    'Рядом с этой датой — выделенный скачок по индексу курса или инфляции (см. ниже).',
+  'chart.insight.fxPeak':
+    'Индекс курсов (средний) доходит до ~{pct}% около {date} (100% = курс на начало графика).',
+  'chart.insight.fxTrough': 'Индекс курсов опускается до ~{pct}% около {date}.',
+  'chart.insight.fxJump':
+    'Самый крупный шаг индекса курсов на этом графике: ~{delta} п.п. около {date}.',
+  'chart.insight.infPeak':
+    'Индекс уровня цен (инфляция) максимума ~{idx} около {date}.',
+  'chart.insight.infJump':
+    'Самый крупный шаг индекса инфляции на этом графике: ~{delta} около {date}.',
 
   'chart.series.others': 'остальные',
   'chart.series.projects': 'проекты',

@@ -26,6 +26,7 @@ export const zh: Record<string, string> = {
   'hero.realHint': '· 实际',
   'hero.today': '今天',
   'hero.todayNote': '自午夜起 · 本地时间',
+  'hero.fteHourNote': '名义时薪按全职 40 小时/周；每秒累积仍按日历时间。',
   'hero.moreNominal': '名义（调整前）',
   'hero.insightTitle': '税后与通胀后',
   'hero.insightAria': '实际购买力',
@@ -114,6 +115,15 @@ export const zh: Record<string, string> = {
   'chart.contractStart': '合同开始',
   'chart.contractEnd': '合同结束',
   'chart.markersToggleAria': '在图表上显示或隐藏合同起止日期',
+  'chart.monthlyRatesToggleAria': '显示或隐藏名义月薪曲线（按项目，随时间用汇率折算）',
+  'chart.monthlyRatesToggleTitle':
+    '虚线：各项目名义月薪按时间折算为图表账户货币（Frankfurter）。右侧坐标为该刻度。',
+  'chart.monthlyRatesTipMonth': '{month}',
+  'chart.monthlyRatesTipLine': '{name}：{amount}',
+  'chart.monthlyRatesTipSum': '折算合计：{amount}',
+  'chart.monthlyRateLineLabel': '{name} · 名义月薪（汇）',
+  'chart.monthlyRateUnit': '/月',
+  'chart.monthlyAxisShort': '月薪（汇）',
   'chart.currencyCycleAria': '切换图表货币。当前：{code}',
   'chart.currencyCycleTitle': '图表币种 {code}。点击切换。',
   'chart.currencyCycleDisabledAria': '图表只有一种货币，无法切换',
@@ -249,6 +259,17 @@ export const zh: Record<string, string> = {
   'chart.legend.inf': '通胀（CPI，年率 %）：',
   'chart.legend.infBlurb':
     '，FP.CPI.TOTL.ZG。线 = 所选货币对应经济体平均物价水平指数（100 = 图表起始年 1 月 1 日）；货币≠国家, 静态映射。',
+
+  'chart.insightsTitle': '此时间窗口的突出点',
+  'chart.insightHover': '此日期附近对应下方标注的汇率或通胀波动。',
+  'chart.insight.fxPeak':
+    '汇率均值指数在 {date} 附近约达 {pct}%（100% = 图表起点汇率）。',
+  'chart.insight.fxTrough': '汇率均值指数在 {date} 附近约降至 {pct}%。',
+  'chart.insight.fxJump':
+    '本图最大单步汇率指数变化：约 {delta} 个百分点，{date} 附近。',
+  'chart.insight.infPeak': '通胀价格指数在 {date} 附近约达 {idx}。',
+  'chart.insight.infJump':
+    '本图最大单步通胀指数变化：约 {delta}，{date} 附近。',
 
   'chart.series.others': '其他',
   'chart.series.projects': '项目',

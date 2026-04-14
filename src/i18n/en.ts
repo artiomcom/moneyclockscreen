@@ -26,6 +26,8 @@ export const en: Record<string, string> = {
   'hero.realHint': '· real',
   'hero.today': 'Today',
   'hero.todayNote': 'since midnight · local time',
+  'hero.fteHourNote':
+    'Nominal /hr uses full-time hours (40 h/week). Per-second accrual stays calendar-based.',
   'hero.moreNominal': 'Nominal (pre-adjustment)',
   'hero.insightTitle': 'After tax & inflation',
   'hero.insightAria': 'Real purchasing power',
@@ -130,6 +132,16 @@ export const en: Record<string, string> = {
   'chart.contractStart': 'Contract start',
   'chart.contractEnd': 'Contract end',
   'chart.markersToggleAria': 'Show or hide contract start and end markers on the chart',
+  'chart.monthlyRatesToggleAria':
+    'Show or hide nominal monthly pay lines (per company), converted to account currency over time using FX',
+  'chart.monthlyRatesToggleTitle':
+    'Dashed lines: how each project’s nominal monthly amount converts to the chart account currency along the timeline (Frankfurter history when available). Right axis = that scale.',
+  'chart.monthlyRatesTipMonth': '{month}',
+  'chart.monthlyRatesTipLine': '{name}: {amount}',
+  'chart.monthlyRatesTipSum': 'Converted sum: {amount}',
+  'chart.monthlyRateLineLabel': '{name} · nominal monthly (FX)',
+  'chart.monthlyRateUnit': '/mo',
+  'chart.monthlyAxisShort': 'Monthly (FX)',
   'chart.currencyCycleAria': 'Cycle chart currency. Current: {code}',
   'chart.currencyCycleTitle': 'Chart in {code}. Click to switch.',
   'chart.currencyCycleDisabledAria': 'Only one currency on the chart — nothing to switch',
@@ -305,6 +317,19 @@ export const en: Record<string, string> = {
   'chart.legend.inf': 'Inflation (CPI, yearly %):',
   'chart.legend.infBlurb':
     ', FP.CPI.TOTL.ZG. Line = mean price level index for economies of selected currencies (100 = Jan 1 of chart start year); currency ≠ country, static mapping.',
+
+  'chart.insightsTitle': 'What stands out on this window',
+  'chart.insightHover':
+    'You’re near a highlighted FX or inflation event on this chart (see notes below).',
+  'chart.insight.fxPeak':
+    'FX mean index peaks near {pct}% around {date} (100% = rate at chart start).',
+  'chart.insight.fxTrough': 'FX mean index dips near {pct}% around {date}.',
+  'chart.insight.fxJump':
+    'Largest FX index step in this plot: about {delta} p.p. around {date}.',
+  'chart.insight.infPeak':
+    'Inflation price index peaks near {idx} around {date}.',
+  'chart.insight.infJump':
+    'Largest inflation-index step in this plot: about {delta} around {date}.',
 
   'chart.series.others': 'others',
   'chart.series.projects': 'projects',

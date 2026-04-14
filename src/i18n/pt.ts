@@ -26,6 +26,8 @@ export const pt: Record<string, string> = {
   'hero.realHint': '· real',
   'hero.today': 'Hoje',
   'hero.todayNote': 'desde meia-noite · hora local',
+  'hero.fteHourNote':
+    'Nominal /h: tempo integral (40 h/semana). O acúmulo por segundo segue o calendário.',
   'hero.moreNominal': 'Nominal (antes de ajustes)',
   'hero.insightTitle': 'Após impostos e inflação',
   'hero.insightAria': 'Poder de compra real',
@@ -125,6 +127,16 @@ export const pt: Record<string, string> = {
   'chart.contractStart': 'Início do contrato',
   'chart.contractEnd': 'Fim do contrato',
   'chart.markersToggleAria': 'Mostrar ou ocultar início e fim do contrato no gráfico',
+  'chart.monthlyRatesToggleAria':
+    'Mostrar ou ocultar linhas de salário mensal nominal (por projeto), convertidas com FX ao longo do tempo',
+  'chart.monthlyRatesToggleTitle':
+    'Tracejado: mensal nominal por projeto na moeda da conta ao longo do tempo (Frankfurter). Eixo direito = essa escala.',
+  'chart.monthlyRatesTipMonth': '{month}',
+  'chart.monthlyRatesTipLine': '{name}: {amount}',
+  'chart.monthlyRatesTipSum': 'Total convertido: {amount}',
+  'chart.monthlyRateLineLabel': '{name} · mensal nominal (FX)',
+  'chart.monthlyRateUnit': '/mês',
+  'chart.monthlyAxisShort': 'Mensal (FX)',
   'chart.currencyCycleAria': 'Alternar moeda do gráfico. Atual: {code}',
   'chart.currencyCycleTitle': 'Gráfico em {code}. Clique para alternar.',
   'chart.currencyCycleDisabledAria': 'Só há uma moeda no gráfico',
@@ -275,6 +287,19 @@ export const pt: Record<string, string> = {
   'chart.legend.inf': 'Inflação (IPC, % ao ano):',
   'chart.legend.infBlurb':
     ', FP.CPI.TOTL.ZG. Linha = índice médio do nível de preços das economias das moedas escolhidas (100 = 1º jan do ano inicial); moeda ≠ país, mapeamento estático.',
+
+  'chart.insightsTitle': 'O que se destaca neste trecho',
+  'chart.insightHover':
+    'Perto desta data há um salto marcado em FX ou inflação (veja abaixo).',
+  'chart.insight.fxPeak':
+    'O índice médio FX atinge ~{pct}% por volta de {date} (100% = taxa no início do gráfico).',
+  'chart.insight.fxTrough': 'O índice médio FX cai para ~{pct}% por volta de {date}.',
+  'chart.insight.fxJump':
+    'Maior salto do índice FX neste gráfico: ~{delta} p.p. por volta de {date}.',
+  'chart.insight.infPeak':
+    'O índice de preços (inflação) atinge ~{idx} por volta de {date}.',
+  'chart.insight.infJump':
+    'Maior salto do índice de inflação neste gráfico: ~{delta} por volta de {date}.',
 
   'chart.series.others': 'outros',
   'chart.series.projects': 'projetos',

@@ -121,6 +121,12 @@ export type MoneyClockSavedState = {
    * 1 = вся сумма контракта как сейчас в расчётах.
    */
   takeHomeFraction: number;
+  /**
+   * Локальное окно «Сегодня» и полосы дня: час начала (0–23) и час конца (start+1…24).
+   * 24 = полночь конца календарного дня.
+   */
+  dayMeterStartHour: number;
+  dayMeterEndHour: number;
   /** Optional: резюме и метаданные рядом с настройками MoneyClock */
   profile?: MoneyClockProfile;
 };
@@ -134,6 +140,41 @@ type StoredPayload = {
 
 function isLegacyModeField(x: unknown): boolean {
   return x === 'project' || x === 'salary' || x === 'hourly';
+}
+
+export const DEFAULT_DAY_METER_START_HOUR = 8;
+export const DEFAULT_DAY_METER_END_HOUR = 18;
+
+/** Окно дня на герое: по умолчанию 8→18; конец 24 = полночь. */
+export function normalizeDayMeterHours(
+  rawStart: unknown,
+  rawEnd: unknown
+): { start: number; end: number } {
+  const parseH = (x: unknown): number => {
+    if (typeof x === 'number' && Number.isFinite(x)) return Math.trunc(x);
+    if (typeof x === 'string' && x.trim() !== '') {
+      const n = parseInt(x, 10);
+      if (Number.isFinite(n)) return n;
+    }
+    return NaN;
+  };
+  let start = parseH(rawStart);
+  let end = parseH(rawEnd);
+  if (!Number.isFinite(start)) start = DEFAULT_DAY_METER_START_HOUR;
+  if (!Number.isFinite(end)) end = DEFAULT_DAY_METER_END_HOUR;
+  start = Math.min(23, Math.max(0, start));
+  end = Math.min(24, Math.max(1, end));
+  if (end <= start) {
+    start = DEFAULT_DAY_METER_START_HOUR;
+    end = DEFAULT_DAY_METER_END_HOUR;
+  }
+  return { start, end };
+}
+
+export function formatHourClockLabel(h: number): string {
+  if (h >= 24) return '24:00';
+  const c = Math.min(23, Math.max(0, Math.trunc(h)));
+  return `${String(c).padStart(2, '0')}:00`;
 }
 
 /** Парсинг доли «на руки» из сохранённого JSON; по умолчанию 1. */
@@ -237,6 +278,8 @@ function parsePayload(data: unknown): MoneyClockSavedState | null {
       (o.profile as MoneyClockProfile)
     : undefined;
 
+  const dayMeter = normalizeDayMeterHours(o.dayMeterStartHour, o.dayMeterEndHour);
+
   return {
     mode: 'project',
     monthlySalary: '0',
@@ -250,6 +293,8 @@ function parsePayload(data: unknown): MoneyClockSavedState | null {
         o.lastPayrollYmd.trim()
       : localTodayYmd(),
     takeHomeFraction: clampTakeHomeFraction(o.takeHomeFraction),
+    dayMeterStartHour: dayMeter.start,
+    dayMeterEndHour: dayMeter.end,
     projectsBundle: {
       ...bundle,
       selectedProjectIds,
@@ -649,7 +694,9 @@ export function defaultMoneyClockState(): MoneyClockSavedState {
     currentBalance: '0',
     currentBalanceCurrency: DEFAULT_CURRENCY_CODE,
     lastPayrollYmd: localTodayYmd(),
-    takeHomeFraction: 1
+    takeHomeFraction: 1,
+    dayMeterStartHour: DEFAULT_DAY_METER_START_HOUR,
+    dayMeterEndHour: DEFAULT_DAY_METER_END_HOUR
   };
 }
 
@@ -680,6 +727,36 @@ export function parseMoneyClockJson(text: string): MoneyClockSavedState | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Детерминированный JSON (ключи объектов по алфавиту) для хеша и облака.
+ * Иначе тот же профиль с разным порядком полей даёт разный SHA и ломает дедупликацию.
+ */
+function stableStringifyForHash(value: unknown): string {
+  if (value === null) return 'null';
+  const t = typeof value;
+  if (t === 'number' || t === 'boolean') return JSON.stringify(value);
+  if (t === 'string') return JSON.stringify(value);
+  if (t !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringifyForHash).join(',')}]`;
+  }
+  const o = value as Record<string, unknown>;
+  const keys = Object.keys(o).sort();
+  const parts: string[] = [];
+  for (const k of keys) {
+    const v = o[k];
+    if (v === undefined) continue;
+    parts.push(`${JSON.stringify(k)}:${stableStringifyForHash(v)}`);
+  }
+  return `{${parts.join(',')}}`;
+}
+
+/** Компактный канонический JSON для POST /api/backup и SHA-256 в cloud meta (совпадает с телом запроса). */
+export function exportMoneyClockJsonCanonical(state: MoneyClockSavedState): string {
+  const payload: StoredPayload = { v: FILE_VERSION, ...state };
+  return stableStringifyForHash(payload);
 }
 
 export function exportMoneyClockJsonString(state: MoneyClockSavedState): string {

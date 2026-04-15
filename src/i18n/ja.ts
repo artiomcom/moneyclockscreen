@@ -25,9 +25,14 @@ export const ja: Record<string, string> = {
   'hero.perHour': '/ 時',
   'hero.realHint': '· 実質',
   'hero.today': '今日',
-  'hero.todayNote': '深夜0時から · ローカル時間',
+  'hero.todayNote': '{start}から · ローカル時間',
   'hero.fteHourNote':
-    '時給の名目はフルタイム（週40時間）。秒あたりの積み上げは暦ベースのままです。',
+    '時給の名目はフルタイム（週40時間）。秒あたりの積み上げは暦ベースのままです。1日の上限はカレンダー上の秒レート×設定した時間帯で、名目時給×勤務時間ではありません。',
+  'hero.dayMeterAria': '今日の進行 {start}〜{end}（ローカル）',
+  'hero.dayMeterTitle': 'デイラン — {start}–{end}',
+  'hero.dayCapLabel': '上限 {start}–{end}',
+  'hero.dayLeftLabel': '残り',
+  'hero.per24hHint': '暦の1日（24時間）: {sym}{amt}',
   'hero.moreNominal': '名目（調整前）',
   'hero.insightTitle': '税・インフレ後',
   'hero.insightAria': '実質購買力',
@@ -200,6 +205,11 @@ export const ja: Record<string, string> = {
   'settings.takeHomeAria': '税引後の手取り％',
   'settings.takeHomeHint':
     '契約の {pct}% をメインの「実質レート」に使用。目安で会計ではありません。',
+  'settings.dayMeterTitle': 'デイメーターの時間帯',
+  'settings.dayMeterHint':
+    'メインの「今日」と1日の上限は、開始（含む）から終了（含まない）までのローカル時間で計算します。24:00 は深夜0時です。',
+  'settings.dayMeterStartAria': 'デイメーター開始（ローカル時）',
+  'settings.dayMeterEndAria': 'デイメーター終了（ローカル時；24:00 は深夜）',
   'settings.balanceFooter':
     '「累計獲得」は選択プロジェクトの合計。口座残高は別：給与ベース＋全選択プロジェクトの積み上げ。外貨はライブ API レートで換算（メイン表示と同じ）。',
   'settings.projectsPicker': 'プロジェクト',

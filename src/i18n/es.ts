@@ -25,9 +25,14 @@ export const es: Record<string, string> = {
   'hero.perHour': '/h',
   'hero.realHint': '· real',
   'hero.today': 'Hoy',
-  'hero.todayNote': 'desde medianoche · hora local',
+  'hero.todayNote': 'desde {start} · hora local',
   'hero.fteHourNote':
-    'Nominal /h: jornada completa (40 h/semana). El devengo por segundo sigue el calendario.',
+    'Nominal /h: jornada completa (40 h/semana). El devengo por segundo sigue el calendario. El tope diario es €/s calendario × tu ventana — no nominal /h × horas de escritorio.',
+  'hero.dayMeterAria': 'Progreso del día de {start} a {end} (local)',
+  'hero.dayMeterTitle': 'CARRERA DEL DÍA — {start}–{end}',
+  'hero.dayCapLabel': 'Tope {start}–{end}',
+  'hero.dayLeftLabel': 'Queda',
+  'hero.per24hHint': 'Día calendario 24 h: {sym}{amt}',
   'hero.moreNominal': 'Nominal (antes de ajustes)',
   'hero.insightTitle': 'Tras impuestos e inflación',
   'hero.insightAria': 'Poder adquisitivo real',
@@ -202,6 +207,11 @@ export const es: Record<string, string> = {
   'settings.takeHomeAria': 'Porcentaje neto tras impuestos',
   'settings.takeHomeHint':
     'Se cuenta un {pct}% del contrato para el bloque de “ritmo real” en la pantalla principal. Estimación, no contabilidad.',
+  'settings.dayMeterTitle': 'Ventana del día',
+  'settings.dayMeterHint':
+    '“Hoy” en la pantalla principal y el tope diario usan hora local desde el inicio (inclusive) hasta el fin (exclusivo). 24:00 es medianoche.',
+  'settings.dayMeterStartAria': 'Inicio del medidor del día (hora local)',
+  'settings.dayMeterEndAria': 'Fin del medidor del día (hora local; 24:00 = medianoche)',
   'settings.balanceFooter':
     '“Total ganado” suma los proyectos seleccionados. Saldo aparte: base tras nómina más devengo de todos ellos; divisas extranjeras con tipo API en vivo (como el contador principal).',
   'settings.projectsPicker': 'Proyectos',

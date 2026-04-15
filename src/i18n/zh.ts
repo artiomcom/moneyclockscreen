@@ -25,8 +25,14 @@ export const zh: Record<string, string> = {
   'hero.perHour': '/ 小时',
   'hero.realHint': '· 实际',
   'hero.today': '今天',
-  'hero.todayNote': '自午夜起 · 本地时间',
-  'hero.fteHourNote': '名义时薪按全职 40 小时/周；每秒累积仍按日历时间。',
+  'hero.todayNote': '自 {start} 起 · 本地时间',
+  'hero.fteHourNote':
+    '名义时薪按全职 40 小时/周；每秒累积仍按日历时间。当日上限 = 日历 €/秒 × 你设定的时间段，而不是「名义时薪 × 工时」。',
+  'hero.dayMeterAria': '今日进度 {start}–{end}（本地）',
+  'hero.dayMeterTitle': '今日闯关 — {start}–{end}',
+  'hero.dayCapLabel': '上限 {start}–{end}',
+  'hero.dayLeftLabel': '剩余',
+  'hero.per24hHint': '日历日 24 小时：{sym}{amt}',
   'hero.moreNominal': '名义（调整前）',
   'hero.insightTitle': '税后与通胀后',
   'hero.insightAria': '实际购买力',
@@ -182,6 +188,11 @@ export const zh: Record<string, string> = {
   'settings.takeHome': '税后到手比例（估算）',
   'settings.takeHomeAria': '税后到手百分比',
   'settings.takeHomeHint': '合同金额的 {pct}% 计入主屏「实际速率」块。估算，非会计。',
+  'settings.dayMeterTitle': '当日计数时间窗',
+  'settings.dayMeterHint':
+    '主屏「今天」与当日上限按本地时间从起始（含）到结束（不含）计算；结束为 24:00 表示午夜。',
+  'settings.dayMeterStartAria': '当日计数开始（本地整点）',
+  'settings.dayMeterEndAria': '当日计数结束（本地整点；24:00 为午夜）',
   'settings.balanceFooter':
     '「累计赚得」汇总选中项目。账户余额另计：发薪基数加全部选中项目的计提；外币按实时 API 汇率折算（与主屏计数相同）。',
   'settings.projectsPicker': '项目',

@@ -25,9 +25,14 @@ export const en: Record<string, string> = {
   'hero.perHour': '/hr',
   'hero.realHint': '· real',
   'hero.today': 'Today',
-  'hero.todayNote': 'since midnight · local time',
+  'hero.todayNote': 'since {start} · local time',
   'hero.fteHourNote':
-    'Nominal /hr uses full-time hours (40 h/week). Per-second accrual stays calendar-based.',
+    'Nominal /hr uses full-time hours (40 h/week). Per-second accrual stays calendar-based. The day cap is calendar €/s × your day window — not nominal /hr × desk hours.',
+  'hero.dayMeterAria': 'Day progress from {start} to {end} (local)',
+  'hero.dayMeterTitle': 'DAY RUN — {start}–{end}',
+  'hero.dayCapLabel': 'Cap {start}–{end}',
+  'hero.dayLeftLabel': 'Left',
+  'hero.per24hHint': 'Full 24 h day: {sym}{amt}',
   'hero.moreNominal': 'Nominal (pre-adjustment)',
   'hero.insightTitle': 'After tax & inflation',
   'hero.insightAria': 'Real purchasing power',
@@ -215,6 +220,11 @@ export const en: Record<string, string> = {
   'settings.takeHomeAria': 'Take-home percentage after tax',
   'settings.takeHomeHint':
     '{pct}% of contract counted for the “real rate” block on the main screen. Estimate, not accounting.',
+  'settings.dayMeterTitle': 'Day meter window',
+  'settings.dayMeterHint':
+    '“Today” on the main screen and the day cap use local time from start (inclusive) to end (exclusive). End 24:00 is midnight.',
+  'settings.dayMeterStartAria': 'Day meter start (local hour)',
+  'settings.dayMeterEndAria': 'Day meter end (local hour; 24:00 = midnight)',
   'settings.balanceFooter':
     '“Total earned” sums selected projects. Account balance is separate: payroll base plus accrual from all selected projects; foreign amounts convert with the live API rate (same as the main counter).',
   'settings.projectsPicker': 'Projects',

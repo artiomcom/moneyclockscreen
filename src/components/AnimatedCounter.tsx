@@ -56,7 +56,8 @@ function buildMoneyDisplayParts(value: number, decimals: number): DisplayPart[] 
 }
 
 const PUNCT_WIDTH: Record<string, string> = {
-  ',': '0.65ch',
+  /** Same width issue as "." when thousands separators crowd digits in arcade layout. */
+  ',': 'min(1ch, 0.85em)',
   /** Must stay readable in flex rows (e.g. hero /sec); too narrow reads as "000558" instead of "0.00558". */
   '.': 'min(1ch, 0.85em)',
   '\u2212': '0.7ch'

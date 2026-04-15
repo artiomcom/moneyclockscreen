@@ -25,9 +25,14 @@ export const fr: Record<string, string> = {
   'hero.perHour': '/h',
   'hero.realHint': '· réel',
   'hero.today': 'Aujourd’hui',
-  'hero.todayNote': 'depuis minuit · heure locale',
+  'hero.todayNote': 'depuis {start} · heure locale',
   'hero.fteHourNote':
-    'Nominal /h : temps plein (40 h/semaine). L’accumulation par seconde reste calendaire.',
+    'Nominal /h : temps plein (40 h/semaine). L’accumulation par seconde reste calendaire. Le plafond du jour = €/s calendaire × votre plage — pas nominal /h × heures de bureau.',
+  'hero.dayMeterAria': 'Progression du jour de {start} à {end} (local)',
+  'hero.dayMeterTitle': 'COURSE DU JOUR — {start}–{end}',
+  'hero.dayCapLabel': 'Plafond {start}–{end}',
+  'hero.dayLeftLabel': 'Reste',
+  'hero.per24hHint': 'Jour civil 24 h : {sym}{amt}',
   'hero.moreNominal': 'Nominal (avant ajustements)',
   'hero.insightTitle': 'Après impôts et inflation',
   'hero.insightAria': 'Pouvoir d’achat réel',
@@ -202,6 +207,11 @@ export const fr: Record<string, string> = {
   'settings.takeHomeAria': 'Pourcentage net après impôts',
   'settings.takeHomeHint':
     '{pct}% du contrat comptés pour le bloc « taux réel » sur l’écran principal. Estimation, pas de la compta.',
+  'settings.dayMeterTitle': 'Plage du jour',
+  'settings.dayMeterHint':
+    '« Aujourd’hui » sur l’écran principal et le plafond du jour utilisent l’heure locale du début (inclus) à la fin (exclue). 24:00 = minuit.',
+  'settings.dayMeterStartAria': 'Début du compteur jour (heure locale)',
+  'settings.dayMeterEndAria': 'Fin du compteur jour (heure locale ; 24:00 = minuit)',
   'settings.balanceFooter':
     '« Total gagné » additionne les projets sélectionnés. Solde séparé : base paie plus accumulation de tous ; devises étrangères au taux API en direct (comme le compteur principal).',
   'settings.projectsPicker': 'Projets',

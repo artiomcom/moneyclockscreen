@@ -213,31 +213,6 @@ const HERO_TODAY_LOCAL_START_HOUR = 8;
 /** Секунды от начала «дня» (8:00) до полуночи — потолок дневного прогресса. */
 const DAY_SECONDS_8_TO_MIDNIGHT = (24 - HERO_TODAY_LOCAL_START_HOUR) * 3600;
 
-function intlLocaleForAppLocale(locale: AppLocale): string {
-  return locale === 'zh' ? 'zh-Hans' : locale;
-}
-
-/** Подписи к краям прогресс-бара: начало окна и конец (полночь — 24:00). */
-function formatHeroDayWindowClock(
-  locale: AppLocale,
-  hour: number,
-  minute: number
-): string {
-  if (hour === 24 && minute === 0) {
-    return '24:00';
-  }
-  const d = new Date(Date.UTC(2000, 0, 1, hour, minute));
-  try {
-    return new Intl.DateTimeFormat(intlLocaleForAppLocale(locale), {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    }).format(d);
-  } catch {
-    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-  }
-}
-
 const initialMoneyClockRef = { current: null as MoneyClockSavedState | null };
 function getInitialMoneyClockState(): MoneyClockSavedState {
   if (!initialMoneyClockRef.current) {
@@ -937,19 +912,31 @@ export function MoneyClock() {
     return Math.min(1, Math.max(0, (heroTodayAccrual ?? 0) / heroDayCapEarnings));
   }, [heroDayCapEarnings, heroTodayAccrual]);
 
-  const heroDayProgressTimeLabels = useMemo(() => {
-    const startH = HERO_TODAY_LOCAL_START_HOUR;
-    const endH = heroUsesFteNominalHourly
-      ? startH + FTE_HERO_WORKDAY_DISPLAY_HOURS
-      : 24;
-    return {
-      start: formatHeroDayWindowClock(locale, startH, 0),
-      end:
-        endH === 24 ?
-          formatHeroDayWindowClock(locale, 24, 0)
-        : formatHeroDayWindowClock(locale, endH, 0)
-    };
-  }, [heroUsesFteNominalHourly, locale]);
+  /** Начало / конец окна «рабочего дня» для полосы: 8:00→24:00 (календарь) или 8:00→+8 ч (FTE). */
+  const heroDayWindowTimeLabels = useMemo(() => {
+    const fmt = new Intl.DateTimeFormat(locale, {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+    const base = new Date(nowTick);
+    const start = new Date(base);
+    start.setHours(HERO_TODAY_LOCAL_START_HOUR, 0, 0, 0);
+    const startStr = fmt.format(start);
+    if (heroUsesFteNominalHourly) {
+      const end = new Date(base);
+      end.setHours(
+        HERO_TODAY_LOCAL_START_HOUR + FTE_HERO_WORKDAY_DISPLAY_HOURS,
+        0,
+        0,
+        0
+      );
+      return { startStr, endStr: fmt.format(end) };
+    }
+    const end = new Date(base);
+    end.setHours(24, 0, 0, 0);
+    return { startStr, endStr: fmt.format(end) };
+  }, [nowTick, locale, heroUsesFteNominalHourly]);
 
   const heroPer24hEarnings = useMemo(() => {
     if (!heroRateBasis) return null;
@@ -1993,17 +1980,17 @@ export function MoneyClock() {
                         heroRateBasis ?
                           <div
                             className="mt-5 pt-4 border-t border-white/[0.08] max-w-[min(100%,22rem)] mx-auto space-y-3"
-                            aria-label={`${heroDayProgressTimeLabels.start}–${heroDayProgressTimeLabels.end}. ${t('hero.dayMeterAria')}`}>
+                            aria-label={t('hero.dayMeterAria')}>
                             <p className="text-[0.58rem] sm:text-[0.62rem] font-black uppercase tracking-[0.28em] text-center text-cyan-300/90 dark:text-cyan-200/85 drop-shadow-[0_0_8px_rgba(34,211,238,0.35)]">
                               {t('hero.dayMeterTitle')}
                             </p>
-                            <div className="hero-arcade-day-rail flex w-full items-center gap-1.5 sm:gap-2.5">
+                            <div className="flex items-center gap-1.5 sm:gap-2 w-full min-w-0">
                               <span
-                                className="hero-arcade-day-time hero-arcade-day-time--start shrink-0 tabular-nums"
+                                className="hero-day-window-clock shrink-0 font-mono dark:font-arcade font-black tabular-nums text-[0.62rem] sm:text-[0.68rem] uppercase tracking-[0.18em] text-center leading-none px-1 py-0.5 sm:px-1.5 rounded-[2px] border border-cyan-400/45 bg-black/50 text-cyan-100/95 shadow-[0_0_10px_rgba(0,255,255,0.28),inset_0_1px_0_rgba(255,255,255,0.12)]"
                                 aria-hidden>
-                                {heroDayProgressTimeLabels.start}
+                                {heroDayWindowTimeLabels.startStr}
                               </span>
-                              <div className="hero-arcade-day-track relative h-5 sm:h-6 min-w-0 flex-1 overflow-hidden rounded-[3px] border-2 bg-[#04080c]">
+                              <div className="hero-arcade-day-track relative h-5 sm:h-6 flex-1 min-w-0 overflow-hidden rounded-[3px] border-2 border-cyan-500/50 bg-[#04080c] shadow-[inset_0_2px_12px_rgba(0,0,0,0.85),0_0_0_1px_rgba(0,255,200,0.12),0_0_12px_rgba(255,184,0,0.12)]">
                                 <div
                                   className="pointer-events-none absolute inset-0 z-[1] opacity-[0.12] hero-arcade-day-scanlines"
                                   aria-hidden
@@ -2027,13 +2014,13 @@ export function MoneyClock() {
                                 />
                               </div>
                               <span
-                                className="hero-arcade-day-time hero-arcade-day-time--end shrink-0 tabular-nums"
+                                className="hero-day-window-clock shrink-0 font-mono dark:font-arcade font-black tabular-nums text-[0.62rem] sm:text-[0.68rem] uppercase tracking-[0.18em] text-center leading-none px-1 py-0.5 sm:px-1.5 rounded-[2px] border border-amber-400/40 bg-black/50 text-amber-100/95 shadow-[0_0_10px_rgba(255,200,100,0.22),inset_0_1px_0_rgba(255,255,255,0.1)]"
                                 aria-hidden>
-                                {heroDayProgressTimeLabels.end}
+                                {heroDayWindowTimeLabels.endStr}
                               </span>
                             </div>
                             <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[0.7rem] sm:text-[0.75rem] font-mono dark:font-arcade font-bold tabular-nums">
-                              <span className="text-fuchsia-200/90 uppercase tracking-[0.12em] text-[0.62rem]">
+                              <span className="text-cyan-200/90 uppercase tracking-[0.12em] text-[0.62rem] drop-shadow-[0_0_6px_rgba(34,211,238,0.35)]">
                                 {t('hero.dayLeftLabel')}
                               </span>
                               <span className="text-[var(--accent-money)] [text-shadow:0_0_10px_rgba(0,255,136,0.4)]">

@@ -23,14 +23,19 @@ export const pt: Record<string, string> = {
   'hero.perSec': '/ s',
   'hero.nominalApprox': 'nominal ≈',
   'hero.perHour': '/h',
+  'hero.heroEarningsPerSecond': 'por segundo',
+  'hero.heroEarningsHour': '/ hora',
+  'hero.heroEarningsLive': 'Ao vivo',
   'hero.realHint': '· real',
   'hero.today': 'Hoje',
-  'hero.fteHourNote':
-    'Nominal /h: tempo integral (40 h/semana). O acúmulo por segundo segue o calendário.',
   'hero.dayMeterAria': 'Progresso do dia até a meia-noite',
-  'hero.dayMeterTitle': 'CORRIDA DO DIA — ATÉ A MEIA-NOITE',
+  'hero.dayMeterTitle': 'Progresso de hoje',
+  'hero.dayWindowEndMidnight': '24:00',
   'hero.dayLeftLabel': 'Resta',
-  'hero.per24hHint': 'Dia civil 24 h: {sym}{amt}',
+  'hero.lastHourLabel': 'Última hora',
+  'hero.remainingLabel': 'Restante',
+  'hero.dayProgressTrendFaster':
+    'Hoje você ganha mais rápido do que ontem',
   'hero.moreNominal': 'Nominal (antes de ajustes)',
   'hero.insightTitle': 'Após impostos e inflação',
   'hero.insightAria': 'Poder de compra real',
@@ -52,6 +57,18 @@ export const pt: Record<string, string> = {
   'hero.noFxHint':
     'Para uma taxa única, ative câmbio API ou use projetos em uma só moeda.',
 
+  'magic.projectionsTitle': 'Projeções',
+  'magic.projTonight': 'Até hoje à noite',
+  'magic.projTonightDesc': 'Teto do dia no ritmo atual',
+  'magic.projMonth': 'Este mês',
+  'magic.projMonthDesc': '~1/12 do líquido anual (estimativa)',
+  'magic.proj5y': 'Em 5 anos',
+  'magic.proj5yDesc': 'No ritmo atual (trajetória)',
+  'magic.insightsTitle': 'Insights',
+  'magic.insight1': 'Acúmulo a cada segundo dos projetos selecionados.',
+  'magic.insight2': '«Trajetória» abaixo: cenário +20% e horizontes.',
+  'magic.insight3': 'Câmbio e inflação: mesmas fontes do bloco principal.',
+
   'trajectory.aria': 'Estimativa de trajetória',
   'trajectory.kicker': 'Se mantiver este ritmo',
   'trajectory.disclaimer':
@@ -72,18 +89,8 @@ export const pt: Record<string, string> = {
   'breakdown.oneTotalTitle': 'Total (suas moedas → um número)',
   'breakdown.showAllCurrencies': 'Mostrar todas as moedas',
   'breakdown.hideAllCurrencies': 'Só um total',
-  'breakdown.sortHintFx':
-    'Cada moeda separada. Contratos ativos primeiro; no grupo, ordenado por valor em',
-  'breakdown.sortHintFxApi': '(taxa API).',
-  'breakdown.sortHintNoFx': 'Sem taxas, ordenado por código da moeda.',
-  'breakdown.sortParagraphFx':
-    'Cada moeda separada. Contratos ativos primeiro; em cada grupo, ordem decrescente convertida para {ccy} (taxa API).',
-  'breakdown.sortParagraphNoFx':
-    'Cada moeda separada. Contratos ativos primeiro; sem FX, ordem por código.',
   'breakdown.endedBadge': 'Encerrados',
   'breakdown.inAccount': 'Na conta agora',
-  'breakdown.balancePayrollCaption':
-    'Saldo nas definições após o pagamento em {payroll}; acréscimo de todos os projetos selecionados desde {accrualFrom} (meia-noite do dia seguinte), outras moedas à taxa API atual.',
   'breakdown.noContractsInCcy': 'Sem contratos em',
   'breakdown.allEndedInCcy': 'Todos encerrados',
   'breakdown.noAccrualHint':
@@ -172,6 +179,7 @@ export const pt: Record<string, string> = {
   'footer.sigmaPerSec': 'Σ ≈ +',
   'footer.inCcy': 'em',
   'footer.byRate': '(taxa API)',
+  'footer.appTagline': 'Money Clock · Live',
 
   'awareness.title': 'Money Awareness Engine',
   'awareness.sub': 'Meu ritmo (compartilhar)',

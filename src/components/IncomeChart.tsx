@@ -74,8 +74,9 @@ const FX_HIST_LINE = '#38bdf8';
 const INF_HIST_LINE = '#fb923c';
 const FOCUS_PROJECT_LINE = '#fef08a';
 const MUTED_PROJECT_LINE = 'rgba(203, 213, 225, 0.42)';
-const PRODUCT_YOU_LINE = '#34d399';
-const PRODUCT_TREND_LINE = 'rgba(255, 255, 255, 0.38)';
+/** Совпадает с `--accent-money`: на тёмном фоне заметнее, чем emerald-400. */
+const PRODUCT_YOU_LINE = '#00ff88';
+const PRODUCT_TREND_LINE = 'rgba(255, 255, 255, 0.52)';
 
 const CHART_GLASS_PILL =
   'flex flex-wrap items-center justify-center gap-0.5 rounded-[0.65rem] border border-white/[0.12] bg-gradient-to-b from-white/[0.1] to-white/[0.03] dark:from-[#0c1525]/85 dark:to-[#060a13]/78 backdrop-blur-[16px] backdrop-saturate-150 px-1 py-0.5 shadow-[0_6px_32px_rgba(0,0,0,0.42)] ring-1 ring-inset ring-white/[0.06]';
@@ -1418,7 +1419,7 @@ export function IncomeChart({
           className="w-full min-w-0 relative rounded-r80-sm border border-white/10 bg-white/[0.04] px-3 py-4 sm:px-4 sm:py-5 space-y-4"
           role="img"
           aria-label={t('chart.ariaPanel')}>
-          <p className="text-center text-[0.52rem] font-extrabold uppercase tracking-[0.18em] text-white/38">
+          <p className="text-center text-[0.52rem] font-extrabold uppercase tracking-[0.18em] text-mp-text sm:text-[0.54rem]">
             {t('chart.panelTitle')}
           </p>
           <p className="text-center text-sm font-semibold leading-snug text-white/75">
@@ -1498,7 +1499,7 @@ export function IncomeChart({
         className="w-full min-w-0 relative space-y-4 sm:space-y-5"
         role="img"
         aria-label={t('chart.productAria')}>
-        <div className="relative flex min-h-[min(42vh,420px)] w-full min-w-0 flex-col overflow-hidden rounded-xl border border-white/[0.07] bg-black/[0.12] ring-1 ring-inset ring-white/[0.04] dark:bg-[#050a12]/40">
+        <div className="relative flex min-h-[min(42vh,420px)] w-full min-w-0 flex-col overflow-hidden rounded-xl border border-white/[0.1] bg-black/[0.12] ring-1 ring-inset ring-white/[0.06] dark:bg-[#0a121f]/72">
           <ChartControlStrip
             toolbarAriaLabel={t('chart.toolbarAria')}
             chips={
@@ -1587,8 +1588,8 @@ export function IncomeChart({
           aria-hidden>
           <defs>
             <linearGradient id="product-fill-you" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={PRODUCT_YOU_LINE} stopOpacity="0.22" />
-              <stop offset="100%" stopColor={PRODUCT_YOU_LINE} stopOpacity="0.02" />
+              <stop offset="0%" stopColor={PRODUCT_YOU_LINE} stopOpacity="0.42" />
+              <stop offset="100%" stopColor={PRODUCT_YOU_LINE} stopOpacity="0.08" />
             </linearGradient>
           </defs>
           <line
@@ -1596,7 +1597,7 @@ export function IncomeChart({
             y1={y0}
             x2={VB_W - PAD_R}
             y2={y0}
-            stroke="rgba(255,255,255,0.2)"
+            stroke="rgba(255,255,255,0.28)"
             strokeWidth="1"
           />
           <line
@@ -1604,7 +1605,7 @@ export function IncomeChart({
             y1={PAD_T}
             x2={PAD_L}
             y2={y0}
-            stroke="rgba(255,255,255,0.15)"
+            stroke="rgba(255,255,255,0.22)"
             strokeWidth="1"
           />
           {[0, 0.5, 1].map((frac) => (
@@ -1614,7 +1615,7 @@ export function IncomeChart({
               y1={PAD_T + plotH * (1 - frac)}
               x2={VB_W - PAD_R}
               y2={PAD_T + plotH * (1 - frac)}
-              stroke="rgba(255,255,255,0.06)"
+              stroke="rgba(255,255,255,0.1)"
               strokeWidth="1"
             />
           ))}
@@ -1645,7 +1646,7 @@ export function IncomeChart({
             d={pathD(trendPts)}
             fill="none"
             stroke={PRODUCT_TREND_LINE}
-            strokeWidth="2.2"
+            strokeWidth="2.4"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
@@ -1653,10 +1654,10 @@ export function IncomeChart({
             d={pathD(realPts)}
             fill="none"
             stroke={PRODUCT_YOU_LINE}
-            strokeWidth="3.3"
+            strokeWidth="3.6"
             strokeLinecap="round"
             strokeLinejoin="round"
-            style={{ filter: 'drop-shadow(0 0 10px rgba(52,211,153,0.35))' }}
+            style={{ filter: 'drop-shadow(0 0 12px rgba(0,255,136,0.45))' }}
           />
           <text
             x={Math.min(lxR + 4, VB_W - PAD_R - 36)}
@@ -1739,8 +1740,8 @@ export function IncomeChart({
         : null}
         </div>
 
-        <div className="mx-auto w-full max-w-2xl space-y-2 px-1 text-center sm:px-2">
-          <p className="text-white/38 text-[0.52rem] font-extrabold uppercase tracking-[0.18em] sm:text-[0.54rem]">
+        <div className="mx-auto w-full max-w-3xl space-y-2 px-1 text-center sm:px-2">
+          <p className="text-[0.52rem] font-extrabold uppercase tracking-[0.18em] text-mp-text sm:text-[0.54rem] [text-shadow:0_1px_10px_rgba(0,0,0,0.75)]">
             {t('chart.panelTitle')}
           </p>
           <p className="text-emerald-200/90 text-[0.62rem] font-extrabold uppercase tracking-[0.14em]">
@@ -1784,12 +1785,12 @@ export function IncomeChart({
           </div>
           {trajectoryHint ?
             <div className="mt-2 w-full space-y-2 border-t border-white/[0.08] pt-3">
-              <p className="text-center text-[0.55rem] font-bold uppercase tracking-wider text-white/40">
+              <p className="text-center text-[0.52rem] font-extrabold uppercase tracking-[0.18em] text-mp-text [text-shadow:0_1px_10px_rgba(0,0,0,0.75)] sm:text-[0.54rem]">
                 {t('chart.productTrajectoryLead')}
               </p>
               <div className="flex flex-wrap justify-center gap-x-6 gap-y-3 text-sm tabular-nums sm:gap-x-8">
                 <div className="min-w-[7rem] text-left">
-                  <p className="text-white/40 text-[0.55rem] font-bold uppercase tracking-wider">
+                  <p className="text-mp-muted text-[0.55rem] font-bold uppercase tracking-wider">
                     {t('chart.productSteady12')}
                   </p>
                   <p className="text-lg font-black text-white">
@@ -1798,7 +1799,7 @@ export function IncomeChart({
                   </p>
                 </div>
                 <div className="min-w-[7rem] text-left">
-                  <p className="text-white/40 text-[0.55rem] font-bold uppercase tracking-wider">
+                  <p className="text-mp-muted text-[0.55rem] font-bold uppercase tracking-wider">
                     {t('chart.productPlus20')}
                   </p>
                   <p className="text-lg font-bold text-white/70">
@@ -1873,14 +1874,14 @@ export function IncomeChart({
       </p>
       }
       {embedded ?
-        <p className="mb-2 text-center text-[0.52rem] font-extrabold uppercase tracking-[0.18em] text-white/38 sm:text-[0.54rem]">
+        <p className="mb-2 text-center text-[0.52rem] font-extrabold uppercase tracking-[0.18em] text-mp-text sm:text-[0.54rem] [text-shadow:0_1px_12px_rgba(0,0,0,0.75)]">
           {t('chart.panelTitle')}
         </p>
       : null}
       <div
         className={
           embedded ?
-            'relative flex w-full min-w-0 flex-col overflow-hidden rounded-xl border border-white/[0.08] bg-black/[0.1] ring-1 ring-inset ring-cyan-500/[0.07] dark:bg-[#050a12]/45'
+            'relative flex w-full min-w-0 flex-col overflow-hidden rounded-xl border border-white/[0.1] bg-black/[0.1] ring-1 ring-inset ring-cyan-500/[0.12] dark:bg-[#0a121f]/72'
           : 'relative w-full min-w-0'
         }>
         {embedded ?

@@ -8,6 +8,11 @@ export default {
         'r80-sm': '2px'
       },
       colors: {
+        /* Magic Patterns dashboard (jyifvvnfxpjtyyhq616yol) */
+        neon: '#00ff88',
+        'neon-dim': '#10b981',
+        'deep-card': '#0a0f1a',
+        surface: 'rgba(255, 255, 255, 0.03)',
         /* Magic Patterns, как в исходнике (bg-deep + grid-bg) */
         deep: '#060a13',
         'mp-deep': '#060a13',

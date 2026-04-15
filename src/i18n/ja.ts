@@ -23,14 +23,18 @@ export const ja: Record<string, string> = {
   'hero.perSec': '/ 秒',
   'hero.nominalApprox': '名目 ≈',
   'hero.perHour': '/ 時',
+  'hero.heroEarningsPerSecond': '秒あたり',
+  'hero.heroEarningsHour': '/ 時間',
+  'hero.heroEarningsLive': 'ライブ',
   'hero.realHint': '· 実質',
   'hero.today': '今日',
-  'hero.fteHourNote':
-    '時給の名目はフルタイム（週40時間）。秒あたりの積み上げは暦ベースのままです。',
   'hero.dayMeterAria': '深夜0時までの今日の進行',
-  'hero.dayMeterTitle': 'デイラン — 深夜まで',
+  'hero.dayMeterTitle': '今日の進捗',
+  'hero.dayWindowEndMidnight': '24:00',
   'hero.dayLeftLabel': '残り',
-  'hero.per24hHint': '暦の1日（24時間）: {sym}{amt}',
+  'hero.lastHourLabel': '直近1時間',
+  'hero.remainingLabel': '残り',
+  'hero.dayProgressTrendFaster': '昨日より速く稼いでいます',
   'hero.moreNominal': '名目（調整前）',
   'hero.insightTitle': '税・インフレ後',
   'hero.insightAria': '実質購買力',
@@ -52,6 +56,18 @@ export const ja: Record<string, string> = {
   'hero.noFxHint':
     '1本のヘッドラインにするには API 為替を有効にするか、同一通貨のプロジェクトにしてください。',
 
+  'magic.projectionsTitle': '見通し',
+  'magic.projTonight': '今夜まで',
+  'magic.projTonightDesc': '現在ペースでの1日の上限',
+  'magic.projMonth': '今月',
+  'magic.projMonthDesc': '年間手取りの約1/12（目安）',
+  'magic.proj5y': '5年後',
+  'magic.proj5yDesc': '現在ペース（軌道）',
+  'magic.insightsTitle': 'ヒント',
+  'magic.insight1': '選択したプロジェクトから毎秒積み上げ。',
+  'magic.insight2': '下の「軌道」で+20%シナリオと期間。',
+  'magic.insight3': '為替・インフレはメインブロックと同じ前提。',
+
   'trajectory.aria': '軌道の目安',
   'trajectory.kicker': 'このペースを続けたら',
   'trajectory.disclaimer':
@@ -72,18 +88,8 @@ export const ja: Record<string, string> = {
   'breakdown.oneTotalTitle': '合計（複数通貨 → 1つの数字）',
   'breakdown.showAllCurrencies': '全通貨を表示',
   'breakdown.hideAllCurrencies': '合計1つのみ',
-  'breakdown.sortHintFx':
-    '通貨ごと。有効契約を先に；グループ内は次の通貨換算額で並べ替え',
-  'breakdown.sortHintFxApi': '（API レート）。',
-  'breakdown.sortHintNoFx': 'レートなしは通貨コード順。',
-  'breakdown.sortParagraphFx':
-    '通貨ごと。有効契約を先に；各グループは {ccy} 換算の降順（API レート）。',
-  'breakdown.sortParagraphNoFx':
-    '通貨ごと。有効契約を先に；FX なしは通貨コード順。',
   'breakdown.endedBadge': '終了',
   'breakdown.inAccount': '現在の口座残高',
-  'breakdown.balancePayrollCaption':
-    '設定の残高（{payroll} の給与後）· 選択した全プロジェクトの積み上げは {accrualFrom}（翌日0時）から。他通貨は現在の API レートで換算。',
   'breakdown.noContractsInCcy': '契約なし',
   'breakdown.allEndedInCcy': 'すべて終了',
   'breakdown.noAccrualHint':
@@ -170,6 +176,7 @@ export const ja: Record<string, string> = {
   'footer.sigmaPerSec': 'Σ ≈ +',
   'footer.inCcy': '通貨',
   'footer.byRate': '（API レート）',
+  'footer.appTagline': 'Money Clock · Live',
 
   'awareness.title': 'Money Awareness Engine',
   'awareness.sub': 'マイペース（共有）',

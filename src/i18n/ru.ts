@@ -16,16 +16,6 @@ export const ru: Record<string, string> = {
   'settings.title': 'Настройки',
   'settings.close': 'Закрыть',
 
-  'ai.openAria': 'Открыть Money AI',
-  'ai.title': 'Money AI',
-  'ai.hint':
-    'Спросите про темп дохода, баланс или планы. Это не финансовая консультация.',
-  'ai.placeholder': 'Сообщение…',
-  'ai.send': 'Отправить',
-  'ai.thinking': 'Думаю…',
-  'ai.close': 'Закрыть',
-  'ai.error': 'Не удалось связаться с AI. Проверьте сеть или попробуйте позже.',
-
   'hero.aria': 'Темп начисления',
   'hero.now': 'Сейчас',
   'hero.tagline': 'Ваша скорость дохода',
@@ -33,14 +23,19 @@ export const ru: Record<string, string> = {
   'hero.perSec': '/ сек',
   'hero.nominalApprox': 'номинал ≈',
   'hero.perHour': '/час',
+  'hero.heroEarningsPerSecond': 'в секунду',
+  'hero.heroEarningsHour': '/ час',
+  'hero.heroEarningsLive': 'Онлайн',
   'hero.realHint': '· реально',
   'hero.today': 'Сегодня',
-  'hero.fteHourNote':
-    'Номинал в час — по полной ставке 40\u00A0ч/нед; начисление в\u00A0секунду по\u00A0календарю.',
   'hero.dayMeterAria': 'Прогресс дня до полуночи',
-  'hero.dayMeterTitle': 'ЗАБЕГ ДНЯ — ДО ПОЛУНОЧИ',
+  'hero.dayMeterTitle': 'Прогресс за сегодня',
+  'hero.dayWindowEndMidnight': '24:00',
   'hero.dayLeftLabel': 'Осталось',
-  'hero.per24hHint': 'За календарные сутки (24 ч): {sym}{amt}',
+  'hero.lastHourLabel': 'За час',
+  'hero.remainingLabel': 'Осталось',
+  'hero.dayProgressTrendFaster':
+    'Сегодня вы зарабатываете быстрее, чем вчера',
   'hero.moreNominal': 'Номинал (до корректировок)',
   'hero.insightTitle': 'После налогов и инфляции',
   'hero.insightAria': 'Реальная покупательная способность',
@@ -62,6 +57,18 @@ export const ru: Record<string, string> = {
   'hero.noFxHint':
     'Для одной строки темпа включите курсы API или выберите проекты в одной валюте.',
 
+  'magic.projectionsTitle': 'Прогноз',
+  'magic.projTonight': 'К вечеру',
+  'magic.projTonightDesc': 'Потолок дня при текущем темпе',
+  'magic.projMonth': 'Этот месяц',
+  'magic.projMonthDesc': '~1/12 годового «на руки» (оценка)',
+  'magic.proj5y': 'За 5 лет',
+  'magic.proj5yDesc': 'При текущем темпе (траектория)',
+  'magic.insightsTitle': 'Инсайты',
+  'magic.insight1': 'Начисление каждую секунду по выбранным проектам.',
+  'magic.insight2': 'Ниже блок «Траектория» — сценарий +20% и горизонты.',
+  'magic.insight3': 'Курсы и инфляция — те же источники, что у героя.',
+
   'trajectory.aria': 'Оценка траектории',
   'trajectory.kicker': 'Если сохранить этот темп',
   'trajectory.disclaimer':
@@ -82,18 +89,8 @@ export const ru: Record<string, string> = {
   'breakdown.oneTotalTitle': 'Итого (все валюты → одна сумма)',
   'breakdown.showAllCurrencies': 'Показать все валюты',
   'breakdown.hideAllCurrencies': 'Только один итог',
-  'breakdown.sortHintFx':
-    'Каждая валюта отдельно. Сначала, валюты с действующими контрактами; внутри группы порядок по убыванию суммы в пересчёте на',
-  'breakdown.sortHintFxApi': '(курс на дату выплаты / API).',
-  'breakdown.sortHintNoFx': 'Без курса внутри группы, по коду валюты.',
-  'breakdown.sortParagraphFx':
-    'Каждая валюта отдельно. Сначала, валюты с действующими контрактами; внутри группы порядок по убыванию суммы в пересчёте на {ccy} (курс на дату последней выплаты из истории, иначе API).',
-  'breakdown.sortParagraphNoFx':
-    'Каждая валюта отдельно. Сначала, валюты с действующими контрактами; без курса внутри группы, по коду валюты.',
   'breakdown.endedBadge': 'Завершены',
   'breakdown.inAccount': 'Сколько сейчас на счёте',
-  'breakdown.balancePayrollCaption':
-    'Сумма в настройках после зарплаты {payroll}; доначисление по всем выбранным проектам с {accrualFrom} (полуночи следующего дня), суммы в других валютах пересчитываются по текущему курсу API.',
   'breakdown.balanceEchoHint':
     'Тот же итог, что наверху, живое начисление в валюте счёта.',
   'breakdown.noContractsInCcy': 'Нет контрактов в',
@@ -191,6 +188,7 @@ export const ru: Record<string, string> = {
   'footer.byRate': '(по курсу)',
   'footer.liveRates': 'Курсы live',
   'footer.engineBrand': 'Money awareness engine',
+  'footer.appTagline': 'Money Clock · Live',
 
   'dashboard.momentumTitle': 'Анализ темпа',
   'dashboard.momentumTeaser': 'Темп на вашей стороне',

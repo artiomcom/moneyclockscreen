@@ -23,7 +23,10 @@ import {
   Sun,
   ArrowRight,
   CircleDollarSign,
-  Sparkles
+  Rocket,
+  Zap,
+  Clock,
+  TrendingUp
 } from 'lucide-react';
 import { ParticleBackground } from './ParticleBackground';
 import {
@@ -55,7 +58,6 @@ import {
   FTE_HERO_WORKDAY_DISPLAY_HOURS,
   projectIsEndedByDeadline,
   parseLocalDateYmd,
-  localYmdPlusDays,
   balanceOnAccountAt,
   MONEYCLOCK_CURRENCIES,
   getCurrencySymbol,
@@ -101,6 +103,13 @@ import {
 import { useI18n } from '../i18n';
 import { intlLocaleTag } from '../i18n/localeMeta';
 import { DASHBOARD_HINT_CLASS } from '../dashboardHintClass';
+import {
+  MagicPatternsAmbient,
+  MagicProjectionCards,
+  MagicInsightsFeed,
+  type MagicProjectionItem,
+  type MagicInsightItem
+} from './magicPatterns';
 import { APP_LOCALES, type AppLocale } from '../i18n/localeStorage';
 import {
   postCloudBackup,
@@ -120,8 +129,6 @@ import {
   clearMagicLinkSession,
   ensureMagicLinkInAddressBar
 } from '../magicLinkSession';
-import { AiChatPanel } from './ai/AiChatPanel';
-import { buildAiMoneySnapshot } from '../lib/aiMoneySnapshot';
 function InputField({
   label,
   value,
@@ -210,6 +217,11 @@ const EMPTY_INFLATION_CCY: string[] = [];
 /** Локальный час начала интервала «Сегодня» в герое (не полуночь). */
 const HERO_TODAY_LOCAL_START_HOUR = 8;
 
+/** Easing из Magic Patterns `DayProgress` (framer cubic-bezier). */
+const MP_DAY_PROGRESS_EASE: [number, number, number, number] = [
+  0.16, 1, 0.3, 1
+];
+
 /** Секунды от начала «дня» (8:00) до полуночи — потолок дневного прогресса. */
 const DAY_SECONDS_8_TO_MIDNIGHT = (24 - HERO_TODAY_LOCAL_START_HOUR) * 3600;
 
@@ -224,7 +236,6 @@ function getInitialMoneyClockState(): MoneyClockSavedState {
 export function MoneyClock() {
   const { t, locale, setLocale } = useI18n();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
   const [projectsBundle, setProjectsBundle] = useState<ProjectsBundle>(
     () => getInitialMoneyClockState().projectsBundle
@@ -578,17 +589,6 @@ export function MoneyClock() {
     ]
   );
 
-  const balancePayrollCaption = useMemo(() => {
-    const pay = lastPayrollYmd.trim();
-    if (!pay || parseLocalDateYmd(pay) == null) return null;
-    const next = localYmdPlusDays(pay, 1);
-    if (!next) return null;
-    return {
-      payroll: formatYmdLong(pay, locale),
-      accrualFrom: formatYmdLong(next, locale)
-    };
-  }, [lastPayrollYmd, locale]);
-
   const balanceCurrencySymbol = getCurrencySymbol(currentBalanceCurrency);
 
   /** Валюты, в которых есть хотя бы один выбранный проект с неистёкшим сроком (ещё «копит»). */
@@ -893,6 +893,14 @@ export function MoneyClock() {
     todayStartMs
   ]);
 
+  /** Доля «сегодня» относительно остатка на начало дня (как в макете BalanceCard). */
+  const balanceTodayPercentVsStart = useMemo(() => {
+    if (heroTodayAccrual == null || heroTodayAccrual <= 0) return null;
+    const before = displayBalanceWithAccrual - heroTodayAccrual;
+    if (!Number.isFinite(before) || before <= 0) return null;
+    return ((heroTodayAccrual / before) * 100).toFixed(1);
+  }, [heroTodayAccrual, displayBalanceWithAccrual]);
+
   const heroDayCapEarnings = useMemo(() => {
     if (!heroRateBasis) return null;
     const fte = equivalentFteHourlyInBalanceCcy;
@@ -912,37 +920,116 @@ export function MoneyClock() {
     return Math.min(1, Math.max(0, (heroTodayAccrual ?? 0) / heroDayCapEarnings));
   }, [heroDayCapEarnings, heroTodayAccrual]);
 
-  /** Начало / конец окна «рабочего дня» для полосы: 8:00→24:00 (календарь) или 8:00→+8 ч (FTE). */
   const heroDayWindowTimeLabels = useMemo(() => {
-    const fmt = new Intl.DateTimeFormat(locale, {
-      hour: '2-digit',
+    const tag = intlLocaleTag[locale];
+    const start = new Date(todayStartMs);
+    const startStr = start.toLocaleTimeString(tag, {
+      hour: 'numeric',
       minute: '2-digit',
-      hour12: false
+      hourCycle: 'h23'
     });
-    const base = new Date(nowTick);
-    const start = new Date(base);
-    start.setHours(HERO_TODAY_LOCAL_START_HOUR, 0, 0, 0);
-    const startStr = fmt.format(start);
+    let endStr: string;
     if (heroUsesFteNominalHourly) {
-      const end = new Date(base);
+      const end = new Date(todayStartMs);
       end.setHours(
         HERO_TODAY_LOCAL_START_HOUR + FTE_HERO_WORKDAY_DISPLAY_HOURS,
         0,
         0,
         0
       );
-      return { startStr, endStr: fmt.format(end) };
+      endStr = end.toLocaleTimeString(tag, {
+        hour: 'numeric',
+        minute: '2-digit',
+        hourCycle: 'h23'
+      });
+    } else {
+      endStr = t('hero.dayWindowEndMidnight');
     }
-    const end = new Date(base);
-    end.setHours(24, 0, 0, 0);
-    return { startStr, endStr: fmt.format(end) };
-  }, [nowTick, locale, heroUsesFteNominalHourly]);
+    return { start: startStr, end: endStr };
+  }, [todayStartMs, heroUsesFteNominalHourly, locale, t]);
 
-  const heroPer24hEarnings = useMemo(() => {
+  const heroDayProgressMarkers = useMemo(() => {
+    const startH = HERO_TODAY_LOCAL_START_HOUR;
+    const endH = heroUsesFteNominalHourly ?
+      HERO_TODAY_LOCAL_START_HOUR + FTE_HERO_WORKDAY_DISPLAY_HOURS :
+      24;
+    const span = Math.max(0, endH - startH);
+    const maxTicks = 6;
+    const step = span <= 0 ? 1 : Math.max(1, Math.ceil(span / maxTicks));
+    const markers: number[] = [];
+    for (let h = startH; h < endH; h += step) {
+      markers.push(h);
+    }
+    if (markers.length === 0 || markers[markers.length - 1] !== endH) {
+      markers.push(endH);
+    }
+    return markers;
+  }, [heroUsesFteNominalHourly]);
+
+  const heroDayProgressMarkerLabels = useMemo(() => {
+    const tag = intlLocaleTag[locale];
+    return heroDayProgressMarkers.map((hour) => {
+      if (hour >= 24) return t('hero.dayWindowEndMidnight');
+      const d = new Date(todayStartMs);
+      d.setHours(hour, 0, 0, 0);
+      return d.toLocaleTimeString(tag, {
+        hour: 'numeric',
+        minute: '2-digit',
+        hourCycle: 'h23'
+      });
+    });
+  }, [heroDayProgressMarkers, todayStartMs, locale, t]);
+
+  const magicPatternProjections = useMemo((): MagicProjectionItem[] | null => {
+    if (!trajectorySnap || heroDayCapEarnings == null || !futureYearly || !heroRateBasis) {
+      return null;
+    }
+    const sym = trajectorySnap.symbol;
+    return [
+      {
+        label: t('magic.projTonight'),
+        value: `${sym}${heroDayCapEarnings.toFixed(2)}`,
+        description: t('magic.projTonightDesc'),
+        Icon: Moon
+      },
+      {
+        label: t('magic.projMonth'),
+        value: `${sym}${formatCompactAnnual(futureYearly.path / 12)}`,
+        description: t('magic.projMonthDesc'),
+        Icon: CalendarIcon
+      },
+      {
+        label: t('magic.proj5y'),
+        value: `${sym}${formatCompactAnnual(trajectorySnap.y5)}`,
+        description: t('magic.proj5yDesc'),
+        Icon: Rocket
+      }
+    ];
+  }, [trajectorySnap, heroDayCapEarnings, futureYearly, heroRateBasis, t]);
+
+  const magicPatternInsights = useMemo((): MagicInsightItem[] | null => {
     if (!heroRateBasis) return null;
-    return heroRateBasis.perSec * 86400;
-  }, [heroRateBasis]);
-
+    return [
+      {
+        icon: Zap,
+        text: t('magic.insight1'),
+        color: 'text-yellow-400',
+        bgColor: 'bg-yellow-400/10'
+      },
+      {
+        icon: TrendingUp,
+        text: t('magic.insight2'),
+        color: 'text-neon',
+        bgColor: 'bg-neon/10'
+      },
+      {
+        icon: Clock,
+        text: t('magic.insight3'),
+        color: 'text-cyan-300',
+        bgColor: 'bg-cyan-400/10'
+      }
+    ];
+  }, [heroRateBasis, t]);
 
   /** Демо-шкала + тексты для шэринга (ставка в валюте счёта или единственной валюте проектов). */
   const moneyAwarenessSnap = useMemo(() => {
@@ -1120,11 +1207,6 @@ export function MoneyClock() {
       takeHomeFraction,
       profileBundle
     ]
-  );
-
-  const aiMoneySnapshot = useMemo(
-    () => buildAiMoneySnapshot(persistSnapshot, nowTick, locale),
-    [persistSnapshot, nowTick, locale]
   );
 
   useEffect(() => {
@@ -1874,10 +1956,13 @@ export function MoneyClock() {
       {theme === 'light' ?
         <ParticleBackground sparse />
       : null}
+      {theme === 'dark' ?
+        <MagicPatternsAmbient />
+      : null}
 
-      <div className="relative z-10 flex-1 w-full max-w-[min(100%,96rem)] mx-auto px-5 pt-6 pb-10 flex flex-col min-h-0 dark:max-w-4xl dark:mx-auto dark:px-4 dark:sm:px-6 dark:lg:px-8 dark:pt-8 dark:pb-12">
-        <div className="flex-1 flex flex-col justify-center py-6 sm:py-8 w-full min-h-0 dark:py-6">
-          <div className="relative w-full max-w-4xl xl:max-w-6xl 2xl:max-w-7xl mx-auto px-1 sm:px-2 pt-6 sm:pt-9 pb-11 sm:pb-14 dark:max-w-4xl dark:px-0 dark:pt-4 dark:pb-8 xl:dark:max-w-5xl">
+      <div className="relative z-10 flex-1 w-full max-w-[min(100%,96rem)] mx-auto px-5 pt-6 pb-10 flex flex-col min-h-0 dark:max-w-3xl dark:mx-auto dark:px-4 dark:sm:px-6 dark:pt-2 dark:pb-8">
+        <div className="flex-1 flex flex-col justify-center py-6 sm:py-8 w-full min-h-0 dark:py-0 dark:justify-start">
+          <div className="relative w-full max-w-4xl xl:max-w-6xl 2xl:max-w-7xl mx-auto px-1 sm:px-2 pt-6 sm:pt-9 pb-11 sm:pb-14 dark:max-w-3xl dark:mx-auto dark:px-0 dark:pt-0 dark:pb-4">
             <motion.div
               layout={theme === 'light'}
               className={
@@ -1907,9 +1992,9 @@ export function MoneyClock() {
                 className={
                   theme === 'light' ?
                     'relative z-10 flex flex-col gap-5 sm:gap-6 px-4 sm:px-6 lg:px-8 pt-4 sm:pt-5 pb-5 sm:pb-7'
-                  : 'relative z-10 flex w-full min-w-0 flex-col gap-5 sm:gap-6 px-0 sm:px-0 lg:px-1 pt-4 sm:pt-5 pb-5 sm:pb-7'
+                  : 'relative z-10 flex w-full min-w-0 flex-col gap-3 sm:gap-4 px-0 sm:px-0 lg:px-1 pt-0 sm:pt-1 pb-4 sm:pb-5'
                 }>
-              <div className="sticky top-0 z-30 flex flex-wrap items-center justify-end gap-2 pt-0.5 pb-3 -mt-0.5">
+              <div className="sticky top-0 z-30 flex flex-wrap items-center justify-end gap-2 pt-0.5 pb-3 -mt-0.5 dark:pt-0 dark:pb-2">
                 <motion.button
                   type="button"
                   whileTap={{ scale: 0.98 }}
@@ -1952,171 +2037,331 @@ export function MoneyClock() {
               {hasPositiveAccrualRate && heroRateBasis && realRateBreakdown ?
                 <>
                   <section
-                    className="text-center max-w-2xl mx-auto space-y-4 sm:space-y-5 pt-2 pb-1"
+                    className={
+                      theme === 'dark' ?
+                        'text-center w-full space-y-2 sm:space-y-2.5 px-0 pt-1 sm:pt-1.5 pb-1'
+                      : 'text-center max-w-2xl mx-auto space-y-4 sm:space-y-5 pt-2 pb-1'
+                    }
                     aria-label={t('hero.aria')}
                     id="dash-hero">
-                    <p className="text-slate-600 dark:text-sky-200/80 text-sm sm:text-base font-semibold leading-snug max-w-[20rem] mx-auto tracking-tight dark:tracking-[0.12em]">
+                    <p
+                      className={
+                        theme === 'light' ?
+                          'text-slate-600 text-sm sm:text-base font-semibold leading-snug max-w-[20rem] mx-auto tracking-tight'
+                        : 'text-white/40 text-sm sm:text-base font-medium leading-snug max-w-[20rem] mx-auto tracking-[0.2em] uppercase'
+                      }>
                       {t('hero.tagline')}
                     </p>
                     {heroTodayAccrual != null ?
-                      <div className="space-y-1.5 pt-1" id="dash-today">
-                        <p className="text-white/60 text-[0.68rem] sm:text-[0.72rem] font-extrabold uppercase tracking-[0.2em]">
+                      <div
+                        className={theme === 'dark' ? 'relative pt-0' : 'relative pt-1'}
+                        id="dash-today">
+                        <div
+                          className={
+                            theme === 'dark' ?
+                              'relative flex min-w-0 flex-col gap-1'
+                            : 'relative flex min-w-0 flex-col gap-1.5'
+                          }>
+                        <p
+                          className={
+                            theme === 'light' ?
+                              'text-white/60 text-[0.68rem] sm:text-[0.72rem] font-extrabold uppercase tracking-[0.2em]'
+                            : 'text-sm font-medium tracking-[0.2em] uppercase text-white/40'
+                          }>
                           {t('hero.today')}
                         </p>
+                        {theme === 'dark' ?
+                          <div className="relative mx-auto w-fit max-w-full self-center">
+                            <div
+                              className="pointer-events-none absolute left-1/2 top-1/2 h-[min(360px,48vh)] w-[min(420px,100%)] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-full bg-neon/5 blur-[120px]"
+                              aria-hidden
+                            />
+                            <div
+                              className={`hero-rate-glow relative z-[1] font-mono dark:font-arcade font-black tabular-nums leading-none text-[var(--accent-money)] flex flex-wrap items-baseline justify-center gap-x-1 glow-green`}
+                              style={{ fontSize: 'clamp(3rem, 14vmin, 6rem)' }}>
+                              <AnimatedCounter
+                                value={heroTodayAccrual}
+                                prefix={`+${heroRateBasis.symbol}`}
+                                decimals={2}
+                                atmosphere
+                                leavesCount={16}
+                              />
+                            </div>
+                          </div>
+                        : <div
+                            className={`hero-rate-glow font-mono dark:font-arcade font-black tabular-nums leading-none text-[var(--accent-money)] flex flex-wrap items-baseline justify-center gap-x-1 ${theme === 'dark' ? 'glow-green' : ''}`}
+                            style={{ fontSize: 'clamp(3rem, 14vmin, 6rem)' }}>
+                            <AnimatedCounter
+                              value={heroTodayAccrual}
+                              prefix={`+${heroRateBasis.symbol}`}
+                              decimals={2}
+                              atmosphere
+                              leavesCount={16}
+                            />
+                          </div>
+                        }
                         <div
-                          className="hero-rate-glow font-mono dark:font-arcade font-black tabular-nums leading-none text-[var(--accent-money)] flex flex-wrap items-baseline justify-center gap-x-1"
-                          style={{ fontSize: 'clamp(3rem, 14vmin, 6rem)' }}>
-                          <AnimatedCounter
-                            value={heroTodayAccrual}
-                            prefix={`+${heroRateBasis.symbol}`}
-                            decimals={2}
-                            atmosphere
-                            leavesCount={16}
-                          />
+                          className={
+                            theme === 'dark' ?
+                              'flex flex-col items-center text-center mt-4'
+                            : 'flex flex-col items-center gap-3 pt-3 border-t border-white/[0.06]'
+                          }>
+                          {theme === 'light' ?
+                            <p className="text-white/60 text-[0.62rem] font-extrabold uppercase tracking-[0.2em]">
+                              {t('hero.now')}
+                            </p>
+                          : null}
+                          {theme === 'dark' ?
+                            <>
+                              <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                transition={{ delay: 0.6 }}
+                                className="flex items-center justify-center gap-2">
+                                <span className="relative flex h-2 w-2 shrink-0">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-neon/60 opacity-75" />
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-neon" />
+                                </span>
+                                <span className="font-mono text-sm text-neon/70 animate-pulse-glow tabular-nums">
+                                  +{heroRateBasis.symbol}
+                                  {heroRateBasis.perSec.toFixed(4)}{' '}
+                                  {t('hero.heroEarningsPerSecond')}
+                                </span>
+                              </motion.div>
+                              <motion.p
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                transition={{ delay: 0.9 }}
+                                className="mt-3 text-xs text-white/25">
+                                {heroRateBasis.symbol}
+                                {realRateBreakdown.nominalPerHour.toFixed(2)}{' '}
+                                {t('hero.heroEarningsHour')} ·{' '}
+                                {t('hero.heroEarningsLive')}
+                              </motion.p>
+                            </>
+                          : <>
+                              <div
+                                className="hero-rate-glow flex min-w-0 flex-nowrap items-center justify-center gap-x-2 font-mono font-black tabular-nums leading-none text-[var(--accent-money)]"
+                                style={{
+                                  fontSize: 'clamp(1.08rem, 4.1vmin, 1.55rem)'
+                                }}>
+                                <span className="font-mono tabular-nums shrink-0">
+                                  +{heroRateBasis.symbol}
+                                  {heroRateBasis.perSec.toFixed(4)}
+                                </span>
+                                <span className="font-sans text-[0.68em] font-bold tracking-tight text-white/72">
+                                  {t('hero.perSec')}
+                                </span>
+                              </div>
+                              <div
+                                className="hero-rate-glow flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-0.5 font-mono font-black tabular-nums leading-none text-[var(--accent-money)]/95"
+                                style={{
+                                  fontSize: 'clamp(1.5rem, 5vmin, 2.25rem)'
+                                }}>
+                                <span
+                                  className="font-sans font-bold text-white/50"
+                                  style={{ fontSize: '0.42em' }}>
+                                  ≈
+                                </span>
+                                <span className="tracking-tight">
+                                  {heroRateBasis.symbol}
+                                  {realRateBreakdown.nominalPerHour.toFixed(2)}
+                                </span>
+                                <span
+                                  className="font-sans font-bold text-white/58"
+                                  style={{ fontSize: '0.52em' }}>
+                                  {t('hero.perHour')}
+                                </span>
+                                <span
+                                  className="font-sans font-medium text-white/42"
+                                  style={{ fontSize: '0.44em' }}>
+                                  · {heroRateBasis.code}
+                                </span>
+                              </div>
+                            </>
+                          }
                         </div>
                         {heroDayCapEarnings != null &&
                         heroDayRemainingEarnings != null &&
-                        heroPer24hEarnings != null &&
                         heroRateBasis ?
-                          <div
-                            className="mt-5 pt-4 border-t border-white/[0.08] max-w-[min(100%,22rem)] mx-auto space-y-3"
+                          <motion.section
+                            initial={{ opacity: 0, y: 30 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{
+                              duration: 0.7,
+                              delay: 0.2,
+                              ease: MP_DAY_PROGRESS_EASE
+                            }}
+                            className={
+                              theme === 'dark' ?
+                                'w-full px-0 pb-6 mt-16 sm:mt-20'
+                              : 'mt-8 sm:mt-10 pt-4 border-t border-white/[0.08] max-w-3xl mx-auto px-1 w-full'
+                            }
                             aria-label={t('hero.dayMeterAria')}>
-                            <p className="text-[0.58rem] sm:text-[0.62rem] font-black uppercase tracking-[0.28em] text-center text-cyan-300/90 dark:text-cyan-200/85 drop-shadow-[0_0_8px_rgba(34,211,238,0.35)]">
-                              {t('hero.dayMeterTitle')}
-                            </p>
-                            <div className="flex items-center gap-1.5 sm:gap-2 w-full min-w-0">
-                              <span
-                                className="hero-day-window-clock shrink-0 font-mono dark:font-arcade font-black tabular-nums text-[0.62rem] sm:text-[0.68rem] uppercase tracking-[0.18em] text-center leading-none px-1 py-0.5 sm:px-1.5 rounded-[2px] border border-cyan-400/45 bg-black/50 text-cyan-100/95 shadow-[0_0_10px_rgba(0,255,255,0.28),inset_0_1px_0_rgba(255,255,255,0.12)]"
-                                aria-hidden>
-                                {heroDayWindowTimeLabels.startStr}
-                              </span>
-                              <div className="hero-arcade-day-track relative h-5 sm:h-6 flex-1 min-w-0 overflow-hidden rounded-[3px] border-2 border-cyan-500/50 bg-[#04080c] shadow-[inset_0_2px_12px_rgba(0,0,0,0.85),0_0_0_1px_rgba(0,255,200,0.12),0_0_12px_rgba(255,184,0,0.12)]">
-                                <div
-                                  className="pointer-events-none absolute inset-0 z-[1] opacity-[0.12] hero-arcade-day-scanlines"
-                                  aria-hidden
-                                />
-                                <motion.div
-                                  className="hero-arcade-day-fill absolute left-0 top-0 bottom-0 z-[2] origin-left rounded-[1px]"
-                                  initial={false}
-                                  animate={{ scaleX: heroDayProgressFraction }}
-                                  transition={{ type: 'spring', stiffness: 120, damping: 22 }}
-                                  style={{
-                                    width: '100%',
-                                    background:
-                                      'linear-gradient(90deg, rgba(6,95,70,0.95) 0%, #00ff88 42%, #fef08a 88%, #fffef0 100%)',
-                                    boxShadow:
-                                      '0 0 14px rgba(0,255,136,0.55), inset 0 1px 0 rgba(255,255,255,0.35)'
-                                  }}
-                                />
-                                <div
-                                  className="pointer-events-none absolute inset-y-0 right-0 z-[3] w-px bg-white/25"
-                                  aria-hidden
-                                />
+                            <div
+                              className={
+                                theme === 'dark' ?
+                                  'glass-card w-full p-6 sm:p-8'
+                                : 'w-full'
+                              }>
+                              <div
+                                className={
+                                  theme === 'dark' ?
+                                    'flex items-center justify-between mb-6'
+                                  : 'flex flex-wrap items-center justify-between gap-2 mb-5'
+                                }>
+                                <h2
+                                  className={
+                                    theme === 'dark' ?
+                                      'text-xs font-semibold tracking-[0.2em] uppercase text-white/40'
+                                    : 'text-[0.58rem] sm:text-[0.62rem] font-black uppercase tracking-[0.28em] text-cyan-300/90 drop-shadow-[0_0_8px_rgba(34,211,238,0.35)]'
+                                  }>
+                                  {t('hero.dayMeterTitle')}
+                                </h2>
+                                <span
+                                  className={
+                                    theme === 'dark' ?
+                                      'text-xs text-white/30'
+                                    : 'font-mono text-[0.55rem] sm:text-[0.58rem] tabular-nums text-white/55'
+                                  }>
+                                  {heroDayWindowTimeLabels.start}
+                                  {' – '}
+                                  {heroDayWindowTimeLabels.end}
+                                </span>
                               </div>
-                              <span
-                                className="hero-day-window-clock shrink-0 font-mono dark:font-arcade font-black tabular-nums text-[0.62rem] sm:text-[0.68rem] uppercase tracking-[0.18em] text-center leading-none px-1 py-0.5 sm:px-1.5 rounded-[2px] border border-amber-400/40 bg-black/50 text-amber-100/95 shadow-[0_0_10px_rgba(255,200,100,0.22),inset_0_1px_0_rgba(255,255,255,0.1)]"
-                                aria-hidden>
-                                {heroDayWindowTimeLabels.endStr}
-                              </span>
+                              <div className="relative mb-4">
+                                <div
+                                  className={
+                                    theme === 'dark' ?
+                                      'h-2 rounded-full bg-white/5 overflow-hidden'
+                                    : 'h-2 rounded-full bg-slate-900/20 overflow-hidden'
+                                  }>
+                                  <motion.div
+                                    className="h-full rounded-full relative"
+                                    initial={{ width: 0 }}
+                                    animate={{
+                                      width: `${heroDayProgressFraction * 100}%`
+                                    }}
+                                    transition={{
+                                      duration: 0.55,
+                                      ease: MP_DAY_PROGRESS_EASE
+                                    }}
+                                    style={{
+                                      background:
+                                        'linear-gradient(90deg, #064E3B, #00FF88)'
+                                    }}
+                                  />
+                                </div>
+                                <motion.div
+                                  className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                                  style={{ top: '4px' }}
+                                  initial={{ left: '0%', opacity: 0 }}
+                                  animate={{
+                                    left: `${heroDayProgressFraction * 100}%`,
+                                    opacity: 1
+                                  }}
+                                  transition={{
+                                    duration: 0.55,
+                                    ease: MP_DAY_PROGRESS_EASE
+                                  }}
+                                  aria-hidden>
+                                  <div
+                                    className={
+                                      theme === 'dark' ?
+                                        'w-4 h-4 rounded-full bg-neon animate-dot-pulse'
+                                      : 'w-3.5 h-3.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.5)]'
+                                    }
+                                  />
+                                </motion.div>
+                                <div className="flex justify-between mt-3 gap-0.5 sm:gap-1">
+                                  {heroDayProgressMarkerLabels.map((label, i) => (
+                                    <span
+                                      key={`${label}-${i}`}
+                                      className={
+                                        theme === 'dark' ?
+                                          'text-[10px] text-white/20 font-mono tabular-nums shrink min-w-0'
+                                        : 'text-[9px] sm:text-[10px] text-white/35 font-mono dark:font-arcade tabular-nums shrink min-w-0'
+                                      }>
+                                      {label}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                              <div
+                                className={
+                                  theme === 'dark' ?
+                                    'mt-6 pt-6 border-t border-white/5 w-full flex justify-between items-center gap-4'
+                                  : 'mt-5 pt-5 border-t border-white/[0.08] w-full flex justify-between items-center gap-4'
+                                }>
+                                <div className="flex min-w-0 flex-col items-center">
+                                  <p
+                                    className={
+                                      theme === 'dark' ?
+                                        'text-[10px] uppercase tracking-[0.15em] text-white/30 mb-1 text-center'
+                                      : 'text-[10px] uppercase tracking-[0.15em] text-white/45 mb-1 text-center'
+                                    }>
+                                    {t('hero.lastHourLabel')}
+                                  </p>
+                                  <p
+                                    className={
+                                      theme === 'dark' ?
+                                        'font-mono text-lg text-white font-medium tabular-nums text-center'
+                                      : 'font-mono dark:font-arcade text-base sm:text-lg text-white font-bold tabular-nums text-[var(--accent-money)] text-center'
+                                    }>
+                                    +{heroRateBasis.symbol}
+                                    {realRateBreakdown.nominalPerHour.toFixed(2)}
+                                  </p>
+                                </div>
+                                <div className="flex min-w-0 flex-col items-center">
+                                  <p
+                                    className={
+                                      theme === 'dark' ?
+                                        'text-[10px] uppercase tracking-[0.15em] text-white/30 mb-1 text-center'
+                                      : 'text-[10px] uppercase tracking-[0.15em] text-white/45 mb-1 text-center'
+                                    }>
+                                    {t('hero.remainingLabel')}
+                                  </p>
+                                  <p
+                                    className={
+                                      theme === 'dark' ?
+                                        'font-mono text-lg text-white/60 font-medium tabular-nums text-center'
+                                      : 'font-mono dark:font-arcade text-base sm:text-lg text-white/70 font-bold tabular-nums text-center'
+                                    }>
+                                    {heroRateBasis.symbol}
+                                    {heroDayRemainingEarnings.toFixed(2)}
+                                  </p>
+                                </div>
+                              </div>
+                              <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                transition={{ delay: 1.2 }}
+                                className={
+                                  theme === 'dark' ?
+                                    'mt-5 flex items-center gap-2 text-neon-dim'
+                                  : 'mt-4 flex items-center gap-2 text-emerald-200/70'
+                                }>
+                                <TrendingUp
+                                  className="w-3.5 h-3.5 shrink-0"
+                                  aria-hidden
+                                />
+                                <span className="text-xs font-medium text-left">
+                                  {t('hero.dayProgressTrendFaster')}
+                                </span>
+                              </motion.div>
                             </div>
-                            <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[0.7rem] sm:text-[0.75rem] font-mono dark:font-arcade font-bold tabular-nums">
-                              <span className="text-cyan-200/90 uppercase tracking-[0.12em] text-[0.62rem] drop-shadow-[0_0_6px_rgba(34,211,238,0.35)]">
-                                {t('hero.dayLeftLabel')}
-                              </span>
-                              <span className="text-[var(--accent-money)] [text-shadow:0_0_10px_rgba(0,255,136,0.4)]">
-                                +{heroRateBasis.symbol}
-                                {heroDayRemainingEarnings.toFixed(2)}
-                              </span>
-                            </div>
-                            <p
-                              className={`${DASHBOARD_HINT_CLASS} text-center !max-w-none !text-[0.52rem] sm:!text-[0.54rem]`}>
-                              {t('hero.per24hHint', {
-                                sym: heroRateBasis.symbol,
-                                amt: heroPer24hEarnings.toFixed(2)
-                              })}
-                            </p>
-                          </div>
+                          </motion.section>
                         : null}
+                        </div>
                       </div>
                     : null}
-                    <div
-                      className="space-y-1.5 pt-3 border-t border-white/[0.06]"
-                      id="dash-balance">
-                      <p className="text-white/60 text-[0.65rem] sm:text-[0.68rem] font-extrabold uppercase tracking-[0.18em]">
-                        {t('breakdown.inAccount')}
-                      </p>
-                      {balancePayrollCaption ?
-                        <p className={`${DASHBOARD_HINT_CLASS} text-center`}>
-                          {t('breakdown.balancePayrollCaption', {
-                            payroll: balancePayrollCaption.payroll,
-                            accrualFrom: balancePayrollCaption.accrualFrom
-                          })}
-                        </p>
-                      : null}
-                      <div
-                        className="font-mono dark:font-arcade font-black tabular-nums leading-none text-white flex flex-wrap items-baseline justify-center gap-x-1"
-                        style={{
-                          fontSize: 'clamp(1.9rem, 9vmin, 3.85rem)',
-                          textShadow:
-                            '0 2px 20px rgba(0,0,0,0.35), 0 0 28px rgba(255,255,255,0.08)'
-                        }}>
-                        <AnimatedCounter
-                          value={displayBalanceWithAccrual}
-                          prefix={balanceCurrencySymbol}
-                          decimals={2}
-                        />
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-center gap-3 pt-3 border-t border-white/[0.06]">
-                      <p className="text-white/60 text-[0.62rem] font-extrabold uppercase tracking-[0.2em]">
-                        {t('hero.now')}
-                      </p>
-                      <div
-                        className="hero-rate-glow flex flex-wrap items-baseline justify-center gap-x-1.5 gap-y-0.5 font-mono dark:font-arcade font-black tabular-nums leading-none text-[var(--accent-money)]/95"
-                        style={{ fontSize: 'clamp(1.75rem, 6.2vmin, 3rem)' }}>
-                        <span
-                          className="font-sans font-bold text-white/50 dark:text-mp-muted"
-                          style={{ fontSize: '0.42em' }}>
-                          ≈
-                        </span>
-                        <span className="tracking-tight">
-                          {heroRateBasis.symbol}
-                          {realRateBreakdown.nominalPerHour.toFixed(2)}
-                        </span>
-                        <span
-                          className="font-sans font-bold text-white/58 dark:text-mp-muted"
-                          style={{ fontSize: '0.52em' }}>
-                          {t('hero.perHour')}
-                        </span>
-                        <span
-                          className="font-sans font-medium text-white/42 dark:text-mp-muted"
-                          style={{ fontSize: '0.44em' }}>
-                          · {heroRateBasis.code}
-                        </span>
-                      </div>
-                      {heroUsesFteNominalHourly ?
-                        <p className={`${DASHBOARD_HINT_CLASS} text-center max-w-[22rem] px-1 break-normal`}>
-                          {t('hero.fteHourNote')}
-                        </p>
-                      : null}
-                      <div className="mx-auto w-20 h-px bg-gradient-to-r from-transparent via-neon-green/22 to-transparent dark:block hidden" />
-                      <div
-                        className="hero-rate-glow flex min-w-0 flex-nowrap items-baseline justify-center gap-x-2 font-mono dark:font-arcade font-black tabular-nums leading-none text-[var(--accent-money)]"
-                        style={{
-                          fontSize: 'clamp(1.08rem, 4.1vmin, 1.55rem)'
-                        }}>
-                        <AnimatedCounter
-                          className="shrink-0"
-                          value={heroRateBasis.perSec}
-                          decimals={heroRateBasis.perSec >= 0.01 ? 4 : 5}
-                          prefix={`+${heroRateBasis.symbol}`}
-                        />
-                        <span className="shrink-0 font-sans text-[0.68em] font-bold tracking-tight text-white/72 dark:text-emerald-100/88">
-                          {t('hero.perSec')}
-                        </span>
-                      </div>
-                    </div>
                   </section>
+                  {theme === 'dark' && magicPatternProjections ?
+                    <MagicProjectionCards
+                      title={t('magic.projectionsTitle')}
+                      items={magicPatternProjections}
+                    />
+                  : null}
                 </>
               : !hasPositiveAccrualRate ?
                 <section className="text-center py-8 sm:py-10 space-y-4 max-w-md mx-auto px-2">
@@ -2135,19 +2380,105 @@ export function MoneyClock() {
 
               {hasPositiveAccrualRate && heroRateBasis && realRateBreakdown ?
               <div
-                className="w-full max-w-3xl mx-auto border-t border-white/[0.06] pt-6 mt-2 space-y-5 px-1"
+                className={
+                  theme === 'dark' ?
+                    'w-full border-t border-white/[0.06] pt-6 mt-2 space-y-5 px-0'
+                  : 'w-full max-w-3xl mx-auto border-t border-white/[0.06] pt-6 mt-2 space-y-5 px-1'
+                }
                 id="dash-breakdown">
                 <div
                   className={`grid gap-x-4 gap-y-6 sm:gap-x-6 ${
                     hideEquivBreakdownTile ? 'grid-cols-1' : 'grid-cols-2'
                   }`}>
-                  <div className="relative rounded-2xl px-2 py-2 sm:px-3 sm:py-3 min-w-0 ring-1 ring-inset ring-white/[0.05] bg-white/[0.015] dark:bg-transparent dark:ring-0 dark:rounded-none">
-                    <span
-                      className="absolute top-2.5 right-2.5 text-[var(--accent-money)]/85 pointer-events-none"
-                      aria-hidden>
-                      <Layers size={15} strokeWidth={2.2} />
-                    </span>
-                    <p className="text-white/50 text-[0.55rem] sm:text-[0.6rem] font-extrabold uppercase tracking-[0.12em] pr-6 mb-2">
+                  <div
+                    className={
+                      theme === 'dark' ?
+                        'relative glass-card min-w-0 w-full rounded-2xl p-6 sm:p-8'
+                      : 'relative rounded-2xl px-2 py-2 sm:px-3 sm:py-3 min-w-0 ring-1 ring-inset ring-white/[0.05] bg-white/[0.015] dark:bg-transparent dark:ring-0 dark:rounded-none'
+                    }>
+                    {theme === 'dark' ?
+                      <>
+                        <div className="mb-5 flex items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/5">
+                            <Wallet
+                              className="h-5 w-5 text-white/40"
+                              strokeWidth={2}
+                              aria-hidden
+                            />
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/40">
+                              {t('breakdown.inAccount')}
+                            </p>
+                          </div>
+                        </div>
+                        <div
+                          className="flex items-baseline gap-1"
+                          id="dash-balance">
+                          <span className="text-2xl font-light text-white/40">
+                            {balanceCurrencySymbol}
+                          </span>
+                          <AnimatedCounter
+                            value={displayBalanceWithAccrual}
+                            prefix=""
+                            decimals={2}
+                            className="font-mono text-4xl font-bold tracking-tight text-white sm:text-5xl"
+                          />
+                        </div>
+                        {heroTodayAccrual != null && heroTodayAccrual > 0 ?
+                          <div className="mt-4 flex flex-wrap items-center gap-3">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-neon/10 px-2.5 py-1 font-mono text-xs font-medium text-neon">
+                              +{balanceCurrencySymbol}
+                              {heroTodayAccrual.toFixed(2)} {t('hero.today')}
+                            </span>
+                            {balanceTodayPercentVsStart != null ?
+                              <span className="font-mono text-xs text-neon/60">
+                                +{balanceTodayPercentVsStart}%
+                              </span>
+                            : null}
+                          </div>
+                        : null}
+                      </>
+                    : <>
+                        <span
+                          className="pointer-events-none absolute right-2.5 top-2.5 text-[var(--accent-money)]/85"
+                          aria-hidden>
+                          <Layers size={15} strokeWidth={2.2} />
+                        </span>
+                        <div
+                          className="mb-4 w-full min-w-0 border-b border-white/[0.08] pb-4"
+                          id="dash-balance">
+                          <p className="mb-2 text-[0.65rem] font-extrabold uppercase tracking-[0.18em] text-white/60 sm:text-[0.68rem]">
+                            {t('breakdown.inAccount')}
+                          </p>
+                          <div
+                            className="font-mono dark:font-arcade font-black tabular-nums leading-none text-white flex flex-wrap items-baseline justify-start gap-x-1 w-full min-w-0"
+                            style={{
+                              fontSize: 'clamp(1.5rem, 6.5vmin, 2.75rem)',
+                              textShadow:
+                                '0 2px 20px rgba(0,0,0,0.35), 0 0 28px rgba(255,255,255,0.08)'
+                            }}>
+                            <AnimatedCounter
+                              value={displayBalanceWithAccrual}
+                              prefix={balanceCurrencySymbol}
+                              decimals={2}
+                            />
+                          </div>
+                        </div>
+                      </>
+                    }
+                    <div
+                      className={
+                        theme === 'dark' ?
+                          'mt-6 border-t border-white/5 pt-5'
+                        : ''
+                      }>
+                    <p
+                      className={
+                        theme === 'dark' ?
+                          'mb-2 text-[0.55rem] font-extrabold uppercase tracking-[0.12em] text-white/50 sm:text-[0.6rem]'
+                        : 'text-white/50 text-[0.55rem] sm:text-[0.6rem] font-extrabold uppercase tracking-[0.12em] pr-6 mb-2'
+                      }>
                       {t('breakdown.totalEarned')}
                     </p>
                     {selectedProjectsOrdered.length > 0 &&
@@ -2259,6 +2590,7 @@ export function MoneyClock() {
                         decimals={2} />
                       }
                     </div>
+                    </div>
                   </div>
 
                   {!hideEquivBreakdownTile ?
@@ -2367,14 +2699,6 @@ export function MoneyClock() {
                   </div>
                   : null}
                 </div>
-
-                <p className={`${DASHBOARD_HINT_CLASS} text-center px-0.5`}>
-                  {fxSnapshot ?
-                    t('breakdown.sortParagraphFx', {
-                      ccy: normalizeCurrencyCode(currentBalanceCurrency)
-                    })
-                  : t('breakdown.sortParagraphNoFx')}
-                </p>
               </div>
               : null}
 
@@ -2384,7 +2708,7 @@ export function MoneyClock() {
               fxSnapshot &&
               fxCaptionBlock?.kind === 'missing-rates' &&
               <div
-                className="max-w-3xl mx-auto rounded-2xl border border-amber-400/15 bg-amber-400/[0.04] px-3 py-2.5 text-[0.65rem] sm:text-[0.68rem] leading-relaxed text-amber-100/90 text-center md:text-left"
+                className="w-full max-w-3xl mx-auto rounded-2xl border border-amber-400/15 bg-amber-400/[0.04] px-3 py-2.5 text-[0.65rem] sm:text-[0.68rem] leading-relaxed text-amber-100/90 text-center md:text-left"
                 role="status">
                 {t('fx.missing', {
                   codes: fxCaptionBlock.foreignCodes.join(', '),
@@ -2408,36 +2732,46 @@ export function MoneyClock() {
               heroRateBasis &&
               realRateBreakdown &&
               selectedProjectsOrdered.length > 0 &&
-              <div
-                className="rounded-2xl ring-1 ring-inset ring-white/[0.05] bg-white/[0.012] dark:bg-transparent dark:ring-0 dark:rounded-none p-2 sm:p-3 lg:p-4 min-h-0 min-w-0 isolate"
-                aria-label={t('chart.ariaPanel')}
-                id="dash-chart">
-                <div className="relative z-[1] min-w-0">
-                  <IncomeChart
-                    projects={selectedProjectsOrdered}
-                    nowMs={nowTick}
-                    balanceAfterPayroll={displayBalanceAmount}
-                    balanceCurrency={currentBalanceCurrency}
-                    lastPayrollYmd={lastPayrollYmd}
-                    fxSnapshot={fxSnapshot}
-                    fxHistoryRows={fxHistoryRows}
-                    inflationYearly={inflationYearly}
-                    inflationCurrencyCodes={inflationDisplayCurrencies}
-                    trajectoryHint={
-                      trajectorySnap ?
-                        {
-                          y12: trajectorySnap.y12,
-                          y12plus: trajectorySnap.y12plus,
-                          deltaYear: trajectorySnap.deltaYear,
-                          symbol: trajectorySnap.symbol
-                        }
-                      : null
-                    }
-                    onOpenGrow={() => setSettingsOpen(true)}
-                    embedded
-                  />
+              <>
+                <div
+                  className="rounded-2xl ring-1 ring-inset ring-white/[0.05] bg-white/[0.012] dark:bg-transparent dark:ring-0 dark:rounded-none p-2 sm:p-3 lg:p-4 min-h-0 min-w-0 isolate"
+                  aria-label={t('chart.ariaPanel')}
+                  id="dash-chart">
+                  <div className="relative z-[1] min-w-0">
+                    <IncomeChart
+                      projects={selectedProjectsOrdered}
+                      nowMs={nowTick}
+                      balanceAfterPayroll={displayBalanceAmount}
+                      balanceCurrency={currentBalanceCurrency}
+                      lastPayrollYmd={lastPayrollYmd}
+                      fxSnapshot={fxSnapshot}
+                      fxHistoryRows={fxHistoryRows}
+                      inflationYearly={inflationYearly}
+                      inflationCurrencyCodes={inflationDisplayCurrencies}
+                      trajectoryHint={
+                        trajectorySnap ?
+                          {
+                            y12: trajectorySnap.y12,
+                            y12plus: trajectorySnap.y12plus,
+                            deltaYear: trajectorySnap.deltaYear,
+                            symbol: trajectorySnap.symbol
+                          }
+                        : null
+                      }
+                      onOpenGrow={() => setSettingsOpen(true)}
+                      embedded
+                    />
+                  </div>
                 </div>
-              </div>
+                {theme === 'dark' && magicPatternInsights ?
+                  <div className="mt-5 w-full">
+                    <MagicInsightsFeed
+                      title={t('magic.insightsTitle')}
+                      items={magicPatternInsights}
+                    />
+                  </div>
+                : null}
+              </>
               }
 
               {hasPositiveAccrualRate &&
@@ -2445,10 +2779,14 @@ export function MoneyClock() {
               realRateBreakdown &&
               trajectorySnap ?
               <section
-                className="max-w-3xl mx-auto border-t border-white/[0.06] pt-6 mt-4 px-1"
+                className={
+                  theme === 'dark' ?
+                    'w-full border-t border-white/[0.06] pt-6 mt-4 px-0'
+                  : 'max-w-3xl mx-auto border-t border-white/[0.06] pt-6 mt-4 px-1'
+                }
                 aria-label={t('trajectory.aria')}
                 id="dash-trajectory">
-                <p className="text-white/42 text-[0.58rem] font-extrabold uppercase tracking-[0.16em] text-center mb-2">
+                <p className="mb-2 text-center text-[0.52rem] font-extrabold uppercase tracking-[0.18em] text-mp-text [text-shadow:0_1px_12px_rgba(0,0,0,0.75)] sm:text-[0.54rem]">
                   {t('chart.productTrajectoryLead')}
                 </p>
                 <p className={`${DASHBOARD_HINT_CLASS} text-center mb-4 px-2`}>
@@ -2457,7 +2795,7 @@ export function MoneyClock() {
                 <div className="rounded-2xl px-3 py-5 sm:px-5 sm:py-6 ring-1 ring-inset ring-white/[0.05] bg-white/[0.015] dark:bg-transparent dark:ring-0 dark:rounded-none">
                   <div className="grid grid-cols-[1fr_auto_1fr] gap-2 sm:gap-4 items-center">
                     <div className="text-center min-w-0">
-                      <p className="text-white/45 text-[0.55rem] sm:text-[0.58rem] font-bold uppercase tracking-[0.1em] mb-2">
+                      <p className="mb-2 text-[0.55rem] font-bold uppercase tracking-[0.1em] text-mp-muted sm:text-[0.58rem]">
                         {t('chart.productSteady12')}
                       </p>
                       <p className="text-white font-black tabular-nums leading-tight text-sm sm:text-base">
@@ -2474,7 +2812,7 @@ export function MoneyClock() {
                       aria-hidden
                     />
                     <div className="text-center min-w-0">
-                      <p className="text-white/45 text-[0.55rem] sm:text-[0.58rem] font-bold uppercase tracking-[0.1em] mb-2">
+                      <p className="mb-2 text-[0.55rem] font-bold uppercase tracking-[0.1em] text-mp-muted sm:text-[0.58rem]">
                         {t('chart.productPlus20')}
                       </p>
                       <p className="text-white font-black tabular-nums leading-tight text-sm sm:text-base">
@@ -2528,7 +2866,11 @@ export function MoneyClock() {
               realRateBreakdown &&
               trajectorySnap &&
               <section
-                className="max-w-3xl mx-auto mt-4 px-1"
+                className={
+                  theme === 'dark' ?
+                    'mt-4 w-full px-0'
+                  : 'max-w-3xl mx-auto mt-4 px-1'
+                }
                 aria-label={t('dashboard.momentumTitle')}
                 id="dash-momentum">
                 <div className="rounded-2xl px-3 py-4 sm:px-5 sm:py-5 ring-1 ring-inset ring-white/[0.05] bg-white/[0.012] dark:bg-transparent dark:ring-0 dark:rounded-none">
@@ -2582,7 +2924,7 @@ export function MoneyClock() {
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-center px-0 sm:px-2 space-y-[clamp(0.65rem,3vmin,2.5rem)] border-t border-white/[0.06] pt-4 mt-0.5">
+                className="text-center px-0 sm:px-2 dark:sm:px-0 space-y-[clamp(0.65rem,3vmin,2.5rem)] border-t border-white/[0.06] pt-4 mt-0.5">
                 <>
                   {singleSelectedForCopy &&
                   (singleSelectedForCopy.workStartDate.trim() ||
@@ -2614,7 +2956,7 @@ export function MoneyClock() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                    className="mx-auto w-full max-w-3xl rounded-2xl ring-1 ring-inset ring-white/[0.05] bg-white/[0.015] dark:bg-transparent dark:ring-0 dark:rounded-none px-4 py-4 sm:px-5 sm:py-5"
+                    className="mx-auto w-full rounded-2xl ring-1 ring-inset ring-white/[0.05] bg-white/[0.015] dark:bg-transparent dark:ring-0 dark:rounded-none px-4 py-4 sm:px-5 sm:py-5"
                     id="dash-awareness">
                     <p className="text-center text-white/40 text-[0.52rem] sm:text-[0.54rem] font-extrabold uppercase tracking-[0.18em] mb-3">
                       {t('awareness.title')}
@@ -2688,7 +3030,7 @@ export function MoneyClock() {
                   }
 
                   <div
-                    className="max-w-3xl mx-auto w-full pt-2 space-y-3"
+                    className="w-full pt-2 space-y-3"
                     id="dash-live-rates">
                     <div className="flex items-center justify-center gap-2">
                       <span
@@ -2727,6 +3069,11 @@ export function MoneyClock() {
                       {normalizeCurrencyCode(currentBalanceCurrency)} {t('footer.byRate')}
                     </p>
                     }
+                    {theme === 'dark' ?
+                      <p className="text-center text-[10px] text-white/15 tracking-widest uppercase pt-4 pb-1">
+                        {t('footer.appTagline')}
+                      </p>
+                    : null}
                     <p className="text-center text-white/[0.22] text-[0.52rem] sm:text-[0.55rem] font-semibold uppercase tracking-[0.35em] pt-2">
                       {t('footer.engineBrand')}
                     </p>
@@ -2879,24 +3226,6 @@ export function MoneyClock() {
           {portalToast}
         </div>
       : null}
-      {!aiPanelOpen ?
-        <motion.button
-          type="button"
-          onClick={() => setAiPanelOpen(true)}
-          whileTap={{ scale: 0.94 }}
-          className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-[65] flex h-14 w-14 items-center justify-center rounded-full border-2 border-violet-400/50 bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-[0_8px_28px_rgba(0,0,0,0.35)] dark:border-cyan-500/40 dark:from-cyan-800 dark:to-violet-900"
-          aria-label={t('ai.openAria')}
-        >
-          <Sparkles size={26} strokeWidth={2.2} />
-        </motion.button>
-      : null}
-      <AiChatPanel
-        open={aiPanelOpen}
-        onClose={() => setAiPanelOpen(false)}
-        moneySnapshot={aiMoneySnapshot}
-        locale={locale}
-        t={t}
-      />
       </div>
     </div>
   );

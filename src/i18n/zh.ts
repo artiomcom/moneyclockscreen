@@ -23,13 +23,18 @@ export const zh: Record<string, string> = {
   'hero.perSec': '/ 秒',
   'hero.nominalApprox': '名义 ≈',
   'hero.perHour': '/ 小时',
+  'hero.heroEarningsPerSecond': '每秒',
+  'hero.heroEarningsHour': '/ 小时',
+  'hero.heroEarningsLive': '实时',
   'hero.realHint': '· 实际',
   'hero.today': '今天',
-  'hero.fteHourNote': '名义时薪按全职 40 小时/周；每秒累积仍按日历时间。',
   'hero.dayMeterAria': '今日到午夜的进度',
-  'hero.dayMeterTitle': '今日闯关 — 至午夜',
+  'hero.dayMeterTitle': '今日进度',
+  'hero.dayWindowEndMidnight': '24:00',
   'hero.dayLeftLabel': '剩余',
-  'hero.per24hHint': '日历日 24 小时：{sym}{amt}',
+  'hero.lastHourLabel': '上一小时',
+  'hero.remainingLabel': '剩余',
+  'hero.dayProgressTrendFaster': '今天比昨天赚得更快',
   'hero.moreNominal': '名义（调整前）',
   'hero.insightTitle': '税后与通胀后',
   'hero.insightAria': '实际购买力',
@@ -49,6 +54,18 @@ export const zh: Record<string, string> = {
   'hero.emptyCta': '打开设置',
   'hero.noFxHint': '若要单一总速率，请启用 API 汇率或仅使用同一货币的项目。',
 
+  'magic.projectionsTitle': '预测',
+  'magic.projTonight': '到今天晚上',
+  'magic.projTonightDesc': '按当前节奏的每日上限',
+  'magic.projMonth': '本月',
+  'magic.projMonthDesc': '约年净收入的 1/12（估算）',
+  'magic.proj5y': '5 年后',
+  'magic.proj5yDesc': '按当前节奏（轨迹）',
+  'magic.insightsTitle': '提示',
+  'magic.insight1': '按所选项目每秒累加。',
+  'magic.insight2': '下方「轨迹」可查看 +20% 与更长区间。',
+  'magic.insight3': '汇率与通胀与主区块同源。',
+
   'trajectory.aria': '轨迹估算',
   'trajectory.kicker': '若保持当前节奏',
   'trajectory.disclaimer':
@@ -67,18 +84,8 @@ export const zh: Record<string, string> = {
   'breakdown.oneTotalTitle': '合计（多币种 → 一个数字）',
   'breakdown.showAllCurrencies': '显示所有货币',
   'breakdown.hideAllCurrencies': '仅显示一个总计',
-  'breakdown.sortHintFx':
-    '各货币分开。先显示有效合同；组内按折算为以下货币的金额排序',
-  'breakdown.sortHintFxApi': '（API 汇率）。',
-  'breakdown.sortHintNoFx': '无汇率时按货币代码排序。',
-  'breakdown.sortParagraphFx':
-    '各货币分开。先有效合同；每组内按折算为 {ccy} 的金额降序（API 汇率）。',
-  'breakdown.sortParagraphNoFx':
-    '各货币分开。先有效合同；无外汇时组内按货币代码排序。',
   'breakdown.endedBadge': '已结束',
   'breakdown.inAccount': '当前账户余额',
-  'breakdown.balancePayrollCaption':
-    '设置中 {payroll} 发薪后的余额；自 {accrualFrom}（次日零点）起按所有选中项目累加，其他货币按当前 API 汇率折算。',
   'breakdown.noContractsInCcy': '无合同于',
   'breakdown.allEndedInCcy': '全部已结束',
   'breakdown.noAccrualHint':
@@ -155,6 +162,7 @@ export const zh: Record<string, string> = {
   'footer.sigmaPerSec': 'Σ ≈ +',
   'footer.inCcy': '以',
   'footer.byRate': '（API 汇率）',
+  'footer.appTagline': 'Money Clock · Live',
 
   'awareness.title': 'Money Awareness Engine',
   'awareness.sub': '我的节奏（分享）',

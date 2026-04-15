@@ -16,16 +16,6 @@ export const en: Record<string, string> = {
   'settings.title': 'Settings',
   'settings.close': 'Close',
 
-  'ai.openAria': 'Open Money AI',
-  'ai.title': 'Money AI',
-  'ai.hint':
-    'Ask about your earning pace, balance, or planning. Not financial advice.',
-  'ai.placeholder': 'Message…',
-  'ai.send': 'Send',
-  'ai.thinking': 'Thinking…',
-  'ai.close': 'Close',
-  'ai.error': 'Could not reach AI. Check connection or try later.',
-
   'hero.aria': 'Earning rate',
   'hero.now': 'Now',
   'hero.tagline': 'Your income speed',
@@ -33,14 +23,19 @@ export const en: Record<string, string> = {
   'hero.perSec': '/ sec',
   'hero.nominalApprox': 'nominal ≈',
   'hero.perHour': '/hr',
+  'hero.heroEarningsPerSecond': 'per second',
+  'hero.heroEarningsHour': '/ hour',
+  'hero.heroEarningsLive': 'Live',
   'hero.realHint': '· real',
   'hero.today': 'Today',
-  'hero.fteHourNote':
-    'Nominal /hr uses full-time hours (40 h/week). Per-second accrual stays calendar-based.',
   'hero.dayMeterAria': 'Day progress toward midnight',
-  'hero.dayMeterTitle': 'DAY RUN — TO MIDNIGHT',
+  'hero.dayMeterTitle': "Today's Progress",
+  'hero.dayWindowEndMidnight': '24:00',
   'hero.dayLeftLabel': 'Left',
-  'hero.per24hHint': 'Full 24 h day: {sym}{amt}',
+  'hero.lastHourLabel': 'Last hour',
+  'hero.remainingLabel': 'Remaining',
+  'hero.dayProgressTrendFaster':
+    "You're earning faster than yesterday",
   'hero.moreNominal': 'Nominal (pre-adjustment)',
   'hero.insightTitle': 'After tax & inflation',
   'hero.insightAria': 'Real purchasing power',
@@ -62,6 +57,18 @@ export const en: Record<string, string> = {
   'hero.noFxHint':
     'For a single headline rate, enable FX rates or use projects in one currency.',
 
+  'magic.projectionsTitle': 'Projections',
+  'magic.projTonight': 'By tonight',
+  'magic.projTonightDesc': 'Day cap at your current pace',
+  'magic.projMonth': 'This month',
+  'magic.projMonthDesc': '~1/12 of year-ahead take-home (estimate)',
+  'magic.proj5y': 'In 5 years',
+  'magic.proj5yDesc': 'At current pace (trajectory)',
+  'magic.insightsTitle': 'Insights',
+  'magic.insight1': 'Accrual updates every second from your selected projects.',
+  'magic.insight2': 'Use Trajectory below for +20% and longer horizons.',
+  'magic.insight3': 'FX and inflation use the same sources as the hero rate.',
+
   'trajectory.aria': 'Trajectory estimate',
   'trajectory.kicker': 'If you keep this pace',
   'trajectory.disclaimer':
@@ -82,18 +89,8 @@ export const en: Record<string, string> = {
   'breakdown.oneTotalTitle': 'Total (your currencies → one number)',
   'breakdown.showAllCurrencies': 'Show all currencies',
   'breakdown.hideAllCurrencies': 'Show one total only',
-  'breakdown.sortHintFx':
-    'Each currency separately. Active contracts first; within a group sorted by amount in',
-  'breakdown.sortHintFxApi': '(payroll-date / API rate).',
-  'breakdown.sortHintNoFx': 'Without rates, sorted by currency code.',
-  'breakdown.sortParagraphFx':
-    'Each currency separately. Active contracts first; within each group, sorted by descending amount converted to {ccy} (rate on last payroll date from history, else live API).',
-  'breakdown.sortParagraphNoFx':
-    'Each currency separately. Active contracts first; without FX, within each group sort is by currency code.',
   'breakdown.endedBadge': 'Ended',
   'breakdown.inAccount': 'What’s on the account now',
-  'breakdown.balancePayrollCaption':
-    'Settings balance after payroll on {payroll}; accrual from all selected projects since {accrualFrom} (midnight next day), using the live API rate when a project is in another currency.',
   'breakdown.balanceEchoHint': 'Same total as at the top, live accrual in your account currency.',
   'breakdown.noContractsInCcy': 'No contracts in',
   'breakdown.allEndedInCcy': 'All ended',
@@ -189,6 +186,7 @@ export const en: Record<string, string> = {
   'footer.byRate': '(API rate)',
   'footer.liveRates': 'Live rates',
   'footer.engineBrand': 'Money awareness engine',
+  'footer.appTagline': 'Money Clock · Live',
 
   'dashboard.momentumTitle': 'Momentum analysis',
   'dashboard.momentumTeaser': 'Momentum is on your side',

@@ -63,21 +63,6 @@ function PixelSparkle({ className, delayMs = 0 }: { className?: string; delayMs?
   );
 }
 
-function MiniGoldPile({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 20 12"
-      shapeRendering="crispEdges"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden>
-      <rect x="2" y="8" width="16" height="4" fill="#713f12" />
-      <rect x="4" y="4" width="12" height="4" fill="#ca8a04" />
-      <rect x="8" y="0" width="4" height="4" fill="#fde047" />
-    </svg>
-  );
-}
-
 /** Класс кнопки «панель аркады»: скос, без текста, как в играх 80-х. */
 export const ARCADE_SETTINGS_BTN_CLASS =
   'inline-flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 rounded-[2px] border-2 border-t-slate-300 border-l-slate-300 border-r-slate-900 border-b-slate-900 bg-gradient-to-br from-slate-500 to-slate-700 text-[#fef08a] shadow-[2px_2px_0_rgba(0,0,0,0.45)] ring-1 ring-inset ring-white/10 hover:from-slate-400 hover:to-slate-600 active:border-t-slate-900 active:border-l-slate-900 active:border-r-slate-300 active:border-b-slate-300 active:shadow-[inset_1px_1px_0_rgba(0,0,0,0.35)] transition-[filter,box-shadow] dark:border-t-slate-500 dark:border-l-slate-500 dark:border-r-black dark:border-b-black dark:from-slate-700 dark:to-slate-900 dark:text-[var(--accent-money)] dark:ring-white/5 dark:hover:from-slate-600 dark:hover:to-slate-800';
@@ -106,26 +91,13 @@ export function PixelSettingsCog({ className }: { className?: string }) {
 }
 
 /**
- * Рамка-украшение: гномы у нижних углов, мини-кучи сверху.
- * Родитель, `relative` с **padding-top** (карточка ниже), чтобы верхние спрайты жили в зоне паддинга
- * и не уходили под слой карточки (backdrop) и не обрезались overflow карточки.
+ * Рамка-украшение: гномы у нижних углов.
+ * Родитель — `relative` с **padding-top**, чтобы контент не заходил под декор.
  */
 export function RetroGnomesFrame() {
   return (
     <>
-      {/* верх: в области pt-* родителя, выше края стекла; z выше карточки */}
-      <div
-        className="pointer-events-none absolute left-[7%] z-20 w-8 h-4 opacity-85 sm:left-[8%] sm:w-11 sm:h-6"
-        style={{ top: '0.35rem', imageRendering: 'pixelated' }}>
-        <MiniGoldPile className="w-full h-full drop-shadow-md" />
-      </div>
-      <div
-        className="pointer-events-none absolute right-[7%] z-20 w-8 h-4 opacity-85 sm:right-[8%] sm:w-11 sm:h-6"
-        style={{ top: '0.35rem', imageRendering: 'pixelated' }}>
-        <MiniGoldPile className="w-full h-full drop-shadow-md" />
-      </div>
-
-      {/* низ, как раньше */}
+      {/* низ: гномы по углам */}
       <div
         className="pointer-events-none absolute -bottom-1 left-1 z-20 w-[4.25rem] h-[5rem] opacity-[0.93] drop-shadow-[0_8px_20px_rgba(0,0,0,0.45)] sm:left-3 sm:w-[5rem] sm:h-[5.75rem]"
         style={{ imageRendering: 'pixelated' }}>

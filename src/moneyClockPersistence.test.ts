@@ -3,16 +3,12 @@ import { convertAmountThroughSnapshot, type FxSnapshot } from './fxRates';
 import {
   AVERAGE_CALENDAR_MONTH_SECONDS,
   balanceOnAccountAt,
-  DEFAULT_DAY_METER_END_HOUR,
-  DEFAULT_DAY_METER_START_HOUR,
   defaultMoneyClockState,
   earningsTotalsByCurrency,
   exportMoneyClockJsonString,
   exportMoneyClockJsonCanonical,
-  formatHourClockLabel,
   FTE_WORK_HOURS_PER_MONTH,
   newProject,
-  normalizeDayMeterHours,
   parseLocalDateYmd,
   parseMoneyClockJson,
   projectEarningsAt,
@@ -252,44 +248,5 @@ describe('exportMoneyClockJsonCanonical (дедуп облака)', () => {
     const a = { ...base, profile: { name: 'A' } };
     const b = { ...base, profile: { name: 'B' } };
     expect(exportMoneyClockJsonCanonical(a)).not.toBe(exportMoneyClockJsonCanonical(b));
-  });
-});
-
-describe('normalizeDayMeterHours / formatHourClockLabel', () => {
-  it('defaults for missing or invalid input', () => {
-    expect(normalizeDayMeterHours(undefined, undefined)).toEqual({
-      start: DEFAULT_DAY_METER_START_HOUR,
-      end: DEFAULT_DAY_METER_END_HOUR
-    });
-    expect(normalizeDayMeterHours(12, 12)).toEqual({
-      start: DEFAULT_DAY_METER_START_HOUR,
-      end: DEFAULT_DAY_METER_END_HOUR
-    });
-  });
-
-  it('accepts 0–23 start and start+1…24 end', () => {
-    expect(normalizeDayMeterHours(9, 17)).toEqual({ start: 9, end: 17 });
-    expect(normalizeDayMeterHours(0, 24)).toEqual({ start: 0, end: 24 });
-  });
-
-  it('clamps out-of-range numbers', () => {
-    expect(normalizeDayMeterHours(-5, 99)).toEqual({ start: 0, end: 24 });
-  });
-
-  it('formatHourClockLabel uses 24:00 only for end-of-day', () => {
-    expect(formatHourClockLabel(0)).toBe('00:00');
-    expect(formatHourClockLabel(8)).toBe('08:00');
-    expect(formatHourClockLabel(24)).toBe('24:00');
-  });
-
-  it('round-trips day meter through JSON export', () => {
-    const s = {
-      ...defaultMoneyClockState(),
-      dayMeterStartHour: 7,
-      dayMeterEndHour: 19
-    };
-    const back = parseMoneyClockJson(exportMoneyClockJsonString(s));
-    expect(back?.dayMeterStartHour).toBe(7);
-    expect(back?.dayMeterEndHour).toBe(19);
   });
 });

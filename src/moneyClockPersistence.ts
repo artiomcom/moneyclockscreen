@@ -121,12 +121,6 @@ export type MoneyClockSavedState = {
    * 1 = вся сумма контракта как сейчас в расчётах.
    */
   takeHomeFraction: number;
-  /**
-   * Локальное окно «Сегодня» и полосы дня: час начала (0–23) и час конца (start+1…24).
-   * 24 = полночь конца календарного дня.
-   */
-  dayMeterStartHour: number;
-  dayMeterEndHour: number;
   /** Optional: резюме и метаданные рядом с настройками MoneyClock */
   profile?: MoneyClockProfile;
 };
@@ -140,41 +134,6 @@ type StoredPayload = {
 
 function isLegacyModeField(x: unknown): boolean {
   return x === 'project' || x === 'salary' || x === 'hourly';
-}
-
-export const DEFAULT_DAY_METER_START_HOUR = 8;
-export const DEFAULT_DAY_METER_END_HOUR = 18;
-
-/** Окно дня на герое: по умолчанию 8→18; конец 24 = полночь. */
-export function normalizeDayMeterHours(
-  rawStart: unknown,
-  rawEnd: unknown
-): { start: number; end: number } {
-  const parseH = (x: unknown): number => {
-    if (typeof x === 'number' && Number.isFinite(x)) return Math.trunc(x);
-    if (typeof x === 'string' && x.trim() !== '') {
-      const n = parseInt(x, 10);
-      if (Number.isFinite(n)) return n;
-    }
-    return NaN;
-  };
-  let start = parseH(rawStart);
-  let end = parseH(rawEnd);
-  if (!Number.isFinite(start)) start = DEFAULT_DAY_METER_START_HOUR;
-  if (!Number.isFinite(end)) end = DEFAULT_DAY_METER_END_HOUR;
-  start = Math.min(23, Math.max(0, start));
-  end = Math.min(24, Math.max(1, end));
-  if (end <= start) {
-    start = DEFAULT_DAY_METER_START_HOUR;
-    end = DEFAULT_DAY_METER_END_HOUR;
-  }
-  return { start, end };
-}
-
-export function formatHourClockLabel(h: number): string {
-  if (h >= 24) return '24:00';
-  const c = Math.min(23, Math.max(0, Math.trunc(h)));
-  return `${String(c).padStart(2, '0')}:00`;
 }
 
 /** Парсинг доли «на руки» из сохранённого JSON; по умолчанию 1. */
@@ -278,8 +237,6 @@ function parsePayload(data: unknown): MoneyClockSavedState | null {
       (o.profile as MoneyClockProfile)
     : undefined;
 
-  const dayMeter = normalizeDayMeterHours(o.dayMeterStartHour, o.dayMeterEndHour);
-
   return {
     mode: 'project',
     monthlySalary: '0',
@@ -293,8 +250,6 @@ function parsePayload(data: unknown): MoneyClockSavedState | null {
         o.lastPayrollYmd.trim()
       : localTodayYmd(),
     takeHomeFraction: clampTakeHomeFraction(o.takeHomeFraction),
-    dayMeterStartHour: dayMeter.start,
-    dayMeterEndHour: dayMeter.end,
     projectsBundle: {
       ...bundle,
       selectedProjectIds,
@@ -547,6 +502,12 @@ export const AVERAGE_CALENDAR_MONTH_SECONDS = (365.25 / 12) * 24 * 3600;
 export const FTE_WORK_HOURS_PER_MONTH = (52 * 40) / 12;
 
 /**
+ * Сколько номинальных часов в день для блока «Сегодня» / прогресса: потолок = сумма nominal €/ч (FTE) × это число
+ * (согласовано с «≈ … /час», не с календарным €/с).
+ */
+export const FTE_HERO_WORKDAY_DISPLAY_HOURS = 8;
+
+/**
  * Ставка валюты в секунду по проекту.
  * - contract: сумма контракта / календарный срок (даты начала–конца, минус отпуск) или старая ручная длительность;
  * - monthly: месячный платёж, равномерно на средний календарный месяц (согласовано с календарным `workStartDate`…`now`);
@@ -694,9 +655,7 @@ export function defaultMoneyClockState(): MoneyClockSavedState {
     currentBalance: '0',
     currentBalanceCurrency: DEFAULT_CURRENCY_CODE,
     lastPayrollYmd: localTodayYmd(),
-    takeHomeFraction: 1,
-    dayMeterStartHour: DEFAULT_DAY_METER_START_HOUR,
-    dayMeterEndHour: DEFAULT_DAY_METER_END_HOUR
+    takeHomeFraction: 1
   };
 }
 

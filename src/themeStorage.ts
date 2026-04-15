@@ -2,6 +2,9 @@ const KEY = 'moneyclock-theme';
 
 export type ThemePreference = 'light' | 'dark';
 
+/** Default for new visitors and invalid stored values */
+export const DEFAULT_THEME: ThemePreference = 'dark';
+
 export function readStoredTheme(): ThemePreference {
   try {
     const v = localStorage.getItem(KEY);
@@ -9,7 +12,7 @@ export function readStoredTheme(): ThemePreference {
   } catch {
     /* ignore */
   }
-  return 'dark';
+  return DEFAULT_THEME;
 }
 
 export function writeStoredTheme(mode: ThemePreference): void {

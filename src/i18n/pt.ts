@@ -25,12 +25,10 @@ export const pt: Record<string, string> = {
   'hero.perHour': '/h',
   'hero.realHint': '· real',
   'hero.today': 'Hoje',
-  'hero.todayNote': 'desde {start} · hora local',
   'hero.fteHourNote':
-    'Nominal /h: tempo integral (40 h/semana). O acúmulo por segundo segue o calendário. O teto do dia é €/s de calendário × sua janela — não nominal /h × horas de mesa.',
-  'hero.dayMeterAria': 'Progresso do dia de {start} a {end} (local)',
-  'hero.dayMeterTitle': 'CORRIDA DO DIA — {start}–{end}',
-  'hero.dayCapLabel': 'Teto {start}–{end}',
+    'Nominal /h: tempo integral (40 h/semana). O acúmulo por segundo segue o calendário.',
+  'hero.dayMeterAria': 'Progresso do dia até a meia-noite',
+  'hero.dayMeterTitle': 'CORRIDA DO DIA — ATÉ A MEIA-NOITE',
   'hero.dayLeftLabel': 'Resta',
   'hero.per24hHint': 'Dia civil 24 h: {sym}{amt}',
   'hero.moreNominal': 'Nominal (antes de ajustes)',
@@ -207,11 +205,6 @@ export const pt: Record<string, string> = {
   'settings.takeHomeAria': 'Percentual líquido após impostos',
   'settings.takeHomeHint':
     '{pct}% do contrato contam para o bloco “taxa real” na tela principal. Estimativa, não contabilidade.',
-  'settings.dayMeterTitle': 'Janela do dia',
-  'settings.dayMeterHint':
-    '“Hoje” na tela principal e o teto do dia usam hora local do início (inclusivo) ao fim (exclusivo). 24:00 é meia-noite.',
-  'settings.dayMeterStartAria': 'Início do medidor do dia (hora local)',
-  'settings.dayMeterEndAria': 'Fim do medidor do dia (hora local; 24:00 = meia-noite)',
   'settings.balanceFooter':
     '“Total ganho” soma projetos selecionados. Saldo separado: base da folha mais acúmulo de todos; moedas estrangeiras com taxa API ao vivo (como o contador principal).',
   'settings.projectsPicker': 'Projetos',

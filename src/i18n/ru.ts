@@ -16,6 +16,16 @@ export const ru: Record<string, string> = {
   'settings.title': 'Настройки',
   'settings.close': 'Закрыть',
 
+  'ai.openAria': 'Открыть Money AI',
+  'ai.title': 'Money AI',
+  'ai.hint':
+    'Спросите про темп дохода, баланс или планы. Это не финансовая консультация.',
+  'ai.placeholder': 'Сообщение…',
+  'ai.send': 'Отправить',
+  'ai.thinking': 'Думаю…',
+  'ai.close': 'Закрыть',
+  'ai.error': 'Не удалось связаться с AI. Проверьте сеть или попробуйте позже.',
+
   'hero.aria': 'Темп начисления',
   'hero.now': 'Сейчас',
   'hero.tagline': 'Ваша скорость дохода',
@@ -25,12 +35,10 @@ export const ru: Record<string, string> = {
   'hero.perHour': '/час',
   'hero.realHint': '· реально',
   'hero.today': 'Сегодня',
-  'hero.todayNote': 'с {start} · локальное время',
   'hero.fteHourNote':
-    'Номинал в час — по полной ставке 40\u00A0ч/нед; начисление в\u00A0секунду по\u00A0календарю. Потолок дня: ставка в\u00A0секунду × длина выбранного окна, а не «€/ч по\u00A0ФТЕ × часы работы».',
-  'hero.dayMeterAria': 'Прогресс дня с {start} до {end} (местное время)',
-  'hero.dayMeterTitle': 'ЗАБЕГ ДНЯ — {start}–{end}',
-  'hero.dayCapLabel': 'Потолок {start}–{end}',
+    'Номинал в час — по полной ставке 40\u00A0ч/нед; начисление в\u00A0секунду по\u00A0календарю.',
+  'hero.dayMeterAria': 'Прогресс дня до полуночи',
+  'hero.dayMeterTitle': 'ЗАБЕГ ДНЯ — ДО ПОЛУНОЧИ',
   'hero.dayLeftLabel': 'Осталось',
   'hero.per24hHint': 'За календарные сутки (24 ч): {sym}{amt}',
   'hero.moreNominal': 'Номинал (до корректировок)',
@@ -221,11 +229,6 @@ export const ru: Record<string, string> = {
   'settings.takeHomeAria': 'Доля на руки после налогов в процентах',
   'settings.takeHomeHint':
     '{pct}% контрактной суммы, для блока «реальная ставка» на главном экране. Оценка, не бухучёт.',
-  'settings.dayMeterTitle': 'Окно «дня» для счётчика',
-  'settings.dayMeterHint':
-    '«Сегодня» на главном экране и потолок дня считаются по местному времени от начала (включительно) до конца (не включая конечный миг). 24:00 — полночь.',
-  'settings.dayMeterStartAria': 'Начало окна (местный час)',
-  'settings.dayMeterEndAria': 'Конец окна (местный час; 24:00 — полночь)',
   'settings.balanceFooter':
     '«Всего заработано» — сумма по выбранным проектам. Остаток на счёте отдельно: база после зарплаты плюс доначисление по всем выбранным проектам; суммы в других валютах пересчитываются по текущему курсу API (как главный счётчик).',
   'settings.projectsPicker': 'Проекты',

@@ -121,8 +121,53 @@ html.dark .hero-rate-glow {
     rgba(0, 255, 200, 0.07) 2px
   );
 }
-html:not(.dark) .hero-arcade-day-track {
-  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.12);
+
+/* Рельса прогресса: неон 80-х — циферблат слева/справа */
+.hero-arcade-day-time {
+  font-family: 'VT323', ui-monospace, monospace;
+  font-size: clamp(0.72rem, 2.8vw, 0.85rem);
+  letter-spacing: 0.14em;
+  line-height: 1;
+  font-weight: 700;
+}
+html.dark .hero-arcade-day-time--start {
+  color: #7af8ff;
+  text-shadow:
+    0 0 6px rgba(0, 255, 255, 0.85),
+    0 0 16px rgba(0, 200, 255, 0.45),
+    0 0 2px rgba(255, 255, 255, 0.95);
+}
+html.dark .hero-arcade-day-time--end {
+  color: #ff7adb;
+  text-shadow:
+    0 0 6px rgba(255, 0, 200, 0.8),
+    0 0 16px rgba(255, 0, 170, 0.42),
+    0 0 2px rgba(255, 255, 255, 0.75);
+}
+html:not(.dark) .hero-arcade-day-time--start {
+  color: #0e7490;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+html:not(.dark) .hero-arcade-day-time--end {
+  color: #a21caf;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+html.dark .hero-arcade-day-rail .hero-arcade-day-track {
+  border-color: rgba(34, 211, 238, 0.58);
+  box-shadow:
+    inset 0 2px 14px rgba(0, 0, 0, 0.9),
+    0 0 0 1px rgba(0, 255, 200, 0.16),
+    0 0 20px rgba(255, 0, 220, 0.24),
+    0 0 32px rgba(0, 212, 255, 0.14);
+  background: linear-gradient(180deg, #10183a 0%, #04080c 42%, #12081f 100%);
+}
+html:not(.dark) .hero-arcade-day-rail .hero-arcade-day-track {
+  border-color: rgba(6, 182, 212, 0.55);
+  box-shadow:
+    inset 0 2px 10px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(6, 182, 212, 0.28);
+  background: linear-gradient(180deg, #f0f9ff 0%, #ffffff 50%, #faf5ff 100%);
 }
 
 html:not(.dark) .hero-rate-glow {

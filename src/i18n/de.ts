@@ -25,12 +25,10 @@ export const de: Record<string, string> = {
   'hero.perHour': '/Std.',
   'hero.realHint': '· real',
   'hero.today': 'Heute',
-  'hero.todayNote': 'seit {start} · Ortszeit',
   'hero.fteHourNote':
-    'Nominal /h: Vollzeit (40 h/Woche). Sekundenabrechnung bleibt kalenderbasiert. Tagesdeckel: Kalender-€/s × Ihr Zeitfenster — nicht Nominal-/h × Schreibtischstunden.',
-  'hero.dayMeterAria': 'Tagesfortschritt von {start} bis {end} (lokal)',
-  'hero.dayMeterTitle': 'TAG-LAUF — {start}–{end}',
-  'hero.dayCapLabel': 'Deckel {start}–{end}',
+    'Nominal /h: Vollzeit (40 h/Woche). Sekundenabrechnung bleibt kalenderbasiert.',
+  'hero.dayMeterAria': 'Tagesfortschritt bis Mitternacht',
+  'hero.dayMeterTitle': 'TAG-LAUF — BIS MITTERNACHT',
   'hero.dayLeftLabel': 'Verbleibt',
   'hero.per24hHint': 'Voller Kalendertag (24 h): {sym}{amt}',
   'hero.moreNominal': 'Nominal (vor Anpassung)',
@@ -207,11 +205,6 @@ export const de: Record<string, string> = {
   'settings.takeHomeAria': 'Netto-Prozentsatz nach Steuern',
   'settings.takeHomeHint':
     '{pct}% des Vertrags für den „Realrate“-Block auf dem Hauptbildschirm. Schätzung, keine Buchhaltung.',
-  'settings.dayMeterTitle': 'Tagesfenster',
-  'settings.dayMeterHint':
-    '„Heute“ auf dem Hauptbildschirm und der Tagesdeckel nutzen Ortszeit von Start (inklusive) bis Ende (exklusiv). Ende 24:00 ist Mitternacht.',
-  'settings.dayMeterStartAria': 'Tagesfenster Start (Ortsstunde)',
-  'settings.dayMeterEndAria': 'Tagesfenster Ende (Ortsstunde; 24:00 = Mitternacht)',
   'settings.balanceFooter':
     '„Insgesamt verdient“ summiert gewählte Projekte. Kontosaldo getrennt: Lohnbasis plus Aufstockung aller gewählten Projekte; Fremdwährungen mit Live-API-Kurs (wie Hauptanzeige).',
   'settings.projectsPicker': 'Projekte',

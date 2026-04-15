@@ -22,7 +22,8 @@ import {
   Moon,
   Sun,
   ArrowRight,
-  CircleDollarSign
+  CircleDollarSign,
+  Sparkles
 } from 'lucide-react';
 import { ParticleBackground } from './ParticleBackground';
 import {
@@ -51,6 +52,7 @@ import {
   earningsTotalsByCurrency,
   projectRatePerSecond,
   projectNominalHourlyFteInProjectCurrency,
+  FTE_HERO_WORKDAY_DISPLAY_HOURS,
   projectIsEndedByDeadline,
   parseLocalDateYmd,
   localYmdPlusDays,
@@ -58,10 +60,7 @@ import {
   MONEYCLOCK_CURRENCIES,
   getCurrencySymbol,
   normalizeCurrencyCode,
-  clampTakeHomeFraction,
-  normalizeDayMeterHours,
-  formatHourClockLabel
-} from
+  clampTakeHomeFraction } from
 '../moneyClockPersistence';
 import {
   touchLastExportTimestamp,
@@ -121,6 +120,8 @@ import {
   clearMagicLinkSession,
   ensureMagicLinkInAddressBar
 } from '../magicLinkSession';
+import { AiChatPanel } from './ai/AiChatPanel';
+import { buildAiMoneySnapshot } from '../lib/aiMoneySnapshot';
 function InputField({
   label,
   value,
@@ -206,6 +207,37 @@ function readProfilePersonal(p: MoneyClockProfile): {
 
 const EMPTY_INFLATION_CCY: string[] = [];
 
+/** Локальный час начала интервала «Сегодня» в герое (не полуночь). */
+const HERO_TODAY_LOCAL_START_HOUR = 8;
+
+/** Секунды от начала «дня» (8:00) до полуночи — потолок дневного прогресса. */
+const DAY_SECONDS_8_TO_MIDNIGHT = (24 - HERO_TODAY_LOCAL_START_HOUR) * 3600;
+
+function intlLocaleForAppLocale(locale: AppLocale): string {
+  return locale === 'zh' ? 'zh-Hans' : locale;
+}
+
+/** Подписи к краям прогресс-бара: начало окна и конец (полночь — 24:00). */
+function formatHeroDayWindowClock(
+  locale: AppLocale,
+  hour: number,
+  minute: number
+): string {
+  if (hour === 24 && minute === 0) {
+    return '24:00';
+  }
+  const d = new Date(Date.UTC(2000, 0, 1, hour, minute));
+  try {
+    return new Intl.DateTimeFormat(intlLocaleForAppLocale(locale), {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).format(d);
+  } catch {
+    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  }
+}
+
 const initialMoneyClockRef = { current: null as MoneyClockSavedState | null };
 function getInitialMoneyClockState(): MoneyClockSavedState {
   if (!initialMoneyClockRef.current) {
@@ -217,6 +249,7 @@ function getInitialMoneyClockState(): MoneyClockSavedState {
 export function MoneyClock() {
   const { t, locale, setLocale } = useI18n();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
   const [projectsBundle, setProjectsBundle] = useState<ProjectsBundle>(
     () => getInitialMoneyClockState().projectsBundle
@@ -236,14 +269,6 @@ export function MoneyClock() {
   const [profileBundle, setProfileBundle] = useState<MoneyClockProfile | undefined>(
     () => getInitialMoneyClockState().profile
   );
-  const [dayMeterStartHour, setDayMeterStartHour] = useState(() => {
-    const s = getInitialMoneyClockState();
-    return normalizeDayMeterHours(s.dayMeterStartHour, s.dayMeterEndHour).start;
-  });
-  const [dayMeterEndHour, setDayMeterEndHour] = useState(() => {
-    const s = getInitialMoneyClockState();
-    return normalizeDayMeterHours(s.dayMeterStartHour, s.dayMeterEndHour).end;
-  });
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [fxSnapshot, setFxSnapshot] = useState<FxSnapshot | null>(null);
   const [fxReady, setFxReady] = useState(false);
@@ -868,43 +893,39 @@ export function MoneyClock() {
     };
   }, [heroRateBasis, futureYearly]);
 
-  const dayMeterWindow = useMemo(() => {
-    const startD = new Date(nowTick);
-    startD.setHours(dayMeterStartHour, 0, 0, 0);
-    const startMs = startD.getTime();
-    const endD = new Date(nowTick);
-    if (dayMeterEndHour >= 24) {
-      endD.setHours(24, 0, 0, 0);
-    } else {
-      endD.setHours(dayMeterEndHour, 0, 0, 0);
-    }
-    const endMs = endD.getTime();
-    if (!(endMs > startMs)) {
-      const fs = new Date(nowTick);
-      fs.setHours(8, 0, 0, 0);
-      const fe = new Date(nowTick);
-      fe.setHours(18, 0, 0, 0);
-      return { startMs: fs.getTime(), endMs: fe.getTime() };
-    }
-    return { startMs, endMs };
-  }, [nowTick, dayMeterStartHour, dayMeterEndHour]);
+  const todayStartMs = useMemo(() => {
+    const d = new Date(nowTick);
+    d.setHours(HERO_TODAY_LOCAL_START_HOUR, 0, 0, 0);
+    return d.getTime();
+  }, [nowTick]);
 
   const heroTodayAccrual = useMemo(() => {
     if (!heroRateBasis) return null;
-    const { startMs, endMs } = dayMeterWindow;
-    const now = nowTick;
-    if (now <= startMs) return 0;
-    const capSec = (endMs - startMs) / 1000;
-    const elapsedSec = Math.min(capSec, Math.max(0, (now - startMs) / 1000));
-    return heroRateBasis.perSec * elapsedSec;
-  }, [heroRateBasis, nowTick, dayMeterWindow]);
+    const sec = Math.max(0, (nowTick - todayStartMs) / 1000);
+    const fte = equivalentFteHourlyInBalanceCcy;
+    if (fte != null && fte > 0) {
+      const hoursNominal = Math.min(
+        FTE_HERO_WORKDAY_DISPLAY_HOURS,
+        sec / 3600
+      );
+      return fte * hoursNominal;
+    }
+    return heroRateBasis.perSec * sec;
+  }, [
+    heroRateBasis,
+    equivalentFteHourlyInBalanceCcy,
+    nowTick,
+    todayStartMs
+  ]);
 
   const heroDayCapEarnings = useMemo(() => {
     if (!heroRateBasis) return null;
-    const sec = (dayMeterWindow.endMs - dayMeterWindow.startMs) / 1000;
-    if (sec <= 0) return null;
-    return heroRateBasis.perSec * sec;
-  }, [heroRateBasis, dayMeterWindow]);
+    const fte = equivalentFteHourlyInBalanceCcy;
+    if (fte != null && fte > 0) {
+      return fte * FTE_HERO_WORKDAY_DISPLAY_HOURS;
+    }
+    return heroRateBasis.perSec * DAY_SECONDS_8_TO_MIDNIGHT;
+  }, [heroRateBasis, equivalentFteHourlyInBalanceCcy]);
 
   const heroDayRemainingEarnings = useMemo(() => {
     if (heroDayCapEarnings == null || heroTodayAccrual == null) return null;
@@ -916,16 +937,25 @@ export function MoneyClock() {
     return Math.min(1, Math.max(0, (heroTodayAccrual ?? 0) / heroDayCapEarnings));
   }, [heroDayCapEarnings, heroTodayAccrual]);
 
+  const heroDayProgressTimeLabels = useMemo(() => {
+    const startH = HERO_TODAY_LOCAL_START_HOUR;
+    const endH = heroUsesFteNominalHourly
+      ? startH + FTE_HERO_WORKDAY_DISPLAY_HOURS
+      : 24;
+    return {
+      start: formatHeroDayWindowClock(locale, startH, 0),
+      end:
+        endH === 24 ?
+          formatHeroDayWindowClock(locale, 24, 0)
+        : formatHeroDayWindowClock(locale, endH, 0)
+    };
+  }, [heroUsesFteNominalHourly, locale]);
+
   const heroPer24hEarnings = useMemo(() => {
     if (!heroRateBasis) return null;
     return heroRateBasis.perSec * 86400;
   }, [heroRateBasis]);
 
-  const heroDayMeterLabels = useMemo(() => {
-    const start = formatHourClockLabel(dayMeterStartHour);
-    const end = formatHourClockLabel(dayMeterEndHour);
-    return { start, end };
-  }, [dayMeterStartHour, dayMeterEndHour]);
 
   /** Демо-шкала + тексты для шэринга (ставка в валюте счёта или единственной валюте проектов). */
   const moneyAwarenessSnap = useMemo(() => {
@@ -979,9 +1009,6 @@ export function MoneyClock() {
     setLastPayrollYmd(parsed.lastPayrollYmd);
     setTakeHomeFraction(clampTakeHomeFraction(parsed.takeHomeFraction));
     setProfileBundle(parsed.profile);
-    const dm = normalizeDayMeterHours(parsed.dayMeterStartHour, parsed.dayMeterEndHour);
-    setDayMeterStartHour(dm.start);
-    setDayMeterEndHour(dm.end);
     saveMoneyClockState(parsed);
     initialMoneyClockRef.current = null;
     touchLastExportTimestamp();
@@ -1096,8 +1123,6 @@ export function MoneyClock() {
       currentBalanceCurrency,
       lastPayrollYmd,
       takeHomeFraction,
-      dayMeterStartHour,
-      dayMeterEndHour,
       ...(profileBundle !== undefined ? { profile: profileBundle } : {})
     }),
     [
@@ -1106,10 +1131,13 @@ export function MoneyClock() {
       currentBalanceCurrency,
       lastPayrollYmd,
       takeHomeFraction,
-      dayMeterStartHour,
-      dayMeterEndHour,
       profileBundle
     ]
+  );
+
+  const aiMoneySnapshot = useMemo(
+    () => buildAiMoneySnapshot(persistSnapshot, nowTick, locale),
+    [persistSnapshot, nowTick, locale]
   );
 
   useEffect(() => {
@@ -1496,53 +1524,6 @@ export function MoneyClock() {
           <p className="text-gray-600 dark:text-cyan-300/55 text-[0.7rem] text-center leading-relaxed px-1">
             {t('settings.takeHomeHint', { pct: Math.round(takeHomeFraction * 100) })}
           </p>
-        </div>
-        <div className="flex flex-col gap-1.5 pt-2 border-t border-emerald-200/50">
-          <label className="text-gray-700 dark:text-cyan-100/90 text-sm font-bold text-center">
-            {t('settings.dayMeterTitle')}
-          </label>
-          <p className="text-gray-500 dark:text-cyan-200/45 text-xs text-center leading-relaxed px-1">
-            {t('settings.dayMeterHint')}
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <select
-              value={dayMeterStartHour}
-              onChange={(e) => {
-                const h = Number(e.target.value);
-                if (!Number.isFinite(h)) return;
-                setDayMeterStartHour(h);
-                setDayMeterEndHour((end) => (end <= h ? Math.min(24, h + 1) : end));
-              }}
-              className="min-w-[5.5rem] px-3 py-2 rounded-r80-sm border-2 border-sky-400 text-gray-700 dark:border-cyan-500/60 dark:bg-slate-950 dark:text-cyan-50 text-sm font-medium outline-none focus:ring-2 focus:ring-sky-300 dark:focus:ring-cyan-500 bg-white"
-              aria-label={t('settings.dayMeterStartAria')}>
-              {Array.from({ length: 24 }, (_, i) =>
-                <option key={i} value={i}>
-                  {formatHourClockLabel(i)}
-                </option>
-              )}
-            </select>
-            <span className="text-gray-500 dark:text-cyan-200/50 text-sm">—</span>
-            <select
-              value={dayMeterEndHour}
-              onChange={(e) => {
-                const h = Number(e.target.value);
-                if (!Number.isFinite(h)) return;
-                setDayMeterEndHour(h);
-                setDayMeterStartHour((start) => (h <= start ? Math.max(0, h - 1) : start));
-              }}
-              className="min-w-[5.5rem] px-3 py-2 rounded-r80-sm border-2 border-sky-400 text-gray-700 dark:border-cyan-500/60 dark:bg-slate-950 dark:text-cyan-50 text-sm font-medium outline-none focus:ring-2 focus:ring-sky-300 dark:focus:ring-cyan-500 bg-white"
-              aria-label={t('settings.dayMeterEndAria')}>
-              {Array.from({ length: 24 }, (_, i) => {
-                const h = i + 1;
-                if (h <= dayMeterStartHour) return null;
-                return (
-                  <option key={h} value={h}>
-                    {formatHourClockLabel(h)}
-                  </option>
-                );
-              })}
-            </select>
-          </div>
         </div>
         <p className="text-gray-500 dark:text-cyan-200/45 text-xs text-center leading-relaxed px-1">
           {t('settings.balanceFooter')}
@@ -2006,62 +1987,50 @@ export function MoneyClock() {
                             leavesCount={16}
                           />
                         </div>
-                        <p className={`${DASHBOARD_HINT_CLASS} text-center`}>
-                          {t('hero.todayNote', {
-                            start: heroDayMeterLabels.start,
-                            end: heroDayMeterLabels.end
-                          })}
-                        </p>
                         {heroDayCapEarnings != null &&
                         heroDayRemainingEarnings != null &&
                         heroPer24hEarnings != null &&
                         heroRateBasis ?
                           <div
                             className="mt-5 pt-4 border-t border-white/[0.08] max-w-[min(100%,22rem)] mx-auto space-y-3"
-                            aria-label={t('hero.dayMeterAria', {
-                              start: heroDayMeterLabels.start,
-                              end: heroDayMeterLabels.end
-                            })}>
+                            aria-label={`${heroDayProgressTimeLabels.start}–${heroDayProgressTimeLabels.end}. ${t('hero.dayMeterAria')}`}>
                             <p className="text-[0.58rem] sm:text-[0.62rem] font-black uppercase tracking-[0.28em] text-center text-cyan-300/90 dark:text-cyan-200/85 drop-shadow-[0_0_8px_rgba(34,211,238,0.35)]">
-                              {t('hero.dayMeterTitle', {
-                                start: heroDayMeterLabels.start,
-                                end: heroDayMeterLabels.end
-                              })}
+                              {t('hero.dayMeterTitle')}
                             </p>
-                            <div className="flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1 text-[0.72rem] sm:text-[0.78rem] font-mono dark:font-arcade font-bold tabular-nums text-emerald-100/95">
-                              <span className="text-white/55 font-sans font-semibold text-[0.65em] uppercase tracking-wider">
-                                {t('hero.dayCapLabel', {
-                                  start: heroDayMeterLabels.start,
-                                  end: heroDayMeterLabels.end
-                                })}
+                            <div className="hero-arcade-day-rail flex w-full items-center gap-1.5 sm:gap-2.5">
+                              <span
+                                className="hero-arcade-day-time hero-arcade-day-time--start shrink-0 tabular-nums"
+                                aria-hidden>
+                                {heroDayProgressTimeLabels.start}
                               </span>
-                              <span className="text-[var(--accent-money)] [text-shadow:0_0_12px_rgba(0,255,136,0.45)]">
-                                +{heroRateBasis.symbol}
-                                {heroDayCapEarnings.toFixed(2)}
+                              <div className="hero-arcade-day-track relative h-5 sm:h-6 min-w-0 flex-1 overflow-hidden rounded-[3px] border-2 bg-[#04080c]">
+                                <div
+                                  className="pointer-events-none absolute inset-0 z-[1] opacity-[0.12] hero-arcade-day-scanlines"
+                                  aria-hidden
+                                />
+                                <motion.div
+                                  className="hero-arcade-day-fill absolute left-0 top-0 bottom-0 z-[2] origin-left rounded-[1px]"
+                                  initial={false}
+                                  animate={{ scaleX: heroDayProgressFraction }}
+                                  transition={{ type: 'spring', stiffness: 120, damping: 22 }}
+                                  style={{
+                                    width: '100%',
+                                    background:
+                                      'linear-gradient(90deg, rgba(6,95,70,0.95) 0%, #00ff88 42%, #fef08a 88%, #fffef0 100%)',
+                                    boxShadow:
+                                      '0 0 14px rgba(0,255,136,0.55), inset 0 1px 0 rgba(255,255,255,0.35)'
+                                  }}
+                                />
+                                <div
+                                  className="pointer-events-none absolute inset-y-0 right-0 z-[3] w-px bg-white/25"
+                                  aria-hidden
+                                />
+                              </div>
+                              <span
+                                className="hero-arcade-day-time hero-arcade-day-time--end shrink-0 tabular-nums"
+                                aria-hidden>
+                                {heroDayProgressTimeLabels.end}
                               </span>
-                            </div>
-                            <div className="hero-arcade-day-track relative h-5 sm:h-6 w-full overflow-hidden rounded-[3px] border-2 border-cyan-500/55 bg-[#04080c] shadow-[inset_0_2px_12px_rgba(0,0,0,0.85),0_0_0_1px_rgba(0,255,200,0.12)]">
-                              <div
-                                className="pointer-events-none absolute inset-0 z-[1] opacity-[0.12] hero-arcade-day-scanlines"
-                                aria-hidden
-                              />
-                              <motion.div
-                                className="hero-arcade-day-fill absolute left-0 top-0 bottom-0 z-[2] origin-left rounded-[1px]"
-                                initial={false}
-                                animate={{ scaleX: heroDayProgressFraction }}
-                                transition={{ type: 'spring', stiffness: 120, damping: 22 }}
-                                style={{
-                                  width: '100%',
-                                  background:
-                                    'linear-gradient(90deg, rgba(6,95,70,0.95) 0%, #00ff88 42%, #fef08a 88%, #fffef0 100%)',
-                                  boxShadow:
-                                    '0 0 14px rgba(0,255,136,0.55), inset 0 1px 0 rgba(255,255,255,0.35)'
-                                }}
-                              />
-                              <div
-                                className="pointer-events-none absolute inset-y-0 right-0 z-[3] w-px bg-white/25"
-                                aria-hidden
-                              />
                             </div>
                             <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[0.7rem] sm:text-[0.75rem] font-mono dark:font-arcade font-bold tabular-nums">
                               <span className="text-fuchsia-200/90 uppercase tracking-[0.12em] text-[0.62rem]">
@@ -2923,6 +2892,24 @@ export function MoneyClock() {
           {portalToast}
         </div>
       : null}
+      {!aiPanelOpen ?
+        <motion.button
+          type="button"
+          onClick={() => setAiPanelOpen(true)}
+          whileTap={{ scale: 0.94 }}
+          className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-[65] flex h-14 w-14 items-center justify-center rounded-full border-2 border-violet-400/50 bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-[0_8px_28px_rgba(0,0,0,0.35)] dark:border-cyan-500/40 dark:from-cyan-800 dark:to-violet-900"
+          aria-label={t('ai.openAria')}
+        >
+          <Sparkles size={26} strokeWidth={2.2} />
+        </motion.button>
+      : null}
+      <AiChatPanel
+        open={aiPanelOpen}
+        onClose={() => setAiPanelOpen(false)}
+        moneySnapshot={aiMoneySnapshot}
+        locale={locale}
+        t={t}
+      />
       </div>
     </div>
   );

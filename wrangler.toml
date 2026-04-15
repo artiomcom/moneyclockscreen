@@ -1,6 +1,8 @@
-# Cloudflare Pages + KV (cloud backup / magic links).
+# Cloudflare Pages + KV (cloud backup / magic links + AI usage counters).
 # 1. Create a KV namespace: npx wrangler kv namespace create BACKUP_KV
 # 2. Put the id below, then: npm run build && npx wrangler pages deploy dist --project-name=YOUR_PROJECT
+# 3. AI: npx wrangler pages secret put OPENAI_API_KEY
+#    Optional vars (Dashboard → Settings → Environment variables): AI_MODEL, AI_MAX_TOKENS_PER_DAY, etc.
 
 name = "moneyclock"
 compatibility_date = "2024-09-23"

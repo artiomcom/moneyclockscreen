@@ -213,6 +213,12 @@ export const pt: Record<string, string> = {
   'settings.takeHomeAria': 'Percentual líquido após impostos',
   'settings.takeHomeHint':
     '{pct}% do contrato contam para o bloco “taxa real” na tela principal. Estimativa, não contabilidade.',
+  'settings.workdayWindow': 'Janela do dia de trabalho',
+  'settings.workdayWindowHint':
+    'Hora local de início e fim para «Hoje» e o progresso do dia. Salvo com os seus dados.',
+  'settings.workdayStartHour': 'De',
+  'settings.workdayEndHour': 'Até',
+  'settings.workdayEndMidnight': '24:00 (meia-noite)',
   'settings.balanceFooter':
     '“Total ganho” soma projetos selecionados. Saldo separado: base da folha mais acúmulo de todos; moedas estrangeiras com taxa API ao vivo (como o contador principal).',
   'settings.projectsPicker': 'Projetos',

@@ -226,6 +226,12 @@ export const en: Record<string, string> = {
   'settings.takeHomeAria': 'Take-home percentage after tax',
   'settings.takeHomeHint':
     '{pct}% of contract counted for the “real rate” block on the main screen. Estimate, not accounting.',
+  'settings.workdayWindow': 'Workday window',
+  'settings.workdayWindowHint':
+    'Local start and end of the band used for “Today” on the dashboard and daily progress. Stored with your data.',
+  'settings.workdayStartHour': 'From',
+  'settings.workdayEndHour': 'To',
+  'settings.workdayEndMidnight': '24:00 (midnight)',
   'settings.balanceFooter':
     '“Total earned” sums selected projects. Account balance is separate: payroll base plus accrual from all selected projects; foreign amounts convert with the live API rate (same as the main counter).',
   'settings.projectsPicker': 'Projects',

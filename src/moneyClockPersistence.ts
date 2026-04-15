@@ -121,6 +121,17 @@ export type MoneyClockSavedState = {
    * 1 = вся сумма контракта как сейчас в расчётах.
    */
   takeHomeFraction: number;
+  /**
+   * Локальный час начала рабочего окна для героя и прогресса дня (0–23).
+   * @default 8
+   */
+  workdayStartHour: number;
+  /**
+   * Локальный час конца этого окна (1–24; 24 = полночь в конце календарного дня).
+   * Должен быть строго больше workdayStartHour.
+   * @default 24
+   */
+  workdayEndHour: number;
   /** Optional: резюме и метаданные рядом с настройками MoneyClock */
   profile?: MoneyClockProfile;
 };
@@ -134,6 +145,31 @@ type StoredPayload = {
 
 function isLegacyModeField(x: unknown): boolean {
   return x === 'project' || x === 'salary' || x === 'hourly';
+}
+
+export const DEFAULT_WORKDAY_START_HOUR = 8;
+export const DEFAULT_WORKDAY_END_HOUR = 24;
+
+/** Час начала рабочего окна героя (0–23). */
+export function normalizeWorkdayStartHour(raw: unknown): number {
+  const n =
+    typeof raw === 'number' ? raw
+    : typeof raw === 'string' ? parseInt(raw, 10)
+    : NaN;
+  if (!Number.isFinite(n)) return DEFAULT_WORKDAY_START_HOUR;
+  return Math.min(23, Math.max(0, Math.floor(n)));
+}
+
+/** Час конца окна (1–24); гарантирует интервал хотя бы в 1 час. */
+export function normalizeWorkdayEndHour(raw: unknown, startH: number): number {
+  const n =
+    typeof raw === 'number' ? raw
+    : typeof raw === 'string' ? parseInt(raw, 10)
+    : NaN;
+  if (!Number.isFinite(n)) return DEFAULT_WORKDAY_END_HOUR;
+  let e = Math.min(24, Math.max(1, Math.floor(n)));
+  if (e <= startH) e = Math.min(24, startH + 1);
+  return e;
 }
 
 /** Парсинг доли «на руки» из сохранённого JSON; по умолчанию 1. */
@@ -237,6 +273,9 @@ function parsePayload(data: unknown): MoneyClockSavedState | null {
       (o.profile as MoneyClockProfile)
     : undefined;
 
+  const workdayStartHour = normalizeWorkdayStartHour(o.workdayStartHour);
+  const workdayEndHour = normalizeWorkdayEndHour(o.workdayEndHour, workdayStartHour);
+
   return {
     mode: 'project',
     monthlySalary: '0',
@@ -250,6 +289,8 @@ function parsePayload(data: unknown): MoneyClockSavedState | null {
         o.lastPayrollYmd.trim()
       : localTodayYmd(),
     takeHomeFraction: clampTakeHomeFraction(o.takeHomeFraction),
+    workdayStartHour,
+    workdayEndHour,
     projectsBundle: {
       ...bundle,
       selectedProjectIds,
@@ -655,7 +696,9 @@ export function defaultMoneyClockState(): MoneyClockSavedState {
     currentBalance: '0',
     currentBalanceCurrency: DEFAULT_CURRENCY_CODE,
     lastPayrollYmd: localTodayYmd(),
-    takeHomeFraction: 1
+    takeHomeFraction: 1,
+    workdayStartHour: DEFAULT_WORKDAY_START_HOUR,
+    workdayEndHour: DEFAULT_WORKDAY_END_HOUR
   };
 }
 

@@ -227,6 +227,12 @@ export const ru: Record<string, string> = {
   'settings.takeHomeAria': 'Доля на руки после налогов в процентах',
   'settings.takeHomeHint':
     '{pct}% контрактной суммы, для блока «реальная ставка» на главном экране. Оценка, не бухучёт.',
+  'settings.workdayWindow': 'Рабочее окно',
+  'settings.workdayWindowHint':
+    'Локальное начало и конец интервала для «Сегодня» и прогресса дня на дашборде. Сохраняется с данными.',
+  'settings.workdayStartHour': 'С',
+  'settings.workdayEndHour': 'До',
+  'settings.workdayEndMidnight': '24:00 (полночь)',
   'settings.balanceFooter':
     '«Всего заработано» — сумма по выбранным проектам. Остаток на счёте отдельно: база после зарплаты плюс доначисление по всем выбранным проектам; суммы в других валютах пересчитываются по текущему курсу API (как главный счётчик).',
   'settings.projectsPicker': 'Проекты',

@@ -193,6 +193,11 @@ export const zh: Record<string, string> = {
   'settings.takeHome': '税后到手比例（估算）',
   'settings.takeHomeAria': '税后到手百分比',
   'settings.takeHomeHint': '合同金额的 {pct}% 计入主屏「实际速率」块。估算，非会计。',
+  'settings.workdayWindow': '工作日时段',
+  'settings.workdayWindowHint': '用于主屏「今日」与当日进度的本地起止时间；随数据保存。',
+  'settings.workdayStartHour': '从',
+  'settings.workdayEndHour': '到',
+  'settings.workdayEndMidnight': '24:00（午夜）',
   'settings.balanceFooter':
     '「累计赚得」汇总选中项目。账户余额另计：发薪基数加全部选中项目的计提；外币按实时 API 汇率折算（与主屏计数相同）。',
   'settings.projectsPicker': '项目',

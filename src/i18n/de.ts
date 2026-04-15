@@ -213,6 +213,12 @@ export const de: Record<string, string> = {
   'settings.takeHomeAria': 'Netto-Prozentsatz nach Steuern',
   'settings.takeHomeHint':
     '{pct}% des Vertrags für den „Realrate“-Block auf dem Hauptbildschirm. Schätzung, keine Buchhaltung.',
+  'settings.workdayWindow': 'Arbeitstags-Fenster',
+  'settings.workdayWindowHint':
+    'Lokaler Start und Ende des Bandes für „Heute“ und Tagesfortschritt. Wird mit den Daten gespeichert.',
+  'settings.workdayStartHour': 'Von',
+  'settings.workdayEndHour': 'Bis',
+  'settings.workdayEndMidnight': '24:00 (Mitternacht)',
   'settings.balanceFooter':
     '„Insgesamt verdient“ summiert gewählte Projekte. Kontosaldo getrennt: Lohnbasis plus Aufstockung aller gewählten Projekte; Fremdwährungen mit Live-API-Kurs (wie Hauptanzeige).',
   'settings.projectsPicker': 'Projekte',

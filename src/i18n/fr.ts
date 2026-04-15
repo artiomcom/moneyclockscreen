@@ -213,6 +213,12 @@ export const fr: Record<string, string> = {
   'settings.takeHomeAria': 'Pourcentage net après impôts',
   'settings.takeHomeHint':
     '{pct}% du contrat comptés pour le bloc « taux réel » sur l’écran principal. Estimation, pas de la compta.',
+  'settings.workdayWindow': 'Plage de journée',
+  'settings.workdayWindowHint':
+    'Début et fin locaux pour « Aujourd’hui » et la progression du jour. Enregistré avec vos données.',
+  'settings.workdayStartHour': 'De',
+  'settings.workdayEndHour': 'À',
+  'settings.workdayEndMidnight': '24:00 (minuit)',
   'settings.balanceFooter':
     '« Total gagné » additionne les projets sélectionnés. Solde séparé : base paie plus accumulation de tous ; devises étrangères au taux API en direct (comme le compteur principal).',
   'settings.projectsPicker': 'Projets',

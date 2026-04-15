@@ -55,7 +55,8 @@ import {
   earningsTotalsByCurrency,
   projectRatePerSecond,
   projectNominalHourlyFteInProjectCurrency,
-  FTE_HERO_WORKDAY_DISPLAY_HOURS,
+  normalizeWorkdayStartHour,
+  normalizeWorkdayEndHour,
   projectIsEndedByDeadline,
   parseLocalDateYmd,
   balanceOnAccountAt,
@@ -215,15 +216,10 @@ function readProfilePersonal(p: MoneyClockProfile): {
 const EMPTY_INFLATION_CCY: string[] = [];
 
 /** Локальный час начала интервала «Сегодня» в герое (не полуночь). */
-const HERO_TODAY_LOCAL_START_HOUR = 8;
-
 /** Easing из Magic Patterns `DayProgress` (framer cubic-bezier). */
 const MP_DAY_PROGRESS_EASE: [number, number, number, number] = [
   0.16, 1, 0.3, 1
 ];
-
-/** Секунды от начала «дня» (8:00) до полуночи — потолок дневного прогресса. */
-const DAY_SECONDS_8_TO_MIDNIGHT = (24 - HERO_TODAY_LOCAL_START_HOUR) * 3600;
 
 const initialMoneyClockRef = { current: null as MoneyClockSavedState | null };
 function getInitialMoneyClockState(): MoneyClockSavedState {
@@ -252,6 +248,16 @@ export function MoneyClock() {
   const [takeHomeFraction, setTakeHomeFraction] = useState(
     () => clampTakeHomeFraction(getInitialMoneyClockState().takeHomeFraction)
   );
+  const [workdayStartHour, setWorkdayStartHour] = useState(
+    () => normalizeWorkdayStartHour(getInitialMoneyClockState().workdayStartHour)
+  );
+  const [workdayEndHour, setWorkdayEndHour] = useState(() => {
+    const s = getInitialMoneyClockState();
+    return normalizeWorkdayEndHour(
+      s.workdayEndHour,
+      normalizeWorkdayStartHour(s.workdayStartHour)
+    );
+  });
   const [profileBundle, setProfileBundle] = useState<MoneyClockProfile | undefined>(
     () => getInitialMoneyClockState().profile
   );
@@ -836,12 +842,6 @@ export function MoneyClock() {
     inflationYearly
   ]);
 
-  const heroUsesFteNominalHourly = useMemo(
-    () =>
-      equivalentFteHourlyInBalanceCcy != null && equivalentFteHourlyInBalanceCcy > 0,
-    [equivalentFteHourlyInBalanceCcy]
-  );
-
   const futureYearly = useMemo(() => {
     if (!heroRateBasis) return null;
     const secY = 365.25 * 86400;
@@ -868,29 +868,33 @@ export function MoneyClock() {
     };
   }, [heroRateBasis, futureYearly]);
 
-  const todayStartMs = useMemo(() => {
-    const d = new Date(nowTick);
-    d.setHours(HERO_TODAY_LOCAL_START_HOUR, 0, 0, 0);
-    return d.getTime();
-  }, [nowTick]);
+  const heroDayWindowBounds = useMemo(() => {
+    const d0 = new Date(nowTick);
+    d0.setHours(workdayStartHour, 0, 0, 0);
+    const startMs = d0.getTime();
+    const d1 = new Date(nowTick);
+    d1.setHours(workdayEndHour, 0, 0, 0);
+    const endMs = d1.getTime();
+    const windowSec = Math.max(0, (endMs - startMs) / 1000);
+    return { startMs, endMs, windowSec };
+  }, [nowTick, workdayStartHour, workdayEndHour]);
+
+  const todayStartMs = heroDayWindowBounds.startMs;
 
   const heroTodayAccrual = useMemo(() => {
     if (!heroRateBasis) return null;
-    const sec = Math.max(0, (nowTick - todayStartMs) / 1000);
+    const effectiveEnd = Math.min(nowTick, heroDayWindowBounds.endMs);
+    const sec = Math.max(0, (effectiveEnd - heroDayWindowBounds.startMs) / 1000);
     const fte = equivalentFteHourlyInBalanceCcy;
     if (fte != null && fte > 0) {
-      const hoursNominal = Math.min(
-        FTE_HERO_WORKDAY_DISPLAY_HOURS,
-        sec / 3600
-      );
-      return fte * hoursNominal;
+      return fte * (sec / 3600);
     }
     return heroRateBasis.perSec * sec;
   }, [
     heroRateBasis,
     equivalentFteHourlyInBalanceCcy,
     nowTick,
-    todayStartMs
+    heroDayWindowBounds
   ]);
 
   /** Доля «сегодня» относительно остатка на начало дня (как в макете BalanceCard). */
@@ -904,11 +908,12 @@ export function MoneyClock() {
   const heroDayCapEarnings = useMemo(() => {
     if (!heroRateBasis) return null;
     const fte = equivalentFteHourlyInBalanceCcy;
+    const { windowSec } = heroDayWindowBounds;
     if (fte != null && fte > 0) {
-      return fte * FTE_HERO_WORKDAY_DISPLAY_HOURS;
+      return fte * (windowSec / 3600);
     }
-    return heroRateBasis.perSec * DAY_SECONDS_8_TO_MIDNIGHT;
-  }, [heroRateBasis, equivalentFteHourlyInBalanceCcy]);
+    return heroRateBasis.perSec * windowSec;
+  }, [heroRateBasis, equivalentFteHourlyInBalanceCcy, heroDayWindowBounds]);
 
   const heroDayRemainingEarnings = useMemo(() => {
     if (heroDayCapEarnings == null || heroTodayAccrual == null) return null;
@@ -922,37 +927,29 @@ export function MoneyClock() {
 
   const heroDayWindowTimeLabels = useMemo(() => {
     const tag = intlLocaleTag[locale];
-    const start = new Date(todayStartMs);
+    const start = new Date(heroDayWindowBounds.startMs);
     const startStr = start.toLocaleTimeString(tag, {
       hour: 'numeric',
       minute: '2-digit',
       hourCycle: 'h23'
     });
     let endStr: string;
-    if (heroUsesFteNominalHourly) {
-      const end = new Date(todayStartMs);
-      end.setHours(
-        HERO_TODAY_LOCAL_START_HOUR + FTE_HERO_WORKDAY_DISPLAY_HOURS,
-        0,
-        0,
-        0
-      );
+    if (workdayEndHour === 24) {
+      endStr = t('hero.dayWindowEndMidnight');
+    } else {
+      const end = new Date(heroDayWindowBounds.endMs);
       endStr = end.toLocaleTimeString(tag, {
         hour: 'numeric',
         minute: '2-digit',
         hourCycle: 'h23'
       });
-    } else {
-      endStr = t('hero.dayWindowEndMidnight');
     }
     return { start: startStr, end: endStr };
-  }, [todayStartMs, heroUsesFteNominalHourly, locale, t]);
+  }, [heroDayWindowBounds, workdayEndHour, locale, t]);
 
   const heroDayProgressMarkers = useMemo(() => {
-    const startH = HERO_TODAY_LOCAL_START_HOUR;
-    const endH = heroUsesFteNominalHourly ?
-      HERO_TODAY_LOCAL_START_HOUR + FTE_HERO_WORKDAY_DISPLAY_HOURS :
-      24;
+    const startH = workdayStartHour;
+    const endH = workdayEndHour;
     const span = Math.max(0, endH - startH);
     const maxTicks = 6;
     const step = span <= 0 ? 1 : Math.max(1, Math.ceil(span / maxTicks));
@@ -964,7 +961,7 @@ export function MoneyClock() {
       markers.push(endH);
     }
     return markers;
-  }, [heroUsesFteNominalHourly]);
+  }, [workdayStartHour, workdayEndHour]);
 
   const heroDayProgressMarkerLabels = useMemo(() => {
     const tag = intlLocaleTag[locale];
@@ -1082,6 +1079,9 @@ export function MoneyClock() {
     setCurrentBalanceCurrency(parsed.currentBalanceCurrency);
     setLastPayrollYmd(parsed.lastPayrollYmd);
     setTakeHomeFraction(clampTakeHomeFraction(parsed.takeHomeFraction));
+    const ws = normalizeWorkdayStartHour(parsed.workdayStartHour);
+    setWorkdayStartHour(ws);
+    setWorkdayEndHour(normalizeWorkdayEndHour(parsed.workdayEndHour, ws));
     setProfileBundle(parsed.profile);
     saveMoneyClockState(parsed);
     initialMoneyClockRef.current = null;
@@ -1197,6 +1197,8 @@ export function MoneyClock() {
       currentBalanceCurrency,
       lastPayrollYmd,
       takeHomeFraction,
+      workdayStartHour,
+      workdayEndHour,
       ...(profileBundle !== undefined ? { profile: profileBundle } : {})
     }),
     [
@@ -1205,6 +1207,8 @@ export function MoneyClock() {
       currentBalanceCurrency,
       lastPayrollYmd,
       takeHomeFraction,
+      workdayStartHour,
+      workdayEndHour,
       profileBundle
     ]
   );
@@ -1594,6 +1598,59 @@ export function MoneyClock() {
             {t('settings.takeHomeHint', { pct: Math.round(takeHomeFraction * 100) })}
           </p>
         </div>
+        <div className="flex flex-col gap-1.5 pt-2 border-t border-emerald-200/50">
+          <label className="text-gray-700 dark:text-cyan-100/90 text-sm font-bold text-center">
+            {t('settings.workdayWindow')}
+          </label>
+          <p className="text-gray-500 dark:text-mp-text text-xs text-center leading-relaxed px-1">
+            {t('settings.workdayWindowHint')}
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col gap-1">
+              <span className="text-gray-600 dark:text-cyan-200/70 text-[0.65rem] font-bold text-center uppercase tracking-wide">
+                {t('settings.workdayStartHour')}
+              </span>
+              <select
+                value={workdayStartHour}
+                onChange={(e) => {
+                  const s = normalizeWorkdayStartHour(Number(e.target.value));
+                  setWorkdayStartHour(s);
+                  setWorkdayEndHour((end) => normalizeWorkdayEndHour(end, s));
+                }}
+                className="w-full px-3 py-2.5 rounded-r80-sm border-2 border-sky-400 text-gray-700 dark:border-cyan-500/60 dark:bg-slate-950 dark:text-cyan-50 text-sm font-medium outline-none transition-all focus:ring-2 focus:ring-sky-300 dark:focus:ring-cyan-500 bg-white"
+                aria-label={t('settings.workdayStartHour')}>
+                {Array.from({ length: 24 }, (_, h) =>
+                  <option key={h} value={h}>
+                    {String(h).padStart(2, '0')}:00
+                  </option>
+                )}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-gray-600 dark:text-cyan-200/70 text-[0.65rem] font-bold text-center uppercase tracking-wide">
+                {t('settings.workdayEndHour')}
+              </span>
+              <select
+                value={workdayEndHour}
+                onChange={(e) =>
+                  setWorkdayEndHour(
+                    normalizeWorkdayEndHour(Number(e.target.value), workdayStartHour)
+                  )
+                }
+                className="w-full px-3 py-2.5 rounded-r80-sm border-2 border-sky-400 text-gray-700 dark:border-cyan-500/60 dark:bg-slate-950 dark:text-cyan-50 text-sm font-medium outline-none transition-all focus:ring-2 focus:ring-sky-300 dark:focus:ring-cyan-500 bg-white"
+                aria-label={t('settings.workdayEndHour')}>
+                {Array.from({ length: 24 }, (_, i) => {
+                  const h = i + 1;
+                  return (
+                    <option key={h} value={h} disabled={h <= workdayStartHour}>
+                      {h === 24 ? t('settings.workdayEndMidnight') : `${String(h).padStart(2, '0')}:00`}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          </div>
+        </div>
         <p className="text-gray-500 dark:text-cyan-200/45 text-xs text-center leading-relaxed px-1">
           {t('settings.balanceFooter')}
         </p>
@@ -1867,7 +1924,7 @@ export function MoneyClock() {
         <p className="text-gray-700 dark:text-cyan-100/90 text-sm font-bold text-center mb-1">
           {t('settings.dataTitle')}
         </p>
-        <p className="text-gray-500 dark:text-cyan-200/45 text-xs text-center mb-3 leading-relaxed px-0.5">
+        <p className="px-0.5 text-center text-xs leading-relaxed text-gray-500 dark:text-mp-text dark:[text-shadow:0_1px_8px_rgba(0,0,0,0.5)] mb-3">
           {t('settings.dataHint')}
         </p>
         <div
@@ -1875,7 +1932,7 @@ export function MoneyClock() {
           <p className="text-amber-950 dark:text-amber-100/95 text-[0.68rem] font-extrabold uppercase tracking-wide text-center mb-1.5">
             {t('settings.storageRiskTitle')}
           </p>
-          <p className="text-amber-900/90 dark:text-amber-50/80 text-xs text-center leading-relaxed">
+          <p className="text-center text-xs leading-relaxed text-amber-900/90 dark:text-amber-100 dark:[text-shadow:0_1px_10px_rgba(0,0,0,0.45)]">
             {t('settings.storageRiskBody')}
           </p>
         </div>
@@ -2013,7 +2070,7 @@ export function MoneyClock() {
                   <p className="text-amber-100/95 text-[0.62rem] font-extrabold uppercase tracking-[0.12em] text-center mb-1.5">
                     {t('backupBanner.title')}
                   </p>
-                  <p className="text-amber-50/88 text-xs text-center leading-relaxed mb-3 max-w-md mx-auto">
+                  <p className="mx-auto mb-3 max-w-md text-center text-sm font-medium leading-relaxed text-amber-950/95 dark:text-amber-50 dark:[text-shadow:0_1px_10px_rgba(0,0,0,0.55)]">
                     {t('backupBanner.body')}
                   </p>
                   <div className="flex flex-col sm:flex-row items-stretch justify-center gap-2 max-w-md mx-auto">

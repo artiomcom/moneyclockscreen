@@ -210,6 +210,12 @@ export const ja: Record<string, string> = {
   'settings.takeHomeAria': '税引後の手取り％',
   'settings.takeHomeHint':
     '契約の {pct}% をメインの「実質レート」に使用。目安で会計ではありません。',
+  'settings.workdayWindow': '稼働時間帯',
+  'settings.workdayWindowHint':
+    '「今日」と日次進捗に使うローカル開始・終了。データと一緒に保存されます。',
+  'settings.workdayStartHour': '開始',
+  'settings.workdayEndHour': '終了',
+  'settings.workdayEndMidnight': '24:00（深夜）',
   'settings.balanceFooter':
     '「累計獲得」は選択プロジェクトの合計。口座残高は別：給与ベース＋全選択プロジェクトの積み上げ。外貨はライブ API レートで換算（メイン表示と同じ）。',
   'settings.projectsPicker': 'プロジェクト',

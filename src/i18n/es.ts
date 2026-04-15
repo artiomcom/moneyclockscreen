@@ -213,6 +213,12 @@ export const es: Record<string, string> = {
   'settings.takeHomeAria': 'Porcentaje neto tras impuestos',
   'settings.takeHomeHint':
     'Se cuenta un {pct}% del contrato para el bloque de “ritmo real” en la pantalla principal. Estimación, no contabilidad.',
+  'settings.workdayWindow': 'Ventana laboral',
+  'settings.workdayWindowHint':
+    'Hora local de inicio y fin usada para «Hoy» y el progreso del día. Se guarda con tus datos.',
+  'settings.workdayStartHour': 'Desde',
+  'settings.workdayEndHour': 'Hasta',
+  'settings.workdayEndMidnight': '24:00 (medianoche)',
   'settings.balanceFooter':
     '“Total ganado” suma los proyectos seleccionados. Saldo aparte: base tras nómina más devengo de todos ellos; divisas extranjeras con tipo API en vivo (como el contador principal).',
   'settings.projectsPicker': 'Proyectos',
